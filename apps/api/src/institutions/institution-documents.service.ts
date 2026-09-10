@@ -8,6 +8,10 @@ import { DOCUMENT_TYPES } from './institution.types';
 
 const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const MAX_SIZE = 10 * 1024 * 1024;
+const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [
+  InstitutionApplicationStatus.DRAFT,
+  InstitutionApplicationStatus.CORRECTION_REQUIRED,
+];
 
 @Injectable()
 export class InstitutionDocumentsService {
@@ -19,7 +23,7 @@ export class InstitutionDocumentsService {
     if (!ALLOWED_MIME.has(file.mimetype)) throw new BadRequestException('Unsupported document MIME type');
     const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true } });
     if (!application) throw new NotFoundException('Application not found');
-    if (![InstitutionApplicationStatus.DRAFT, InstitutionApplicationStatus.CORRECTION_REQUIRED].includes(application.status)) throw new BadRequestException('Documents cannot be changed in the current application status');
+    if (!DOCUMENT_EDITABLE_STATUSES.includes(application.status)) throw new BadRequestException('Documents cannot be changed in the current application status');
     const root = process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
     if (!root) throw new BadRequestException('Institution document storage is not configured');
     const extension = file.mimetype === 'application/pdf' ? '.pdf' : file.mimetype === 'image/png' ? '.png' : '.jpg';
