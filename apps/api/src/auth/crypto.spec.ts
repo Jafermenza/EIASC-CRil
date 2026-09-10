@@ -20,6 +20,11 @@ describe('auth crypto', () => {
     const now = Math.floor(Date.now() / 1000);
     const token = signJwt({ sub: 'user-1', type: 'access', iss: 'eiasc-cril', iat: now, exp: now + 60 }, secret);
     expect(verifyJwt(token, secret).sub).toBe('user-1');
-    expect(() => verifyJwt(`${token.slice(0, -1)}x`, secret)).toThrow();
+
+    const parts = token.split('.');
+    const originalSignature = parts[2];
+    const replacement = originalSignature[0] === 'A' ? 'B' : 'A';
+    parts[2] = `${replacement}${originalSignature.slice(1)}`;
+    expect(() => verifyJwt(parts.join('.'), secret)).toThrow();
   });
 });
