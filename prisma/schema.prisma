@@ -4,6 +4,7 @@ datasource db { provider = "postgresql" url = env("DATABASE_URL") }
 
 enum UserStatus { ACTIVE SUSPENDED DISABLED }
 enum RoleCode { SUPER_ADMIN NATIONAL_ADMIN REGIONAL_ADMIN ZONE_ADMIN DISTRICT_ADMIN REGISTRAR INSPECTOR FINANCE_OFFICER INSTITUTION_ADMIN MEMBER }
+enum JurisdictionLevel { NATIONAL REGION ZONE_CITY SUBCITY_TOWN DISTRICT INSTITUTION }
 enum InstitutionStatus { PENDING ACTIVE SUSPENDED REVOKED CLOSED }
 enum MemberStatus { PENDING ACTIVE SUSPENDED REVOKED }
 
@@ -13,10 +14,17 @@ model User {
   phone String? @unique
   passwordHash String
   status UserStatus @default(ACTIVE)
+  jurisdictionLevel JurisdictionLevel @default(NATIONAL)
+  jurisdictionId String?
+  institutionId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   roles UserRole[]
   auditLogs AuditLog[]
+  refreshTokens RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  @@index([jurisdictionLevel, jurisdictionId])
+  @@index([institutionId])
 }
 
 model Role {
@@ -36,6 +44,30 @@ model UserRole {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
   @@unique([userId, roleId])
+}
+
+model RefreshToken {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  tokenHash String @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  tokenHash String @unique
+  expiresAt DateTime
+  usedAt DateTime?
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, usedAt])
+  @@index([expiresAt])
 }
 
 model Region {
