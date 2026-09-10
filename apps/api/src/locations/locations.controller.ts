@@ -11,26 +11,18 @@ import { LocationsService } from './locations.service';
 export class LocationsController {
   constructor(private readonly locations: LocationsService) {}
 
-  // These read endpoints remain public because registration forms use them to build the hierarchy.
+  // Public reads are required by public registration forms.
   @Get('regions')
-  regions() {
-    return this.locations.getRegions();
-  }
+  regions() { return this.locations.getRegions(); }
 
   @Get('zones')
-  zones(@Query('regionId') regionId?: string) {
-    return this.locations.getZones(regionId);
-  }
+  zones(@Query('regionId') regionId?: string) { return this.locations.getZones(regionId); }
 
   @Get('subcities')
-  subcities(@Query('zoneId') zoneId?: string) {
-    return this.locations.getSubcities(zoneId);
-  }
+  subcities(@Query('zoneId') zoneId?: string) { return this.locations.getSubcities(zoneId); }
 
   @Get('districts')
-  districts(@Query('parentId') parentId?: string) {
-    return this.locations.getDistricts(parentId);
-  }
+  districts(@Query('parentId') parentId?: string) { return this.locations.getDistricts(parentId); }
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN)
@@ -55,13 +47,6 @@ export class LocationsController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN)
-  @Post('districts')
-  createDistrict(@Req() request: AuthenticatedRequest, @Body() body: Record<string, unknown>, @Headers('x-request-id') requestId?: string) {
-    return this.locations.createDistrict({ code: this.requiredString(body.code), name: this.requiredString(body.name), subcityId: this.requiredString(body.subcityId) }, request.user!, requestId);
-  }
-
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN)
   @Get('import-template')
   async importTemplate(@Res() response: Response) {
     const workbook = await this.locations.createTemplate();
@@ -76,9 +61,8 @@ export class LocationsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 5 * 1024 * 1024 } }))
   importExcel(@Req() request: AuthenticatedRequest, @UploadedFile() file: { buffer: Buffer; mimetype: string; originalname: string; size: number } | undefined, @Headers('x-request-id') requestId?: string) {
     if (!file) throw new BadRequestException('Excel file is required');
-    const accepted = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
-    const extension = file.originalname.toLowerCase().endsWith('.xlsx') || file.originalname.toLowerCase().endsWith('.xls');
-    if (!accepted.includes(file.mimetype) && !extension) throw new BadRequestException('Only Excel .xlsx or .xls files are accepted');
+    const accepted = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    if (file.mimetype !== accepted || !file.originalname.toLowerCase().endsWith('.xlsx')) throw new BadRequestException('Only Excel .xlsx files are accepted');
     return this.locations.importExcel(file.buffer, request.user!, requestId);
   }
 
