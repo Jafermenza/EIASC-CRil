@@ -5,7 +5,7 @@ describe('LocationsService', () => {
     region: { findMany: jest.fn() },
     zoneCity: { findMany: jest.fn() },
     subcityTown: { findMany: jest.fn() },
-    district: { findMany: jest.fn() },
+    district: { findMany: jest.fn(), findUnique: jest.fn() },
   };
   const service = new LocationsService(prisma as never);
 
@@ -45,6 +45,36 @@ describe('LocationsService', () => {
       orderBy: { name: 'asc' },
       select: { id: true, code: true, name: true, subcityId: true },
     });
+  });
+
+  it('validates the complete region-to-district chain', async () => {
+    prisma.district.findUnique.mockResolvedValue({
+      id: 'district-1',
+      subcityId: 'subcity-1',
+      subcity: {
+        id: 'subcity-1',
+        zoneId: 'zone-1',
+        zone: { id: 'zone-1', regionId: 'region-1' },
+      },
+    });
+    await expect(
+      service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1', subcityId: 'subcity-1', districtId: 'district-1' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects a cross-parent hierarchy', async () => {
+    prisma.district.findUnique.mockResolvedValue({
+      id: 'district-1',
+      subcityId: 'subcity-1',
+      subcity: {
+        id: 'subcity-1',
+        zoneId: 'zone-1',
+        zone: { id: 'zone-1', regionId: 'region-A' },
+      },
+    });
+    await expect(
+      service.validateHierarchy({ regionId: 'region-B', zoneId: 'zone-1', subcityId: 'subcity-1', districtId: 'district-1' }),
+    ).rejects.toThrow('Location hierarchy is invalid');
   });
 
   it('rejects an explicitly empty parent filter', async () => {
