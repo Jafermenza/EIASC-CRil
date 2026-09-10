@@ -186,7 +186,7 @@ export class LicensingService {
   private async transitionApplication(user: AuthenticatedUser, id: string, target: LicenseApplicationStatus, reason?: string) {
     await this.assertDecisionRole(user);
     const license = await this.get(user, id);
-    const valid: Record<LicenseApplicationStatus, LicenseApplicationStatus[]> = {
+    const valid: Record<LicenseApplicationStatus, readonly LicenseApplicationStatus[]> = {
       DRAFT: [LicenseApplicationStatus.SUBMITTED],
       SUBMITTED: [LicenseApplicationStatus.UNDER_REVIEW],
       UNDER_REVIEW: [LicenseApplicationStatus.CORRECTION_REQUIRED, LicenseApplicationStatus.APPROVED, LicenseApplicationStatus.REJECTED],
@@ -195,9 +195,11 @@ export class LicensingService {
       APPROVED: [],
       REJECTED: [],
     };
-    if (!valid[license.applicationStatus].includes(target)) throw new ConflictException(`Invalid licensing application transition: ${license.applicationStatus} -> ${target}`);
+    const currentStatus = license.applicationStatus as LicenseApplicationStatus;
+    if (!valid[currentStatus].includes(target)) throw new ConflictException(`Invalid licensing application transition: ${currentStatus} -> ${target}`);
     const clean = reason ? this.cleanReason(reason) : undefined;
-    if ([LicenseApplicationStatus.CORRECTION_REQUIRED, LicenseApplicationStatus.REJECTED].includes(target) && !clean) throw new BadRequestException('Reason is required');
+    const requiresReason = target === LicenseApplicationStatus.CORRECTION_REQUIRED || target === LicenseApplicationStatus.REJECTED;
+    if (requiresReason && !clean) throw new BadRequestException('Reason is required');
     return { license, reason: clean };
   }
 
