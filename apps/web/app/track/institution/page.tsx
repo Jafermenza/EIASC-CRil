@@ -1,0 +1,10 @@
+'use client';
+
+import { FormEvent, useEffect, useState } from 'react';
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+export default function InstitutionTrackPage(){
+  const [code,setCode]=useState(''); const [phone,setPhone]=useState(''); const [data,setData]=useState<any>(null); const [error,setError]=useState('');
+  useEffect(()=>{const c=new URLSearchParams(window.location.search).get('code');if(c)setCode(c);},[]);
+  async function submit(e:FormEvent){e.preventDefault();setError('');setData(null);try{const q=phone?`?phone=${encodeURIComponent(phone)}`:'';const r=await fetch(`${API}/registrations/institution/${encodeURIComponent(code)}${q}`);const d=await r.json();if(!r.ok)throw new Error(d.message||'Application not found');setData(d);}catch(err){setError(err instanceof Error?err.message:'Unable to track application.');}}
+  return <main className="shell" style={{maxWidth:760}}><div className="hero"><p className="eyebrow">EIASC · INSTITUTION TRACKING</p><h1>Track institution application</h1><p className="lead">Enter the tracking code issued after submission. Applicant phone can be used as an additional verification.</p></div><form onSubmit={submit} className="grid"><section><p><input required placeholder="EIASC-I-YYYY-XXXXXX" value={code} onChange={e=>setCode(e.target.value)}/></p><p><input placeholder="Applicant phone (optional)" value={phone} onChange={e=>setPhone(e.target.value)}/></p><button className="button">Check status</button></section></form>{error&&<article className="grid"><div><strong>Unable to find application</strong><p>{error}</p></div></article>}{data&&<article className="grid"><div><p><strong>Tracking code:</strong> {data.trackingCode}</p><p><strong>Status:</strong> {data.status}</p><p><strong>Next action:</strong> {data.nextAction}</p>{data.correctionRequirement&&<p><strong>Correction required:</strong> {data.correctionRequirement}</p>}{data.decisionInformation&&<p><strong>Decision:</strong> {data.decisionInformation}</p>}<p><strong>Submitted:</strong> {data.submittedAt?new Date(data.submittedAt).toLocaleString():'Not yet submitted'}</p></div></article>}</main>;
+}
