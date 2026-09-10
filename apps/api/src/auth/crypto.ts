@@ -3,10 +3,11 @@ import { promisify } from 'node:util';
 
 const scryptAsync = promisify(scrypt);
 
-type JsonRecord = { [key: string]: unknown };
+type JwtPayload = object;
 
 function base64Url(input: string | Uint8Array): string {
-  return Buffer.from(input).toString('base64url');
+  if (typeof input === 'string') return Buffer.from(input, 'utf8').toString('base64url');
+  return Buffer.from(input as Uint8Array<ArrayBuffer>).toString('base64url');
 }
 
 export async function hashPassword(password: string): Promise<string> {
@@ -32,7 +33,7 @@ export function createOpaqueToken(bytes = 32): string {
   return randomBytes(bytes).toString('base64url');
 }
 
-export function signJwt(payload: JsonRecord, secret: string): string {
+export function signJwt(payload: JwtPayload, secret: string): string {
   const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const body = base64Url(JSON.stringify(payload));
   const input = `${header}.${body}`;
