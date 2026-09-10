@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
-import { RoleCode, UserStatus } from '@prisma/client';
+import { Prisma, RoleCode, UserStatus } from '@prisma/client';
 import { createOpaqueToken, hashPassword, hashToken, signJwt, verifyJwt, verifyPassword } from './crypto';
 import { AccessTokenPayload, AuthenticatedUser, RefreshTokenPayload } from './auth.types';
 
@@ -106,7 +106,7 @@ export class AuthService {
   private async issueRefreshToken(userId: string): Promise<string> {
     const now = Math.floor(Date.now() / 1000);
     const jti = createOpaqueToken(18);
-    const token = signJwt({ sub: userId, type: 'refresh', jti, iss: this.issuer, iat: now, exp: now + REFRESH_TTL_SECONDS } satisfies RefreshTokenPayload, this.secret!);
+    const token = signJwt({ sub: userId, type: 'refresh', jti, iss: this.issuer, iat: now, exp: now + REFRESH_TTL_SECONDS }, this.secret!);
     await this.prisma.refreshToken.create({ data: { userId, tokenHash: hashToken(token), expiresAt: new Date((now + REFRESH_TTL_SECONDS) * 1000) } });
     return token;
   }
@@ -115,7 +115,7 @@ export class AuthService {
     return { id, email, phone, status, roles, jurisdictionLevel, jurisdictionId, institutionId };
   }
 
-  private async audit(actorUserId: string | null, action: string, entityType: string, entityId: string | null, requestId?: string, metadata?: Record<string, unknown>) {
+  private async audit(actorUserId: string | null, action: string, entityType: string, entityId: string | null, requestId?: string, metadata?: Prisma.InputJsonValue) {
     await this.prisma.auditLog.create({ data: { actorUserId, action, entityType, entityId, requestId, metadata } });
   }
 }
