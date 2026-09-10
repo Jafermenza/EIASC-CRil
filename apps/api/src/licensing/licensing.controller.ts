@@ -45,13 +45,6 @@ export class LicensingController {
   approve(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.licensing.approve(req.user!, id); }
 
   @Roles(...DECISION_ROLES)
-  @Post(':id/reject')
-  reject(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: LicenseReasonInput) {
-    if (!body?.reason?.trim()) throw new BadRequestException('reason is required');
-    return this.licensing.reject(req.user!, id, body.reason);
-  }
-
-  @Roles(...DECISION_ROLES)
   @Post(':id/issue')
   issue(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: RenewLicenseInput = {}) { return this.licensing.issue(req.user!, id, body.expiresAt); }
 
