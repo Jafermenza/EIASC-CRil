@@ -8,9 +8,10 @@ import { RolesGuard } from './auth/roles.guard';
 import { AuthorizationService } from './auth/authorization.service';
 import { LocationsModule } from './locations/locations.module';
 import { RegistrationsModule } from './registrations/registrations.module';
+import { InstitutionsModule } from './institutions/institutions.module';
 
 @Module({
-  imports: [LocationsModule, RegistrationsModule],
+  imports: [LocationsModule, RegistrationsModule, InstitutionsModule],
   controllers: [HealthController, AuthController],
   providers: [PrismaService, AuthService, AuthGuard, RolesGuard, AuthorizationService],
   exports: [PrismaService, AuthService, AuthGuard, RolesGuard, AuthorizationService],
