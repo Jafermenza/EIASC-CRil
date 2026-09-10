@@ -1,6 +1,15 @@
 import { Module } from '@nestjs/common';
 import { HealthController } from './health.controller';
 import { PrismaService } from './prisma.service';
+import { AuthController } from './auth/auth.controller';
+import { AuthService } from './auth/auth.service';
+import { AuthGuard } from './auth/auth.guard';
+import { RolesGuard } from './auth/roles.guard';
+import { AuthorizationService } from './auth/authorization.service';
 
-@Module({ controllers: [HealthController], providers: [PrismaService], exports: [PrismaService] })
+@Module({
+  controllers: [HealthController, AuthController],
+  providers: [PrismaService, AuthService, AuthGuard, RolesGuard, AuthorizationService],
+  exports: [PrismaService, AuthService, AuthGuard, RolesGuard, AuthorizationService],
+})
 export class AppModule {}
