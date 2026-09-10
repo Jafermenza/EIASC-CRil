@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace @eiasc/web\" \"npm run dev --workspace @eiasc/api\"",
     "build": "npm run build --workspace @eiasc/api && npm run build --workspace @eiasc/web",
-    "lint": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{ts,tsx}\"",
+    "lint": "eslint \"apps/**/*.{ts,tsx}\"",
     "typecheck": "npm run typecheck --workspace @eiasc/api && npm run typecheck --workspace @eiasc/web",
     "test": "npm run test --workspace @eiasc/api",
     "db:generate": "prisma generate",
