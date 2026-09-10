@@ -91,7 +91,7 @@ export default function LocationsPage() {
       const response = await fetch(`${API}/locations/import`, { method: 'POST', headers: authHeaders(), body: data });
       const result = await response.json();
       if (!response.ok) throw new Error(Array.isArray(result.message) ? result.message.join('; ') : result.message || 'Import failed');
-      setMessage(`Import completed: ${result.rows} rows processed; ${result.regionsCreated} regions, ${result.zonesCreated} zones/cities, ${result.subcitiesCreated} sub-cities/towns and ${result.districtsCreated} districts/weredas created.`);
+      setMessage(`Import completed: ${result.rows} rows processed; ${result.regionsCreated} regions, ${result.zonesCreated} zones/cities, ${result.subcitiesCreated} sub-cities/towns and ${result.districtsCreated} districts/woredas created.`);
       setFile(null); const input = document.getElementById('location-import-file') as HTMLInputElement | null; if (input) input.value = '';
       await loadRegions();
     } catch (e) { setError(e instanceof Error ? e.message : 'Import failed'); }
@@ -123,6 +123,7 @@ export default function LocationsPage() {
             {level === 'zone' && <label>Region<select required value={regionId} onChange={async (e) => { const id = e.target.value; setRegionId(id); setZoneId(''); setSubcityId(''); await loadChildren(id); }}><option value="">Select Region</option>{regions.map(r => <option key={r.id} value={r.id}>{r.name} ({r.code})</option>)}</select></label>}
             {level === 'subcity' && <label>Zone/City<select required value={zoneId} onChange={async (e) => { const id = e.target.value; setZoneId(id); setSubcityId(''); await loadSubcities(id); }}><option value="">Select Zone/City</option>{zones.map(z => <option key={z.id} value={z.id}>{z.name} ({z.code})</option>)}</select></label>}
             {level === 'district' && <label>Sub-city/Town<select required value={subcityId} onChange={async (e) => { const id = e.target.value; setSubcityId(id); await loadDistricts(id); }}><option value="">Select Sub-city/Town</option>{subcities.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}</select></label>}
+            {level === 'district' && <p style={{ margin: 0 }}>{districts.length} district/woreda records currently under the selected Sub-city/Town.</p>}
             <label>Official code<input required maxLength={50} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="e.g. AA-01-01-01" /></label>
             <label>Official name<input required maxLength={200} value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Official administrative name" /></label>
             <button className="button" type="submit" disabled={busy || (level !== 'region' && !selectedParent)}>{busy ? 'Saving…' : `Create ${label(level)}`}</button>
