@@ -146,7 +146,7 @@ model Region {
 }
 
 model ZoneCity {
-  id            String        @id @default(uuid())
+  id            String        @id @default(uuid()) @db.Uuid
   code          String        @unique
   name          String
   regionId      String        @db.Uuid
@@ -180,7 +180,7 @@ model District {
   code          String        @unique
   name          String
   subcityId     String        @db.Uuid
-  subcity       SubcityTown   @relation(fields: [subcityId], references: [id], onDelete: Restrict)
+  subcity        SubcityTown  @relation(fields: [subcityId], references: [id], onDelete: Restrict)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   institutions  Institution[] @relation("DistrictInstitutions")
@@ -190,7 +190,7 @@ model District {
 }
 
 model InstitutionType {
-  id            String        @id @default(uuid())
+  id            String        @id @default(uuid()) @db.Uuid
   code          String        @unique
   name          String        @unique
   createdAt     DateTime      @default(now())
