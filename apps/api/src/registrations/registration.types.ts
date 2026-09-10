@@ -28,6 +28,9 @@ export interface IndividualRegistrationInput {
   currentAddress?: string;
   nationalIdentity?: string;
   institutionId?: string;
+  familyRelationship?: string;
+  familyMemberName?: string;
+  familyMemberPhone?: string;
   declarationAccepted: boolean;
 }
 
@@ -40,3 +43,17 @@ export interface IndividualRegistrationRecord extends IndividualRegistrationInpu
   createdAt: Date;
   updatedAt: Date;
 }
+
+export interface ApplicationTrackingResult {
+  type: RegistrationTypeValue;
+  trackingCode: string;
+  status: IndividualRegistrationStatus;
+  submittedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  nextAction: string;
+  correctionRequirement?: string;
+  decisionInformation?: string;
+}
+
+type RegistrationTypeValue = 'INDIVIDUAL' | 'INSTITUTION';
