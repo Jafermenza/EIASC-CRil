@@ -87,6 +87,24 @@ enum InstitutionRelationshipStatus {
   INACTIVE
 }
 
+enum LicenseStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  REVOKED
+}
+
+enum LicenseApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  CORRECTION_REQUIRED
+  RESUBMITTED
+  APPROVED
+  REJECTED
+}
+
 model User {
   id                  String            @id @default(uuid()) @db.Uuid
   email               String?           @unique
@@ -198,11 +216,11 @@ model District {
   name         String
   subcityId    String        @db.Uuid
   subcity       SubcityTown  @relation(fields: [subcityId], references: [id], onDelete: Restrict)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  institutions Institution[] @relation("DistrictInstitutions")
-  members      Member[]      @relation("DistrictMembers")
-  applications InstitutionApplication[] @relation("DistrictApplications")
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  institutions  Institution[] @relation("DistrictInstitutions")
+  members       Member[]     @relation("DistrictMembers")
+  applications  InstitutionApplication[] @relation("DistrictApplications")
   @@index([subcityId])
 }
 
@@ -219,41 +237,42 @@ model InstitutionType {
 }
 
 model Institution {
-  id                String             @id @default(uuid()) @db.Uuid
-  institutionCode   String?            @unique
-  name              String
-  alternativeName   String?
-  institutionTypeId String             @db.Uuid
-  establishmentDate DateTime?
-  phone             String?
-  secondaryPhone    String?
-  email             String?
-  website           String?
-  address           String?
-  mission           String?
-  description       String?
-  services          String?
+  id                  String             @id @default(uuid()) @db.Uuid
+  institutionCode     String?            @unique
+  name                String
+  alternativeName     String?
+  institutionTypeId   String             @db.Uuid
+  establishmentDate   DateTime?
+  phone               String?
+  secondaryPhone      String?
+  email               String?
+  website             String?
+  address             String?
+  mission             String?
+  description         String?
+  services            String?
   communityActivities String?
-  regionId          String             @db.Uuid
-  zoneId            String             @db.Uuid
-  subcityId         String             @db.Uuid
-  districtId        String             @db.Uuid
-  status            InstitutionStatus  @default(PENDING)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  type              InstitutionType   @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
-  region            Region             @relation("RegionInstitutions", fields: [regionId], references: [id], onDelete: Restrict)
-  zone              ZoneCity           @relation("ZoneInstitutions", fields: [zoneId], references: [id], onDelete: Restrict)
-  subcity           SubcityTown        @relation("SubcityInstitutions", fields: [subcityId], references: [id], onDelete: Restrict)
-  district          District           @relation("DistrictInstitutions", fields: [districtId], references: [id], onDelete: Restrict)
-  registrations     Registration[]      @relation("InstitutionRegistration")
-  applications      InstitutionApplication[]
-  memberLinks       MemberInstitution[]
-  leaders           InstitutionLeader[]
-  staffSummary      InstitutionStaffSummary?
-  education         InstitutionEducation?
-  documents         InstitutionDocument[]
-  statusHistory     InstitutionStatusHistory[]
+  regionId            String             @db.Uuid
+  zoneId              String             @db.Uuid
+  subcityId           String             @db.Uuid
+  districtId          String             @db.Uuid
+  status              InstitutionStatus  @default(PENDING)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  type                InstitutionType    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
+  region              Region             @relation("RegionInstitutions", fields: [regionId], references: [id], onDelete: Restrict)
+  zone                ZoneCity           @relation("ZoneInstitutions", fields: [zoneId], references: [id], onDelete: Restrict)
+  subcity             SubcityTown        @relation("SubcityInstitutions", fields: [subcityId], references: [id], onDelete: Restrict)
+  district            District           @relation("DistrictInstitutions", fields: [districtId], references: [id], onDelete: Restrict)
+  registrations       Registration[]      @relation("InstitutionRegistration")
+  applications        InstitutionApplication[]
+  memberLinks         MemberInstitution[]
+  leaders             InstitutionLeader[]
+  staffSummary        InstitutionStaffSummary?
+  education           InstitutionEducation?
+  documents           InstitutionDocument[]
+  statusHistory       InstitutionStatusHistory[]
+  licenses            License[]
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([status])
   @@index([name])
@@ -288,8 +307,8 @@ model InstitutionApplication {
   institutionId       String?                    @db.Uuid
   submittedAt         DateTime?
   decisionAt          DateTime?
-  createdAt            DateTime                   @default(now())
-  updatedAt            DateTime                   @updatedAt
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
   institutionType     InstitutionType            @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
   region              Region                     @relation("RegionApplications", fields: [regionId], references: [id], onDelete: Restrict)
   zone                ZoneCity                   @relation("ZoneApplications", fields: [zoneId], references: [id], onDelete: Restrict)
@@ -331,23 +350,23 @@ model InstitutionLeader {
 }
 
 model InstitutionApplicationStaffSummary {
-  id                         String                  @id @default(uuid()) @db.Uuid
-  applicationId              String                  @unique @db.Uuid
-  imamCount                  Int                     @default(0)
-  teacherCount               Int                     @default(0)
-  administrativeStaffCount   Int                     @default(0)
-  otherStaffCount            Int                     @default(0)
-  application                InstitutionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id                       String                  @id @default(uuid()) @db.Uuid
+  applicationId            String                  @unique @db.Uuid
+  imamCount                Int                     @default(0)
+  teacherCount              Int                     @default(0)
+  administrativeStaffCount Int                     @default(0)
+  otherStaffCount          Int                     @default(0)
+  application              InstitutionApplication @relation(fields: [applicationId], references: [id], onDelete: Cascade)
 }
 
 model InstitutionStaffSummary {
-  id                         String       @id @default(uuid()) @db.Uuid
-  institutionId              String       @unique @db.Uuid
-  imamCount                  Int          @default(0)
-  teacherCount               Int          @default(0)
-  administrativeStaffCount   Int          @default(0)
-  otherStaffCount             Int          @default(0)
-  institution                Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  id                       String       @id @default(uuid()) @db.Uuid
+  institutionId            String       @unique @db.Uuid
+  imamCount                Int          @default(0)
+  teacherCount              Int          @default(0)
+  administrativeStaffCount Int          @default(0)
+  otherStaffCount          Int          @default(0)
+  institution              Institution  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
 }
 
 model InstitutionApplicationEducation {
@@ -369,64 +388,64 @@ model InstitutionEducation {
 }
 
 model InstitutionDocument {
-  id                  String                  @id @default(uuid()) @db.Uuid
-  institutionApplicationId String?            @db.Uuid
-  institutionId       String?                 @db.Uuid
-  documentType        String
-  fileName            String
-  storageKey          String                  @unique
-  mimeType            String
-  size                Int
-  uploadedBy          String?                 @db.Uuid
-  createdAt           DateTime                @default(now())
-  application         InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
-  institution         Institution?           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  id                     String                  @id @default(uuid()) @db.Uuid
+  institutionApplicationId String?               @db.Uuid
+  institutionId          String?                 @db.Uuid
+  documentType           String
+  fileName               String
+  storageKey              String                  @unique
+  mimeType                String
+  size                    Int
+  uploadedBy              String?                 @db.Uuid
+  createdAt               DateTime                @default(now())
+  application            InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  institution             Institution?           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   @@index([institutionApplicationId])
   @@index([institutionId])
 }
 
 model InstitutionStatusHistory {
-  id                  String                  @id @default(uuid()) @db.Uuid
-  institutionId       String?                 @db.Uuid
-  applicationId       String?                 @db.Uuid
-  fromStatus          String?
-  toStatus            String
-  reason              String?
-  actorUserId         String?                 @db.Uuid
-  createdAt           DateTime                @default(now())
-  institution         Institution?            @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  application         InstitutionApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  id            String                  @id @default(uuid()) @db.Uuid
+  institutionId String?                 @db.Uuid
+  applicationId String?                 @db.Uuid
+  fromStatus    String?
+  toStatus      String
+  reason        String?
+  actorUserId   String?                 @db.Uuid
+  createdAt     DateTime                @default(now())
+  institution   Institution?            @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  application   InstitutionApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   @@index([institutionId, createdAt])
   @@index([applicationId, createdAt])
 }
 
 model Member {
-  id                 String              @id @default(uuid()) @db.Uuid
-  membershipNumber   String?             @unique
-  firstName          String
-  middleName         String?
-  lastName           String
-  birthDate          DateTime
-  gender             String
-  maritalStatus      String
-  phone              String
-  educationLevel     String?
-  employmentStatus   String?
-  nationalIdentity   String?             @unique
-  currentAddress     String?
-  regionId           String              @db.Uuid
-  zoneId             String              @db.Uuid
-  subcityId          String              @db.Uuid
-  districtId         String              @db.Uuid
-  status             MemberStatus        @default(PENDING)
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  region             Region              @relation("RegionMembers", fields: [regionId], references: [id], onDelete: Restrict)
-  zone               ZoneCity            @relation("ZoneMembers", fields: [zoneId], references: [id], onDelete: Restrict)
-  subcity            SubcityTown         @relation("SubcityMembers", fields: [subcityId], references: [id], onDelete: Restrict)
-  district           District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
-  institutions       MemberInstitution[]
-  registration       Registration?       @relation("MemberRegistration")
+  id               String              @id @default(uuid()) @db.Uuid
+  membershipNumber String?             @unique
+  firstName        String
+  middleName       String?
+  lastName         String
+  birthDate        DateTime
+  gender           String
+  maritalStatus    String
+  phone            String
+  educationLevel   String?
+  employmentStatus String?
+  nationalIdentity String?             @unique
+  currentAddress   String?
+  regionId         String              @db.Uuid
+  zoneId           String              @db.Uuid
+  subcityId        String              @db.Uuid
+  districtId       String              @db.Uuid
+  status           MemberStatus        @default(PENDING)
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  region           Region              @relation("RegionMembers", fields: [regionId], references: [id], onDelete: Restrict)
+  zone             ZoneCity            @relation("ZoneMembers", fields: [zoneId], references: [id], onDelete: Restrict)
+  subcity          SubcityTown         @relation("SubcityMembers", fields: [subcityId], references: [id], onDelete: Restrict)
+  district         District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
+  institutions     MemberInstitution[]
+  registration     Registration?       @relation("MemberRegistration")
   @@index([phone])
   @@index([regionId, zoneId, subcityId, districtId])
 }
@@ -449,43 +468,71 @@ model MemberInstitution {
 }
 
 model Registration {
-  id                  String              @id @default(uuid()) @db.Uuid
-  trackingCode        String              @unique
-  type                RegistrationType
-  status              RegistrationStatus  @default(DRAFT)
+  id                 String              @id @default(uuid()) @db.Uuid
+  trackingCode       String              @unique
+  type               RegistrationType
+  status             RegistrationStatus  @default(DRAFT)
   declarationAccepted Boolean
-  firstName           String?
-  middleName          String?
-  lastName            String?
-  birthDate           DateTime?
-  gender              String?
-  maritalStatus       String?
-  phone               String?
-  educationLevel      String?
-  employmentStatus    String?
-  regionId            String?             @db.Uuid
-  zoneId              String?             @db.Uuid
-  subcityId           String?             @db.Uuid
-  districtId          String?             @db.Uuid
-  currentAddress      String?
-  nationalIdentity    String?
-  institutionId       String?             @db.Uuid
-  familyRelationship  String?
-  familyMemberName    String?
-  familyMemberPhone   String?
-  correctionReason    String?
-  rejectionReason     String?
-  decisionAt          DateTime?
-  memberId            String?             @unique @db.Uuid
-  submittedAt         DateTime?
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  member              Member?             @relation("MemberRegistration", fields: [memberId], references: [id], onDelete: SetNull)
-  institution         Institution?        @relation("InstitutionRegistration", fields: [institutionId], references: [id], onDelete: SetNull)
+  firstName          String?
+  middleName         String?
+  lastName           String?
+  birthDate          DateTime?
+  gender             String?
+  maritalStatus      String?
+  phone              String?
+  educationLevel     String?
+  employmentStatus   String?
+  regionId           String?             @db.Uuid
+  zoneId             String?             @db.Uuid
+  subcityId          String?             @db.Uuid
+  districtId         String?             @db.Uuid
+  currentAddress     String?
+  nationalIdentity   String?
+  institutionId      String?             @db.Uuid
+  familyRelationship String?
+  familyMemberName   String?
+  familyMemberPhone  String?
+  correctionReason   String?
+  rejectionReason    String?
+  decisionAt         DateTime?
+  memberId           String?             @unique @db.Uuid
+  submittedAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  member             Member?             @relation("MemberRegistration", fields: [memberId], references: [id], onDelete: SetNull)
+  institution        Institution?        @relation("InstitutionRegistration", fields: [institutionId], references: [id], onDelete: SetNull)
   @@index([status])
   @@index([type])
   @@index([phone])
   @@index([nationalIdentity])
+}
+
+model License {
+  id                String                  @id @default(uuid()) @db.Uuid
+  licenseNumber     String?                 @unique
+  institutionId     String                  @db.Uuid
+  licenseType       String
+  status            LicenseStatus            @default(PENDING)
+  applicationStatus LicenseApplicationStatus @default(DRAFT)
+  issuedAt          DateTime?
+  effectiveFrom     DateTime?
+  expiresAt         DateTime?
+  suspendedAt       DateTime?
+  revokedAt         DateTime?
+  reason            String?
+  issuedBy          String?                 @db.Uuid
+  approvedBy        String?                 @db.Uuid
+  createdBy         String?                 @db.Uuid
+  reviewedBy        String?                 @db.Uuid
+  approvedAt        DateTime?
+  reviewedAt        DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  institution       Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  @@index([institutionId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([applicationStatus])
 }
 
 model AuditLog {
