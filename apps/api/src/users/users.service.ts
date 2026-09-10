@@ -5,55 +5,22 @@ import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { hashPassword } from '../auth/crypto';
 
-const ADMIN_ROLES = [
-  RoleCode.SUPER_ADMIN,
-  RoleCode.NATIONAL_ADMIN,
-  RoleCode.REGIONAL_ADMIN,
-  RoleCode.ZONE_ADMIN,
-  RoleCode.DISTRICT_ADMIN,
-  RoleCode.REGISTRAR,
-  RoleCode.INSPECTOR,
-  RoleCode.FINANCE_OFFICER,
-  RoleCode.INSTITUTION_ADMIN,
-  RoleCode.MEMBER,
-];
-
+const ADMIN_ROLES = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR, RoleCode.FINANCE_OFFICER, RoleCode.INSTITUTION_ADMIN, RoleCode.MEMBER];
 const JURISDICTION_BY_ROLE: Partial<Record<RoleCode, JurisdictionLevel>> = {
   [RoleCode.REGIONAL_ADMIN]: JurisdictionLevel.REGION,
   [RoleCode.ZONE_ADMIN]: JurisdictionLevel.ZONE_CITY,
   [RoleCode.DISTRICT_ADMIN]: JurisdictionLevel.DISTRICT,
   [RoleCode.INSTITUTION_ADMIN]: JurisdictionLevel.INSTITUTION,
 };
-
-interface CreateUserInput {
-  email?: string;
-  phone?: string;
-  password?: string;
-  role?: RoleCode;
-  jurisdictionLevel?: JurisdictionLevel;
-  jurisdictionId?: string | null;
-  institutionId?: string | null;
-}
-
-interface UpdateUserInput {
-  status?: UserStatus;
-  role?: RoleCode;
-  jurisdictionLevel?: JurisdictionLevel;
-  jurisdictionId?: string | null;
-  institutionId?: string | null;
-  password?: string;
-}
+interface CreateUserInput { email?: string; phone?: string; password?: string; role?: RoleCode; jurisdictionLevel?: JurisdictionLevel; jurisdictionId?: string | null; institutionId?: string | null }
+interface UpdateUserInput { status?: UserStatus; role?: RoleCode; jurisdictionLevel?: JurisdictionLevel; jurisdictionId?: string | null; institutionId?: string | null; password?: string }
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
   async list(actor: AuthenticatedUser) {
-    const users = await this.prisma.user.findMany({
-      where: await this.scopeWhere(actor),
-      include: { roles: { include: { role: true } } },
-      orderBy: { createdAt: 'desc' },
-    });
+    const users = await this.prisma.user.findMany({ where: await this.scopeWhere(actor), include: { roles: { include: { role: true } } }, orderBy: { createdAt: 'desc' } });
     return users.map((user) => this.present(user));
   }
 
@@ -70,34 +37,20 @@ export class UsersService {
     if (!email && !phone) throw new BadRequestException('Email or phone is required');
     if (!input.password || input.password.length < 10) throw new BadRequestException('Password must be at least 10 characters');
     if (!input.role || !ADMIN_ROLES.includes(input.role)) throw new BadRequestException('A valid role is required');
-
     const role = input.role;
     const jurisdictionLevel = input.jurisdictionLevel ?? JurisdictionLevel.NATIONAL;
     const jurisdictionId = input.jurisdictionId?.trim() || null;
     const institutionId = input.institutionId?.trim() || null;
-
     await this.assertAssignmentAllowed(actor, role, jurisdictionLevel, jurisdictionId, institutionId);
     await this.validateScope(jurisdictionLevel, jurisdictionId, institutionId);
-
     const passwordHash = await hashPassword(input.password);
     try {
       const user = await this.prisma.$transaction(async (tx) => {
-        const created = await tx.user.create({
-          data: { email, phone, passwordHash, status: UserStatus.ACTIVE, jurisdictionLevel, jurisdictionId, institutionId },
-        });
+        const created = await tx.user.create({ data: { email, phone, passwordHash, status: UserStatus.ACTIVE, jurisdictionLevel, jurisdictionId, institutionId } });
         const dbRole = await tx.role.findUnique({ where: { code: role } });
         if (!dbRole) throw new BadRequestException('Role is not configured');
         await tx.userRole.create({ data: { userId: created.id, roleId: dbRole.id } });
-        await tx.auditLog.create({
-          data: {
-            actorUserId: actor.id,
-            action: 'USER_CREATED',
-            entityType: 'User',
-            entityId: created.id,
-            requestId,
-            metadata: { role, jurisdictionLevel, jurisdictionId, institutionId },
-          },
-        });
+        await tx.auditLog.create({ data: { actorUserId: actor.id, action: 'USER_CREATED', entityType: 'User', entityId: created.id, requestId, metadata: { role, jurisdictionLevel, jurisdictionId, institutionId } } });
         return created;
       });
       return this.get(actor, user.id);
@@ -112,7 +65,6 @@ export class UsersService {
     if (!existing) throw new NotFoundException('User not found');
     await this.assertManageable(actor, existing);
     if (id === actor.id && input.status && input.status !== UserStatus.ACTIVE) throw new ForbiddenException('You cannot disable or suspend your own account');
-
     const currentRole = existing.roles[0]?.role.code;
     const role = input.role ?? currentRole;
     if (!role) throw new BadRequestException('User role is required');
@@ -121,13 +73,8 @@ export class UsersService {
     const institutionId = input.institutionId === undefined ? existing.institutionId : input.institutionId?.trim() || null;
     await this.assertAssignmentAllowed(actor, role, jurisdictionLevel, jurisdictionId, institutionId);
     await this.validateScope(jurisdictionLevel, jurisdictionId, institutionId);
-
     const data: Prisma.UserUpdateInput = { status: input.status, jurisdictionLevel, jurisdictionId, institutionId };
-    if (input.password !== undefined) {
-      if (input.password.length < 10) throw new BadRequestException('Password must be at least 10 characters');
-      data.passwordHash = await hashPassword(input.password);
-    }
-
+    if (input.password !== undefined) { if (input.password.length < 10) throw new BadRequestException('Password must be at least 10 characters'); data.passwordHash = await hashPassword(input.password); }
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({ where: { id }, data });
       if (role !== currentRole) {
@@ -136,27 +83,17 @@ export class UsersService {
         await tx.userRole.deleteMany({ where: { userId: id } });
         await tx.userRole.create({ data: { userId: id, roleId: dbRole.id } });
       }
-      await tx.auditLog.create({
-        data: { actorUserId: actor.id, action: 'USER_UPDATED', entityType: 'User', entityId: id, requestId, metadata: { role, jurisdictionLevel, jurisdictionId, institutionId, status: input.status } },
-      });
+      await tx.auditLog.create({ data: { actorUserId: actor.id, action: 'USER_UPDATED', entityType: 'User', entityId: id, requestId, metadata: { role, jurisdictionLevel, jurisdictionId, institutionId, status: input.status } } });
     });
     return this.get(actor, id);
   }
 
   private async assertManageable(actor: AuthenticatedUser, target: { id: string; jurisdictionLevel: JurisdictionLevel; jurisdictionId: string | null; institutionId: string | null; roles: Array<{ role: { code: RoleCode } }> }) {
     if (target.id === actor.id) return;
-    const targetResource = { institutionId: target.institutionId, regionId: undefined, zoneId: undefined, subcityId: undefined, districtId: undefined };
-    if (target.institutionId) {
-      await this.authorization.assertCanAccess(actor, targetResource);
-      return;
-    }
-    if (target.jurisdictionLevel === JurisdictionLevel.NATIONAL) {
-      if (!actor.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Only super administrators can manage national users');
-      return;
-    }
+    if (target.institutionId) { await this.authorization.assertCanAccess(actor, { institutionId: target.institutionId }); return; }
+    if (target.jurisdictionLevel === JurisdictionLevel.NATIONAL) { if (!actor.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Only super administrators can manage national users'); return; }
     if (!target.jurisdictionId) throw new ForbiddenException('User has no jurisdiction scope');
-    const scope = await this.resolveScope(target.jurisdictionLevel, target.jurisdictionId);
-    await this.authorization.assertCanAccess(actor, scope);
+    await this.authorization.assertCanAccess(actor, await this.resolveScope(target.jurisdictionLevel, target.jurisdictionId));
   }
 
   private async assertAssignmentAllowed(actor: AuthenticatedUser, role: RoleCode, level: JurisdictionLevel, jurisdictionId: string | null, institutionId: string | null) {
@@ -167,8 +104,7 @@ export class UsersService {
     if (level !== JurisdictionLevel.NATIONAL && !jurisdictionId && !institutionId) throw new BadRequestException('A jurisdiction or institution is required');
     if (level === JurisdictionLevel.NATIONAL && (jurisdictionId || institutionId)) throw new BadRequestException('National users cannot have a jurisdiction or institution scope');
     if (actor.roles.includes(RoleCode.SUPER_ADMIN) || actor.roles.includes(RoleCode.NATIONAL_ADMIN)) return;
-    const scope = institutionId ? { institutionId } : await this.resolveScope(level, jurisdictionId!);
-    await this.authorization.assertCanAccess(actor, scope);
+    await this.authorization.assertCanAccess(actor, institutionId ? { institutionId } : await this.resolveScope(level, jurisdictionId!));
     if (level !== actor.jurisdictionLevel) throw new ForbiddenException('You cannot assign users outside your jurisdiction level');
   }
 
@@ -176,13 +112,14 @@ export class UsersService {
     if (level === JurisdictionLevel.NATIONAL) return;
     if (level === JurisdictionLevel.INSTITUTION) {
       if (!institutionId) throw new BadRequestException('Institution scope requires institutionId');
-      const institution = await this.prisma.institution.findUnique({ where: { id: institutionId } });
-      if (!institution) throw new BadRequestException('Institution not found');
+      if (!(await this.prisma.institution.findUnique({ where: { id: institutionId }, select: { id: true } }))) throw new BadRequestException('Institution not found');
       return;
     }
     if (!jurisdictionId) throw new BadRequestException('Jurisdiction id is required');
     const scope = await this.resolveScope(level, jurisdictionId);
-    if (!scope.regionId && !scope.zoneId && !scope.districtId) throw new BadRequestException('Jurisdiction not found');
+    const exists = level === JurisdictionLevel.REGION ? await this.prisma.region.findUnique({ where: { id: jurisdictionId }, select: { id: true } }) : level === JurisdictionLevel.ZONE_CITY ? await this.prisma.zoneCity.findUnique({ where: { id: jurisdictionId }, select: { id: true } }) : level === JurisdictionLevel.SUBCITY_TOWN ? await this.prisma.subcityTown.findUnique({ where: { id: jurisdictionId }, select: { id: true } }) : await this.prisma.district.findUnique({ where: { id: jurisdictionId }, select: { id: true } });
+    if (!exists) throw new BadRequestException(`Jurisdiction not found for ${level}`);
+    void scope;
   }
 
   private async resolveScope(level: JurisdictionLevel, id: string) {
@@ -204,7 +141,5 @@ export class UsersService {
     return { id: { in: users.map((u) => u.id) } };
   }
 
-  private present(user: any) {
-    return { id: user.id, email: user.email, phone: user.phone, status: user.status, jurisdictionLevel: user.jurisdictionLevel, jurisdictionId: user.jurisdictionId, institutionId: user.institutionId, roles: user.roles.map((r: any) => r.role.code), createdAt: user.createdAt, updatedAt: user.updatedAt };
-  }
+  private present(user: any) { return { id: user.id, email: user.email, phone: user.phone, status: user.status, jurisdictionLevel: user.jurisdictionLevel, jurisdictionId: user.jurisdictionId, institutionId: user.institutionId, roles: user.roles.map((r: any) => r.role.code), createdAt: user.createdAt, updatedAt: user.updatedAt }; }
 }
