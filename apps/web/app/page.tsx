@@ -1,29 +1,14 @@
 import Link from 'next/link';
 
-const actions = [
-  ['Register as Member', '/register/individual'],
-  ['Register Institution', '/register/institution'],
-  ['Track Application', '/track'],
-  ['Verify Credential', '/verify'],
-];
+const actions = [['Register as Member','/register/individual'],['Register Institution','/register/institution'],['Track Application','/track'],['Verify Credential','/verify']];
+const capabilities = [['01','Registration','A structured digital entry point for individuals and Islamic institutions.'],['02','Verification','Track applications and verify approved credentials through controlled references.'],['03','Governance','Role and jurisdiction-aware administration with auditable institutional actions.'],['04','Licensing','A controlled institutional licensing workflow built on the authoritative registry.']];
 
 export default function HomePage() {
-  return (
-    <main className="shell">
-      <header className="hero">
-        <p className="eyebrow">EIASC</p>
-        <h1>Community Registration Platform</h1>
-        <p className="lead">A secure institutional registry for community members and Islamic institutions.</p>
-        <nav className="actions" aria-label="Main actions">
-          {actions.map(([label, href]) => <Link className="button" href={href} key={href}>{label}</Link>)}
-        </nav>
-      </header>
-      <section className="grid" aria-label="Platform capabilities">
-        <article><h2>Membership</h2><p>Register, review and manage verified community membership.</p></article>
-        <article><h2>Institutions</h2><p>Maintain verified mosques, madrasas, Islamic centers and approved institutions.</p></article>
-        <article><h2>Credentials</h2><p>Issue secure digital credentials with public QR verification.</p></article>
-        <article><h2>Governance</h2><p>Apply role and jurisdiction-based administration with auditable actions.</p></article>
-      </section>
-    </main>
-  );
+  return <main>
+    <header className="public-header"><div className="public-header-inner"><Link href="/" className="brand"><span className="brand-symbol">EI</span><span><strong>EIASC</strong><small>Community Registration & Institutional Licensing</small></span></Link><nav className="public-nav"><Link href="/track">Track</Link><Link href="/verify">Verify</Link><Link className="button button-primary" href="/login">Platform sign in</Link></nav></div></header>
+    <section className="home-hero"><div className="hero-copy"><p className="eyebrow">ETHIOPIAN ISLAMIC AFFAIRS SUPREME COUNCIL</p><h1>A trusted digital foundation for <span>community institutions.</span></h1><p className="lead">CRil brings registration, institutional records, licensing, membership and verification into one governed platform designed for clear administration and trusted public services.</p><div className="actions">{actions.map(([label,href],i)=><Link className={i===0?'button button-primary':'button'} href={href} key={href}>{label}</Link>)}</div></div><aside className="hero-card"><div className="hero-card-top"><span>CRil</span><span>SECURE · GOVERNED</span></div><div className="hero-orbit"><div className="orbit-ring ring-one"/><div className="orbit-ring ring-two"/><div className="orbit-core">EIASC</div></div><div><p>One institutional record. One controlled jurisdiction. One auditable source of truth.</p></div></aside></section>
+    <section className="section"><div className="section-heading"><div><p className="eyebrow">PLATFORM CAPABILITIES</p><h2>Designed around the way institutional administration actually works.</h2></div><p>From the first application to review, licensing and verification, each service is connected to the same governed data foundation.</p></div><div className="capability-grid">{capabilities.map(([number,title,text])=><article className="capability-card" key={title}><span>{number}</span><h3>{title}</h3><p>{text}</p><Link href={title==='Registration'?'/register/institution':title==='Verification'?'/verify':title==='Governance'?'/login':'/login'}>Explore service →</Link></article>)}</div></section>
+    <section className="trust-section"><div><p className="eyebrow">INSTITUTIONAL TRUST</p><h2>Governance is part of the product, not an afterthought.</h2></div><div className="trust-points"><p><strong>Controlled access</strong><span>Administrative capabilities are constrained by role, jurisdiction, ownership and workflow state.</span></p><p><strong>Auditable actions</strong><span>Critical administrative decisions are recorded so the platform can answer who changed what and when.</span></p><p><strong>Built to grow</strong><span>The same foundation can support credentials, membership, reporting, allocation and future digital services.</span></p></div></section>
+    <footer className="site-footer"><div><strong>EIASC CRil</strong><span>Community Registration & Institutional Licensing Platform</span></div><div className="footer-links"><Link href="/login">Authorized access</Link><Link href="/track">Application tracking</Link></div></footer>
+  </main>;
 }
