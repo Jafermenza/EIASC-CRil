@@ -3,7 +3,9 @@ import { promisify } from 'node:util';
 
 const scryptAsync = promisify(scrypt);
 
-function base64Url(input: string | Buffer): string {
+type JsonRecord = { [key: string]: unknown };
+
+function base64Url(input: string | Uint8Array): string {
   return Buffer.from(input).toString('base64url');
 }
 
@@ -30,7 +32,7 @@ export function createOpaqueToken(bytes = 32): string {
   return randomBytes(bytes).toString('base64url');
 }
 
-export function signJwt(payload: Record<string, unknown>, secret: string): string {
+export function signJwt(payload: JsonRecord, secret: string): string {
   const header = base64Url(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
   const body = base64Url(JSON.stringify(payload));
   const input = `${header}.${body}`;
@@ -38,7 +40,7 @@ export function signJwt(payload: Record<string, unknown>, secret: string): strin
   return `${input}.${signature}`;
 }
 
-export function verifyJwt<T extends Record<string, unknown>>(token: string, secret: string): T {
+export function verifyJwt<T>(token: string, secret: string): T {
   const [header, body, signature] = token.split('.');
   if (!header || !body || !signature) throw new Error('Invalid token');
 
@@ -53,5 +55,5 @@ export function verifyJwt<T extends Record<string, unknown>>(token: string, secr
 
   const payload = JSON.parse(Buffer.from(body, 'base64url').toString('utf8')) as T & { exp?: number };
   if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('Token expired');
-  return payload;
+  return payload as T;
 }
