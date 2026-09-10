@@ -1,57 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+type User = { id: string; email?: string | null; phone?: string | null; status: string; jurisdictionLevel: string; jurisdictionId?: string | null; institutionId?: string | null; roles: string[] };
+type Location = { id: string; code: string; name: string };
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
 const levels = ['NATIONAL','REGION','ZONE_CITY','SUBCITY_TOWN','DISTRICT','INSTITUTION'];
+const roleLabels: Record<string,string> = { SUPER_ADMIN:'Super Administrator', NATIONAL_ADMIN:'National Administrator', REGIONAL_ADMIN:'Regional Administrator', ZONE_ADMIN:'Zone / City Administrator', DISTRICT_ADMIN:'District Administrator', REGISTRAR:'Registrar', INSPECTOR:'Inspector', FINANCE_OFFICER:'Finance Officer', INSTITUTION_ADMIN:'Institution Administrator', MEMBER:'Member' };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ email: '', phone: '', password: '', role: 'REGISTRAR', jurisdictionLevel: 'NATIONAL', jurisdictionId: '', institutionId: '' });
-
-  async function load() {
-    const token = localStorage.getItem('accessToken') || '';
-    const response = await fetch(`${API}/users`, { headers: { authorization: `Bearer ${token}` } });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Unable to load users');
-    setUsers(data);
-  }
-
-  useEffect(() => { load().catch((e) => setError(e.message)); }, []);
-
-  async function createUser(event: React.FormEvent) {
-    event.preventDefault(); setError(''); setMessage('');
-    try {
-      const token = localStorage.getItem('accessToken') || '';
-      const response = await fetch(`${API}/users`, {
-        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to create user');
-      setMessage(`User created: ${data.email || data.phone || data.id}`);
-      setForm({ ...form, email: '', phone: '', password: '' });
-      await load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create user'); }
-  }
-
-  return <main className="shell" style={{ maxWidth: 1200 }}>
-    <div className="hero"><p className="eyebrow">EIASC · ADMINISTRATION</p><h1>User management</h1><p className="lead">Create and manage accounts within your authorized jurisdiction.</p></div>
-    {error && <article className="grid"><div>{error}</div></article>}
-    {message && <article className="grid"><div>{message}</div></article>}
-    <section className="grid"><div><h2>Create user</h2><form onSubmit={createUser} style={{ display: 'grid', gap: 12 }}>
-      <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/>
-      <input placeholder="Phone (optional)" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
-      <input placeholder="Initial password (10+ characters)" type="password" minLength={10} required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/>
-      <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>{roles.map(r => <option key={r}>{r}</option>)}</select>
-      <select value={form.jurisdictionLevel} onChange={e => setForm({ ...form, jurisdictionLevel: e.target.value })}>{levels.map(l => <option key={l}>{l}</option>)}</select>
-      {form.jurisdictionLevel !== 'NATIONAL' && form.jurisdictionLevel !== 'INSTITUTION' && <input placeholder="Jurisdiction ID" required value={form.jurisdictionId} onChange={e => setForm({ ...form, jurisdictionId: e.target.value })}/>} 
-      {form.jurisdictionLevel === 'INSTITUTION' && <input placeholder="Institution ID" required value={form.institutionId} onChange={e => setForm({ ...form, institutionId: e.target.value })}/>} 
-      <button className="button" type="submit">Create user</button>
-    </form></div></section>
-    <section className="grid"><div><h2>Users</h2><table style={{ width: '100%' }}><thead><tr><th>Account</th><th>Role</th><th>Scope</th><th>Status</th></tr></thead><tbody>{users.map(u => <tr key={u.id}><td>{u.email || u.phone || u.id}</td><td>{u.roles.join(', ')}</td><td>{u.jurisdictionLevel}{u.jurisdictionId ? ` · ${u.jurisdictionId}` : ''}</td><td>{u.status}</td></tr>)}</tbody></table></div></section>
+  const [users, setUsers] = useState<User[]>([]); const [regions,setRegions]=useState<Location[]>([]); const [zones,setZones]=useState<Location[]>([]); const [subcities,setSubcities]=useState<Location[]>([]); const [districts,setDistricts]=useState<Location[]>([]); const [institutions,setInstitutions]=useState<Location[]>([]);
+  const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [loading,setLoading]=useState(false); const [form,setForm]=useState({email:'',phone:'',password:'',role:'REGISTRAR',jurisdictionLevel:'NATIONAL',jurisdictionId:'',institutionId:''});
+  const token=()=>localStorage.getItem('accessToken')||'';
+  async function load(){ const r=await fetch(`${API}/users`,{headers:{authorization:`Bearer ${token()}`}}); const d=await r.json(); if(!r.ok) throw new Error(d.message||'Unable to load users'); setUsers(d as User[]); }
+  useEffect(()=>{void Promise.all([load(), fetch(`${API}/locations/regions`).then(r=>r.json()).then((d)=>setRegions(d as Location[])), fetch(`${API}/institutions?limit=100`).then(r=>r.json()).then((d)=>setInstitutions((Array.isArray(d)?d:d.items??[]) as Location[]))]).catch(e=>setError(e instanceof Error?e.message:'Unable to load administration data'));},[]);
+  useEffect(()=>{setZones([]);setSubcities([]);setDistricts([]);setForm(f=>({...f,jurisdictionId:'',institutionId:''})); if(form.jurisdictionLevel==='ZONE_CITY'&&form.jurisdictionId) void fetch(`${API}/locations/zones?regionId=${encodeURIComponent(form.jurisdictionId)}`).then(r=>r.json()).then(d=>setZones(d as Location[]));},[form.jurisdictionLevel,form.jurisdictionId]);
+  useEffect(()=>{if(form.jurisdictionLevel==='SUBCITY_TOWN'&&form.jurisdictionId) void fetch(`${API}/locations/subcities?zoneId=${encodeURIComponent(form.jurisdictionId)}`).then(r=>r.json()).then(d=>setSubcities(d as Location[]));},[form.jurisdictionLevel,form.jurisdictionId]);
+  useEffect(()=>{if(form.jurisdictionLevel==='DISTRICT'&&form.jurisdictionId) void fetch(`${API}/locations/districts?parentId=${encodeURIComponent(form.jurisdictionId)}`).then(r=>r.json()).then(d=>setDistricts(d as Location[]));},[form.jurisdictionLevel,form.jurisdictionId]);
+  function setField(key:string,value:string){setForm(f=>({...f,[key]:value}));}
+  function scopeOptions(){if(form.jurisdictionLevel==='REGION')return regions;if(form.jurisdictionLevel==='ZONE_CITY')return zones;if(form.jurisdictionLevel==='SUBCITY_TOWN')return subcities;if(form.jurisdictionLevel==='DISTRICT')return districts;return [] as Location[];}
+  function onLevelChange(value:string){setForm(f=>({...f,jurisdictionLevel:value,jurisdictionId:'',institutionId:''}));setZones([]);setSubcities([]);setDistricts([]);}
+  async function createUser(event:FormEvent){event.preventDefault();setError('');setMessage('');setLoading(true);try{const r=await fetch(`${API}/users`,{method:'POST',headers:{authorization:`Bearer ${token()}`,'content-type':'application/json'},body:JSON.stringify({...form,jurisdictionId:form.jurisdictionLevel==='NATIONAL'||form.jurisdictionLevel==='INSTITUTION'?'':form.jurisdictionId,institutionId:form.jurisdictionLevel==='INSTITUTION'?form.institutionId:''})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to create user');setMessage(`Account created for ${d.email||d.phone||d.id}.`);setForm(f=>({...f,email:'',phone:'',password:''}));await load();}catch(e){setError(e instanceof Error?e.message:'Unable to create user');}finally{setLoading(false);}}
+  return <main className="shell" style={{maxWidth:1200}}><div className="hero"><p className="eyebrow">EIASC · ADMINISTRATION</p><h1>User administration</h1><p className="lead">Create and manage operational accounts. Each assignment is constrained by role, jurisdiction and server-side authorization.</p></div>
+    {error&&<div className="form-error" role="alert">{error}</div>}{message&&<div className="form-success" role="status">{message}</div>}
+    <section className="grid"><div><h2>Create user account</h2><form className="form-stack" onSubmit={createUser}><div className="form-row"><div className="field"><label htmlFor="email">Email</label><input id="email" type="email" value={form.email} onChange={e=>setField('email',e.target.value)} /></div><div className="field"><label htmlFor="phone">Phone</label><input id="phone" value={form.phone} onChange={e=>setField('phone',e.target.value)} /></div></div><div className="field"><label htmlFor="password">Initial password</label><input id="password" type="password" minLength={10} required value={form.password} onChange={e=>setField('password',e.target.value)} /><small>Minimum 10 characters.</small></div><div className="form-row"><div className="field"><label htmlFor="role">Role</label><select id="role" value={form.role} onChange={e=>setField('role',e.target.value)}>{roles.map(r=><option key={r} value={r}>{roleLabels[r]}</option>)}</select></div><div className="field"><label htmlFor="level">Jurisdiction level</label><select id="level" value={form.jurisdictionLevel} onChange={e=>onLevelChange(e.target.value)}>{levels.map(l=><option key={l}>{l.replace('_',' / ')}</option>)}</select></div></div>{form.jurisdictionLevel!=='NATIONAL'&&form.jurisdictionLevel!=='INSTITUTION'&&<div className="field"><label htmlFor="scope">Assigned jurisdiction</label><select id="scope" required value={form.jurisdictionId} onChange={e=>setField('jurisdictionId',e.target.value)}><option value="">Select jurisdiction</option>{scopeOptions().map(x=><option key={x.id} value={x.id}>{x.name} ({x.code})</option>)}</select></div>}{form.jurisdictionLevel==='INSTITUTION'&&<div className="field"><label htmlFor="institution">Assigned institution</label><select id="institution" required value={form.institutionId} onChange={e=>setField('institutionId',e.target.value)}><option value="">Select institution</option>{institutions.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>}<button className="button button-primary" disabled={loading}>{loading?'Creating account…':'Create user account'}</button></form></div></section>
+    <section className="grid"><div><h2>Accounts</h2>{users.length?<div className="table-wrap"><table style={{width:'100%'}}><thead><tr><th>Account</th><th>Role</th><th>Jurisdiction</th><th>Status</th></tr></thead><tbody>{users.map(u=><tr key={u.id}><td>{u.email||u.phone||u.id}</td><td>{u.roles.map(r=>roleLabels[r]??r).join(', ')}</td><td>{u.jurisdictionLevel}{u.jurisdictionId?` · ${u.jurisdictionId}`:''}</td><td>{u.status}</td></tr>)}</tbody></table></div>:<p className="empty-state">No accounts are available in your authorized scope.</p>}</div></section>
   </main>;
 }
