@@ -16,16 +16,22 @@ const roles: Array<[RoleCode, string]> = [
   ['MEMBER', 'Member'],
 ];
 
-const institutionTypes = [
-  ['MOSQUE', 'Mosque'], ['MADRASA', 'Madrasa'], ['MOSQUE_MADRASA', 'Mosque/Madrasa'],
-  ['ISLAMIC_CENTER', 'Islamic Center'], ['ISLAMIC_EDUCATIONAL', 'Islamic Educational Institution'],
-  ['ISLAMIC_COMMUNITY_ORG', 'Islamic Community Organization'], ['YOUTH_ASSOCIATION', 'Youth Association/Council'],
-  ['OTHER', 'Other EIASC-approved institution'],
+const institutionTypes: Array<[string, string, string]> = [
+  ['MOSQUE', 'Mosque', 'Mosque'],
+  ['MADRASA', 'Madrasa', 'Islamic religious school'],
+  ['MOSQUE_MADRASA', 'Mosque/Madrasa', 'Combined mosque and madrasa'],
+  ['ISLAMIC_CENTER', 'Islamic Center', 'Islamic community center'],
+  ['ISLAMIC_EDUCATIONAL_INSTITUTION', 'Islamic Educational Institution', 'Islamic educational institution'],
+  ['ISLAMIC_COMMUNITY_ORGANIZATION', 'Islamic Community Organization', 'Islamic community organization'],
+  ['YOUTH_ASSOCIATION', 'Youth Association', 'Islamic youth association'],
+  ['OTHER', 'Other', 'Other EIASC-approved institution'],
 ];
 
 async function main() {
   for (const [code, name] of roles) await prisma.role.upsert({ where: { code }, update: { name }, create: { code, name } });
-  for (const [code, name] of institutionTypes) await prisma.institutionType.upsert({ where: { code }, update: { name }, create: { code, name } });
+  for (const [code, name, description] of institutionTypes) {
+    await prisma.institutionType.upsert({ where: { code }, update: { name, description, active: true }, create: { code, name, description, active: true } });
+  }
 
   const email = process.env.BOOTSTRAP_ADMIN_EMAIL?.trim().toLowerCase();
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
