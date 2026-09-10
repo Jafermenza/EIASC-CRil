@@ -1,0 +1,14 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: cril
+      POSTGRES_PASSWORD: cril
+      POSTGRES_DB: cril
+    ports:
+      - "5432:5432"
+    volumes:
+      - cril_postgres_data:/var/lib/postgresql/data
+volumes:
+  cril_postgres_data:
