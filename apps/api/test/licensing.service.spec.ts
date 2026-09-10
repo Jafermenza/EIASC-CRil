@@ -67,4 +67,9 @@ describe('LicensingService', () => {
     const { instance } = service();
     await expect(instance.revoke(nationalUser, 'license-1', '   ')).rejects.toThrow('Reason is required');
   });
+
+  it('rejects an expiry date in the past during renewal', async () => {
+    const { instance } = service();
+    await expect(instance.renew(nationalUser, 'license-1', '2020-01-01T00:00:00.000Z')).rejects.toThrow('expiresAt must be a valid future date');
+  });
 });
