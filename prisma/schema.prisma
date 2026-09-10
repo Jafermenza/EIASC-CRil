@@ -67,16 +67,16 @@ enum RegistrationStatus {
 }
 
 model User {
-  id                   String             @id @default(uuid()) @db.Uuid
-  email                String?            @unique
-  phone                String?            @unique
+  id                   String               @id @default(uuid()) @db.Uuid
+  email                String?              @unique
+  phone                String?              @unique
   passwordHash         String
-  status               UserStatus         @default(ACTIVE)
-  jurisdictionLevel    JurisdictionLevel  @default(NATIONAL)
+  status               UserStatus           @default(ACTIVE)
+  jurisdictionLevel    JurisdictionLevel    @default(NATIONAL)
   jurisdictionId       String?
   institutionId        String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
   roles                UserRole[]
   auditLogs            AuditLog[]
   refreshTokens        RefreshToken[]
@@ -139,14 +139,14 @@ model Region {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   zones         ZoneCity[]
-  institutions  Institution[]  @relation("RegionInstitutions")
-  members       Member[]       @relation("RegionMembers")
+  institutions  Institution[] @relation("RegionInstitutions")
+  members       Member[]      @relation("RegionMembers")
 
   @@index([name])
 }
 
 model ZoneCity {
-  id            String        @id @default(uuid()) @db.Uuid
+  id            String        @id @default(uuid())
   code          String        @unique
   name          String
   regionId      String        @db.Uuid
@@ -190,7 +190,7 @@ model District {
 }
 
 model InstitutionType {
-  id            String        @id @default(uuid()) @db.Uuid
+  id            String        @id @default(uuid())
   code          String        @unique
   name          String        @unique
   createdAt     DateTime      @default(now())
@@ -199,28 +199,28 @@ model InstitutionType {
 }
 
 model Institution {
-  id               String             @id @default(uuid()) @db.Uuid
-  institutionCode  String?            @unique
-  name             String
+  id                String             @id @default(uuid()) @db.Uuid
+  institutionCode   String?            @unique
+  name              String
   institutionTypeId String             @db.Uuid
-  regionId         String             @db.Uuid
-  zoneId           String             @db.Uuid
-  subcityId        String             @db.Uuid
-  districtId       String             @db.Uuid
-  phone            String?
-  address          String?
-  status           InstitutionStatus  @default(PENDING)
-  staffCount       Int?
-  studentCount     Int?
-  createdAt        DateTime           @default(now())
-  updatedAt        DateTime           @updatedAt
-  type             InstitutionType    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
-  region           Region             @relation("RegionInstitutions", fields: [regionId], references: [id], onDelete: Restrict)
-  zone             ZoneCity            @relation("ZoneInstitutions", fields: [zoneId], references: [id], onDelete: Restrict)
-  subcity          SubcityTown        @relation("SubcityInstitutions", fields: [subcityId], references: [id], onDelete: Restrict)
-  district         District           @relation("DistrictInstitutions", fields: [districtId], references: [id], onDelete: Restrict)
-  registrations    Registration[]      @relation("InstitutionRegistration")
-  memberLinks      MemberInstitution[]
+  regionId          String             @db.Uuid
+  zoneId            String             @db.Uuid
+  subcityId         String             @db.Uuid
+  districtId        String             @db.Uuid
+  phone             String?
+  address           String?
+  status            InstitutionStatus  @default(PENDING)
+  staffCount        Int?
+  studentCount      Int?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  type              InstitutionType    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
+  region            Region             @relation("RegionInstitutions", fields: [regionId], references: [id], onDelete: Restrict)
+  zone              ZoneCity           @relation("ZoneInstitutions", fields: [zoneId], references: [id], onDelete: Restrict)
+  subcity           SubcityTown        @relation("SubcityInstitutions", fields: [subcityId], references: [id], onDelete: Restrict)
+  district          District           @relation("DistrictInstitutions", fields: [districtId], references: [id], onDelete: Restrict)
+  registrations     Registration[]      @relation("InstitutionRegistration")
+  memberLinks       MemberInstitution[]
 
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([status])
@@ -291,12 +291,18 @@ model Registration {
   currentAddress      String?
   nationalIdentity    String?
   institutionId       String?             @db.Uuid
+  familyRelationship  String?
+  familyMemberName    String?
+  familyMemberPhone   String?
+  correctionReason    String?
+  rejectionReason     String?
+  decisionAt          DateTime?
   memberId            String?             @unique @db.Uuid
   submittedAt         DateTime?
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-  member              Member?            @relation("MemberRegistration", fields: [memberId], references: [id], onDelete: SetNull)
-  institution         Institution?       @relation("InstitutionRegistration", fields: [institutionId], references: [id], onDelete: SetNull)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  member              Member?             @relation("MemberRegistration", fields: [memberId], references: [id], onDelete: SetNull)
+  institution         Institution?        @relation("InstitutionRegistration", fields: [institutionId], references: [id], onDelete: SetNull)
 
   @@index([status])
   @@index([type])
