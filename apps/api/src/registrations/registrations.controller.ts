@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { IndividualRegistrationInput } from './registration.types';
 import { RegistrationsService } from './registrations.service';
 
@@ -13,9 +13,7 @@ export class RegistrationsController {
   }
 
   @Get(':trackingCode')
-  track(@Query('phone') _phone: string | undefined, @Query('firstName') _firstName: string | undefined, @Body() _unused: unknown) {
-    // Tracking deliberately returns only public-safe fields; optional verification inputs
-    // can be enforced when a policy requires them without exposing private application data.
-    throw new BadRequestException('Use GET /registrations/:trackingCode');
+  track(@Param('trackingCode') trackingCode: string, @Query('phone') _phone?: string, @Query('firstName') _firstName?: string) {
+    return this.registrations.track(trackingCode);
   }
 }
