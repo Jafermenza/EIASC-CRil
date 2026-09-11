@@ -44,7 +44,6 @@ export class RegistrationsService {
       input.phone,
       input.regionId,
       input.zoneId,
-      input.subcityId,
       input.districtId,
     ];
     if (required.some((value) => !this.clean(value))) {
@@ -95,7 +94,7 @@ export class RegistrationsService {
       if (
         institution.regionId !== input.regionId ||
         institution.zoneId !== input.zoneId ||
-        institution.subcityId !== input.subcityId ||
+        (input.subcityId !== undefined && institution.subcityId !== input.subcityId) ||
         institution.districtId !== input.districtId
       ) {
         throw new BadRequestException('Institution does not belong to the selected location');
@@ -128,7 +127,7 @@ export class RegistrationsService {
       employmentStatus: record.employmentStatus ?? undefined,
       regionId: record.regionId!,
       zoneId: record.zoneId!,
-      subcityId: record.subcityId!,
+      subcityId: record.subcityId ?? undefined,
       districtId: record.districtId!,
       currentAddress: record.currentAddress ?? undefined,
       nationalIdentity: record.nationalIdentity ?? undefined,
