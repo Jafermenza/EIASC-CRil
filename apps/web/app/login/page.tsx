@@ -9,9 +9,10 @@ const API = '/api/v1';
 type LoginResponse = { accessToken: string; refreshToken: string; expiresIn: number; user: { roles: string[] } };
 
 function destination(roles: string[]) {
-  if (roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN'].includes(role))) return '/admin/dashboard';
+  if (roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR', 'FINANCE_OFFICER'].includes(role))) return '/admin/dashboard';
   if (roles.includes('INSTITUTION_ADMIN')) return '/institution';
-  return '/';
+  if (roles.includes('MEMBER')) return '/member';
+  return '/member';
 }
 
 export default function LoginPage() {
