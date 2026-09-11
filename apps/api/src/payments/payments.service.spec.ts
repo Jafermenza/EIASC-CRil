@@ -6,16 +6,20 @@ describe('PaymentsService', () => {
     $queryRaw: jest.fn(),
     $executeRaw: jest.fn(),
   } as any;
+  const settings = {
+    getPublic: jest.fn(),
+  } as any;
   let service: PaymentsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new PaymentsService(prisma);
+    settings.getPublic.mockResolvedValue({ individual: 100, institution: 500, banks: [{ id: 'bank-1', bankName: 'Test Bank', accountName: 'EIASC', accountNumber: '123', branch: null }] });
+    service = new PaymentsService(prisma, settings);
     delete process.env.CHAPA_SECRET_KEY;
   });
 
-  it('exposes configured registration fees and supported methods', () => {
-    expect(service.fees()).toMatchObject({ individual: 100, institution: 500, currency: 'ETB', methods: ['TELEBIRR', 'CHAPA', 'BANK_TRANSFER'] });
+  it('exposes configured registration fees and supported methods', async () => {
+    await expect(service.fees()).resolves.toMatchObject({ individual: 100, institution: 500, currency: 'ETB', methods: ['TELEBIRR', 'CHAPA', 'BANK_TRANSFER'] });
   });
 
   it('rejects submission without a payment reference', async () => {
