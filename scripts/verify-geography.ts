@@ -7,7 +7,7 @@ async function main() {
     prisma.region.count(),
     prisma.zoneCity.count(),
     prisma.district.count(),
-    prisma.zoneCity.count({ where: { regionId: { not: undefined } } }),
+    prisma.zoneCity.count({ where: { region: undefined } }),
     prisma.district.count({ where: { zoneId: null, subcityId: null } }),
   ]);
 
@@ -15,8 +15,9 @@ async function main() {
   const result = {
     expected,
     actual: { regions, zones, districts },
+    orphanZones,
     orphanDistricts,
-    status: regions >= expected.regions && zones >= expected.zones && districts >= expected.districts && orphanDistricts === 0 ? 'PASS' : 'FAIL',
+    status: regions === expected.regions && zones === expected.zones && districts === expected.districts && orphanDistricts === 0 ? 'PASS' : 'FAIL',
   };
 
   console.log(JSON.stringify(result, null, 2));
