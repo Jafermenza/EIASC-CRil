@@ -3,9 +3,10 @@ import { GeographyImportStatus, PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const SOURCE = 'Jafermenza/ethiopia-administrative-divisions';
+const SOURCE_COMMIT = '418739e33760bf79661f3914e2d8c9cf33248437';
 const SOURCE_URL = process.env.GEOGRAPHY_SOURCE_URL ??
-  'https://raw.githubusercontent.com/Jafermenza/ethiopia-administrative-divisions/master/data/hierarchy.json';
-const SOURCE_VERSION = process.env.GEOGRAPHY_SOURCE_VERSION ?? 'master';
+  `https://raw.githubusercontent.com/Jafermenza/ethiopia-administrative-divisions/${SOURCE_COMMIT}/data/hierarchy.json`;
+const SOURCE_VERSION = process.env.GEOGRAPHY_SOURCE_VERSION ?? SOURCE_COMMIT;
 
 type Name = { en?: string; local?: string };
 type Woreda = { id: string; name?: Name };
@@ -18,9 +19,7 @@ function displayName(name?: Name, fallback?: string): string {
 }
 
 function assertSource(payload: Payload): Region[] {
-  if (!Array.isArray(payload.data) || payload.data.length === 0) {
-    throw new Error('Geography source does not contain a non-empty data array');
-  }
+  if (!Array.isArray(payload.data) || payload.data.length === 0) throw new Error('Geography source does not contain a non-empty data array');
   return payload.data;
 }
 
@@ -31,12 +30,7 @@ async function main() {
   const regions = assertSource(payload);
 
   const run = await prisma.geographyImport.create({
-    data: {
-      source: SOURCE,
-      sourceVersion: SOURCE_VERSION,
-      sourceUrl: SOURCE_URL,
-      status: GeographyImportStatus.RUNNING,
-    },
+    data: { source: SOURCE, sourceVersion: SOURCE_VERSION, sourceUrl: SOURCE_URL, status: GeographyImportStatus.RUNNING },
   });
 
   let regionCount = 0;
@@ -48,7 +42,6 @@ async function main() {
       for (const region of regions) {
         const regionName = displayName(region.name, region.id);
         if (!region.id || !regionName) throw new Error('Source contains a region without id/name');
-
         const savedRegion = await tx.region.upsert({
           where: { code: region.id },
           update: { name: regionName },
@@ -59,7 +52,6 @@ async function main() {
         for (const zone of region.zone ?? []) {
           const zoneName = displayName(zone.name, zone.id);
           if (!zone.id || !zoneName) throw new Error(`Source contains an invalid zone under ${region.id}`);
-
           const savedZone = await tx.zoneCity.upsert({
             where: { code: zone.id },
             update: { name: zoneName, regionId: savedRegion.id },
@@ -70,7 +62,6 @@ async function main() {
           for (const woreda of zone.woreda ?? []) {
             const woredaName = displayName(woreda.name, woreda.id);
             if (!woreda.id || !woredaName) throw new Error(`Source contains an invalid woreda under ${zone.id}`);
-
             await tx.district.upsert({
               where: { code: woreda.id },
               update: { name: woredaName, zoneId: savedZone.id },
@@ -95,14 +86,7 @@ async function main() {
       },
     });
 
-    console.log(JSON.stringify({
-      status: 'SUCCESS',
-      source: SOURCE,
-      sourceVersion: SOURCE_VERSION,
-      regionCount,
-      zoneCount,
-      districtCount,
-    }, null, 2));
+    console.log(JSON.stringify({ status: 'SUCCESS', source: SOURCE, sourceVersion: SOURCE_VERSION, regionCount, zoneCount, districtCount }, null, 2));
   } catch (error) {
     await prisma.geographyImport.update({
       where: { id: run.id },
@@ -120,9 +104,4 @@ async function main() {
   }
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exitCode = 1;
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());
