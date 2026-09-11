@@ -111,6 +111,54 @@ enum LicenseApplicationStatus {
   REJECTED
 }
 
+enum CredentialType {
+  MEMBER
+  INSTITUTION
+  LICENSE
+}
+
+enum CredentialStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  ENDED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+  SMS
+  PUSH
+  USSD
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+enum AllocationPolicyStatus {
+  DRAFT
+  APPROVED
+  RETIRED
+}
+
+enum AllocationRunStatus {
+  PREVIEW
+  UNDER_REVIEW
+  APPROVED
+  FINALIZED
+  CANCELLED
+}
+
 model User {
   id                  String            @id @default(uuid()) @db.Uuid
   email               String?           @unique
@@ -127,6 +175,11 @@ model User {
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
+  notifications       Notification[]
+  createdPolicies     AllocationPolicy[] @relation("PolicyCreatedBy")
+  approvedPolicies    AllocationPolicy[] @relation("PolicyApprovedBy")
+  calculatedRuns      AllocationRun[]    @relation("RunCalculatedBy")
+  approvedRuns        AllocationRun[]    @relation("RunApprovedBy")
   @@index([jurisdictionLevel, jurisdictionId])
   @@index([institutionId])
 }
@@ -306,6 +359,8 @@ model Institution {
   documents           InstitutionDocument[]
   statusHistory       InstitutionStatusHistory[]
   licenses            License[]
+  credentials         Credential[]
+  allocationResults   ResourceAllocation[]
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([status])
   @@index([name])
@@ -479,6 +534,7 @@ model Member {
   district            District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
   institutions       MemberInstitution[]
   registration       Registration?       @relation("MemberRegistration")
+  credentials        Credential[]
   @@index([phone])
   @@index([regionId, zoneId, subcityId, districtId])
 }
@@ -488,7 +544,7 @@ model MemberInstitution {
   memberId         String                       @db.Uuid
   institutionId    String                       @db.Uuid
   relationshipType InstitutionRelationshipType @default(PRIMARY)
-  status            InstitutionRelationshipStatus @default(ACTIVE)
+  status            MembershipStatus             @default(PENDING)
   startedAt         DateTime                    @default(now())
   endedAt           DateTime?
   createdAt         DateTime                    @default(now())
@@ -562,6 +618,7 @@ model License {
   createdAt         DateTime                @default(now())
   updatedAt         DateTime                @updatedAt
   institution       Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  credentials       Credential[]
   @@index([institutionId])
   @@index([status])
   @@index([expiresAt])
@@ -580,4 +637,100 @@ model AuditLog {
   actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
+}
+
+model Credential {
+  id             String         @id @default(uuid()) @db.Uuid
+  credentialNumber String       @unique
+  type           CredentialType
+  status         CredentialStatus @default(ACTIVE)
+  tokenHash      String         @unique
+  memberId       String?        @db.Uuid
+  institutionId  String?        @db.Uuid
+  licenseId      String?        @db.Uuid
+  issuedAt       DateTime       @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  member         Member?        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  institution    Institution?   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  license        License?       @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  @@index([type, status])
+  @@index([memberId])
+  @@index([institutionId])
+  @@index([licenseId])
+}
+
+model Notification {
+  id          String              @id @default(uuid()) @db.Uuid
+  recipientId String              @db.Uuid
+  channel     NotificationChannel @default(IN_APP)
+  type        String
+  title       String
+  message     String
+  status      NotificationStatus  @default(PENDING)
+  sentAt      DateTime?
+  readAt      DateTime?
+  metadata    Json?
+  createdAt   DateTime            @default(now())
+  recipient   User                @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  @@index([recipientId, status, createdAt])
+}
+
+model AllocationPolicy {
+  id              String               @id @default(uuid()) @db.Uuid
+  name            String
+  version         String
+  status          AllocationPolicyStatus @default(DRAFT)
+  effectiveFrom   DateTime
+  effectiveTo     DateTime?
+  eligibilityRules Json
+  formulaDefinition Json
+  createdBy       String               @db.Uuid
+  approvedBy      String?              @db.Uuid
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  creator         User                 @relation("PolicyCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  approver        User?                @relation("PolicyApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  runs            AllocationRun[]
+  @@unique([name, version])
+  @@index([status, effectiveFrom])
+}
+
+model AllocationRun {
+  id                 String             @id @default(uuid()) @db.Uuid
+  policyId           String             @db.Uuid
+  policyVersion      String
+  period             String
+  fundingPool        Decimal          @db.Decimal(18, 2)
+  eligibleMemberCount Int
+  basePerMemberAmount Decimal         @db.Decimal(18, 2)
+  equalizationPool   Decimal          @db.Decimal(18, 2)
+  totalAllocated     Decimal          @db.Decimal(18, 2)
+  status             AllocationRunStatus @default(PREVIEW)
+  calculatedAt       DateTime           @default(now())
+  approvedAt         DateTime?
+  calculatedBy       String             @db.Uuid
+  approvedBy         String?            @db.Uuid
+  policy             AllocationPolicy   @relation(fields: [policyId], references: [id], onDelete: Restrict)
+  calculator         User               @relation("RunCalculatedBy", fields: [calculatedBy], references: [id], onDelete: Restrict)
+  approver           User?              @relation("RunApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  results            ResourceAllocation[]
+  @@unique([policyId, period, calculatedAt])
+  @@index([status, period])
+}
+
+model ResourceAllocation {
+  id                  String        @id @default(uuid()) @db.Uuid
+  allocationRunId     String        @db.Uuid
+  institutionId       String        @db.Uuid
+  eligibleMemberCount Int
+  baseAmount          Decimal       @db.Decimal(18, 2)
+  equalizationAmount   Decimal       @db.Decimal(18, 2)
+  totalAmount         Decimal       @db.Decimal(18, 2)
+  allocationRun        AllocationRun @relation(fields: [allocationRunId], references: [id], onDelete: Cascade)
+  institution          Institution   @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  @@unique([allocationRunId, institutionId])
+  @@index([institutionId])
 }

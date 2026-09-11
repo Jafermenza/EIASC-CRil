@@ -1,4 +1,4 @@
-import { InstitutionApplicationStatus, InstitutionRelationshipType, InstitutionRelationshipStatus, InstitutionStatus } from '@prisma/client';
+import { InstitutionApplicationStatus, InstitutionRelationshipType, InstitutionStatus } from '@prisma/client';
 
 export interface LeaderInput { fullName: string; role: string; phone: string; email?: string }
 export interface StaffInput { imamCount?: number; teacherCount?: number; administrativeStaffCount?: number; otherStaffCount?: number }
@@ -70,4 +70,4 @@ export const DOCUMENT_TYPES = ['ESTABLISHMENT_DOCUMENT', 'AUTHORIZATION_DOCUMENT
 export const LEADER_ROLES = ['CHAIRPERSON', 'IMAM', 'DIRECTOR', 'ADMINISTRATOR', 'MADRASA_HEAD', 'SECRETARY', 'OTHER'] as const;
 export const EDUCATION_LEVELS = ['QURAN', 'HIFZ', 'BASIC_ISLAMIC_STUDIES', 'MADRASAH', 'ADULT_EDUCATION', 'OTHER'] as const;
 
-export { InstitutionStatus, InstitutionApplicationStatus, InstitutionRelationshipType, InstitutionRelationshipStatus };
+export { InstitutionStatus, InstitutionApplicationStatus, InstitutionRelationshipType };

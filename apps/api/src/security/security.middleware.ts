@@ -1,10 +1,13 @@
 import { NextFunction, Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
 const WINDOW_MS = 60_000;
 const MAX_AUTH_ATTEMPTS = 10;
 
 export function securityMiddleware(req: Request, res: Response, next: NextFunction) {
+  const requestId = req.header('x-request-id')?.trim() || randomUUID();
+  res.setHeader('X-Request-ID', requestId);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
