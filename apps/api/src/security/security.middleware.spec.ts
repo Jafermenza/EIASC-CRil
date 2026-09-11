@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { jest } from '@jest/globals';
 import { securityMiddleware } from './security.middleware';
 
 describe('securityMiddleware', () => {
