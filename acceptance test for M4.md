@@ -3,7 +3,6 @@
 ## Acceptance basis
 
 This record evaluates M4 against section 11.8, **Licensing Acceptance**, in `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.0.md`.
-
 ## Gaps found before the change
 
 The initial implementation had the core licensing service and database model, but the following acceptance gaps remained:
@@ -44,4 +43,4 @@ The completed M4 implementation passes:
 
 ## Next action
 
-The database-backed browser journey is now implemented in `e2e/m4-licensing.spec.ts` and runs with `npm run test:e2e`. Proceed to M5, **Digital Credentials & QR**, while preserving the M4 licensing and public verification contracts. Before production release, run this journey against the CI PostgreSQL service and retain its trace/report artifacts for release evidence.
+The database-backed browser journey is implemented in `e2e/m4-licensing.spec.ts` and runs with `npm run test:e2e`. GitHub Actions run `34596322325` completed successfully against a fresh PostgreSQL service, including schema setup, seed, lint, typecheck, API tests, build, browser installation, and the E2E journey. Proceed to M5, **Digital Credentials & QR**, while preserving the M4 licensing and public verification contracts.
