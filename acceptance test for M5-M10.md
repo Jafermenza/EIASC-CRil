@@ -51,21 +51,98 @@ Acceptance: [x] provider implementation [x] automated provider test [x] event te
 
 Implemented/automated: health endpoint, JWT validation, token rotation, password-reset hardening, security headers/request IDs, auth rate limiting, privilege/isolation E2E, backup/restore drill, dependency security gate and manual production smoke workflow.
 
-### Geographic production bootstrap
+### Geographic production bootstrap and canonical source
 
-Geography is **database reference data**, not frontend/static data. The repository contains the pinned Ethiopia hierarchy importer and verification scripts. The correct pre-public-port sequence is:
+The accepted geographic source is `Jafermenza/ethiopia-administrative-divisions`, pinned to commit `418739e33760bf79661f3914e2d8c9cf33248437`, using `data/hierarchy.json`. The dataset is CC-BY-4.0 and was last updated 2026-09-08.
+
+The source's authoritative hierarchy is exactly:
+
+```text
+Ethiopia
+└── Region (15)
+    └── Zone (107)
+        └── Woreda (1,148)
+```
+
+The source record schema defines stable IDs, level (`1=region`, `2=zone`, `3=woreda`), English/local names, slugs, parent/ancestor references, child counts, optional postal codes and WGS84 latitude/longitude coordinates.
+
+Regional acceptance counts are:
+
+| Region | Zones | Woredas |
+|---|---:|---:|
+| Tigray | 6 | 75 |
+| Afar | 6 | 49 |
+| Amhara | 14 | 225 |
+| Oromia | 22 | 349 |
+| Somali | 11 | 100 |
+| Benishangul-Gumuz | 4 | 26 |
+| Central Ethiopia | 10 | 69 |
+| South Ethiopia | 12 | 93 |
+| South West Ethiopia | 6 | 59 |
+| Gambela | 4 | 15 |
+| Harari | 1 | 9 |
+| Addis Ababa | 1 | 11 |
+| Dire Dawa | 2 | 13 |
+| Sidama | 5 | 37 |
+| Contested | 3 | 18 |
+| **Total** | **107** | **1,148** |
+
+The EIASC-CRil database mapping is:
+
+- Region source records → `Region` table.
+- Zone source records → `ZoneCity` table.
+- Woreda source records → `District` table.
+- Source IDs are persisted as the stable database `code` values.
+- Canonical-source woredas have no inferred `SubcityTown` relationship.
+- `SubcityTown` remains optional for a separately approved sub-city/town dataset and is not treated as a fourth level of the canonical source.
+
+The source repository also publishes `all-region.json`, `all-zone.json`, `all-woreda.json`, `all-flat.json`, `all-flat.ndjson`, `all-flat.csv` and `schema.json`. The importer intentionally uses the nested `hierarchy.json` as the source of truth so parent/child relationships are explicit.
+
+### Geography acceptance gates
+
+Geography is **database reference data**, not frontend/static data. It must be loaded before public registration is exposed.
+
+The required sequence is:
 
 `npm run db:bootstrap`
 
-This performs:
+which performs:
 
 1. Prisma migration deployment.
 2. System role/institution-type/admin seed.
 3. Pinned Ethiopia geography import into PostgreSQL.
-4. Geography verification: 15 regions, 107 zones and 1,148 districts/woredas, with no orphan districts.
-5. Only after this succeeds should the API/web process be exposed publicly.
+4. Source hierarchy validation.
+5. Exact-count validation: 15 regions, 107 zones, 1,148 woredas.
+6. Duplicate ID and missing ID/name rejection.
+7. Parent-child persistence: every zone belongs to a region and every canonical woreda belongs to its source zone.
+8. Geography verification before application/public exposure.
 
-The source/version is pinned through `GEOGRAPHY_SOURCE_URL` and `GEOGRAPHY_SOURCE_VERSION`; the imported hierarchy becomes persistent PostgreSQL data and is then served by `/api/v1/locations/*` to registration forms. Geography is not downloaded on every application startup.
+The importer records source repository, source version, source URL, status, attribution and imported counts in `GeographyImport`.
+
+After import, registration and jurisdiction APIs read persistent PostgreSQL data through `/api/v1/locations/*`. The application does not download geography on every startup and does not require GitHub availability during registration.
+
+### Geography acceptance checklist
+
+- [x] Approved source repository identified.
+- [x] Source commit pinned.
+- [x] Canonical `Region → Zone → Woreda` hierarchy documented.
+- [x] Expected totals documented: 15 / 107 / 1,148.
+- [x] Regional distribution documented.
+- [x] Source schema documented, including IDs, names, hierarchy and coordinates.
+- [x] Database mapping documented.
+- [x] Bootstrap/import command documented.
+- [x] Importer validates exact source totals.
+- [x] Importer rejects duplicate/missing hierarchy identifiers.
+- [x] Imported hierarchy is persistent PostgreSQL reference data.
+- [x] Registration consumes database geography rather than an external live source.
+- [x] Source attribution and CC-BY-4.0 requirement documented.
+- [x] Geography verification remains a release gate.
+- [ ] Successful production bootstrap execution evidence.
+- [ ] Production registration test using all required geography levels.
+
+### Geographic source update policy
+
+A source update is a controlled data release. Change `GEOGRAPHY_SOURCE_VERSION` and `GEOGRAPHY_SOURCE_URL` together, review the new hierarchy/schema, run import and verification, record the new source commit/counts here, and only then release the updated geography. No unreviewed external geography source may replace the pinned source.
 
 ### Acceptance
 
@@ -96,4 +173,4 @@ If safe audit fixes leave high/critical findings, the next step is to upgrade th
 
 ## Current release decision
 
-**M5–M10 are not yet RELEASE-COMPLETE.** Code-level gaps requested in this release-gate pass are implemented. The remaining release blockers are execution/evidence gates: green CI/security audit, live Resend delivery, production smoke, monitoring evidence and zero high/critical dependency findings.
+**M5–M10 are not yet RELEASE-COMPLETE.** Code-level gaps requested in this release-gate pass are implemented. The remaining release blockers are execution/evidence gates: green CI/security audit, live Resend delivery, production smoke, monitoring evidence, zero high/critical dependency findings and the final production geography bootstrap/registration evidence.
