@@ -3,11 +3,10 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  const [regions, zones, districts, orphanZones, orphanDistricts] = await Promise.all([
+  const [regions, zones, districts, orphanDistricts] = await Promise.all([
     prisma.region.count(),
     prisma.zoneCity.count(),
     prisma.district.count(),
-    prisma.zoneCity.count({ where: { region: undefined } }),
     prisma.district.count({ where: { zoneId: null, subcityId: null } }),
   ]);
 
@@ -15,7 +14,6 @@ async function main() {
   const result = {
     expected,
     actual: { regions, zones, districts },
-    orphanZones,
     orphanDistricts,
     status: regions === expected.regions && zones === expected.zones && districts === expected.districts && orphanDistricts === 0 ? 'PASS' : 'FAIL',
   };
