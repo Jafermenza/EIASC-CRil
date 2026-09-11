@@ -1,7 +1,9 @@
-import { execFileSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
-const output = execFileSync('npm', ['audit', '--json'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-const report = JSON.parse(output);
+const result = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8' });
+const output = result.stdout || result.stderr || '{}';
+let report;
+try { report = JSON.parse(output); } catch { console.error(output); process.exit(1); }
 const vulnerabilities = report.metadata?.vulnerabilities || {};
 console.log(JSON.stringify({ generatedAt: new Date().toISOString(), vulnerabilities }, null, 2));
 
