@@ -93,6 +93,24 @@ enum GeographyImportStatus {
   FAILED
 }
 
+enum LicenseStatus {
+  PENDING
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  REVOKED
+}
+
+enum LicenseApplicationStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  CORRECTION_REQUIRED
+  RESUBMITTED
+  APPROVED
+  REJECTED
+}
+
 model User {
   id                  String            @id @default(uuid()) @db.Uuid
   email               String?           @unique
@@ -287,6 +305,7 @@ model Institution {
   education           InstitutionEducation?
   documents           InstitutionDocument[]
   statusHistory       InstitutionStatusHistory[]
+  licenses            License[]
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([status])
   @@index([name])
@@ -364,7 +383,7 @@ model InstitutionLeader {
 }
 
 model InstitutionApplicationStaffSummary {
-  id                         String                  @id @default(uuid()) @db.Uuid
+  id                         String                  @id @default(uuid())
   applicationId              String                  @unique @db.Uuid
   imamCount                  Int                     @default(0)
   teacherCount               Int                     @default(0)
@@ -406,14 +425,14 @@ model InstitutionDocument {
   institutionApplicationId String?            @db.Uuid
   institutionId       String?                 @db.Uuid
   documentType        String
-  fileName            String
-  storageKey          String                  @unique
-  mimeType            String
-  size                Int
-  uploadedBy          String?                 @db.Uuid
-  createdAt           DateTime                @default(now())
-  application         InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
-  institution         Institution?           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  fileName             String
+  storageKey           String                  @unique
+  mimeType             String
+  size                 Int
+  uploadedBy           String?                 @db.Uuid
+  createdAt            DateTime                @default(now())
+  application          InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  institution          Institution?           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   @@index([institutionApplicationId])
   @@index([institutionId])
 }
@@ -426,9 +445,9 @@ model InstitutionStatusHistory {
   toStatus            String
   reason              String?
   actorUserId         String?                 @db.Uuid
-  createdAt           DateTime                @default(now())
-  institution         Institution?            @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  application         InstitutionApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  createdAt            DateTime                @default(now())
+  institution          Institution?            @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  application          InstitutionApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   @@index([institutionId, createdAt])
   @@index([applicationId, createdAt])
 }
@@ -440,7 +459,7 @@ model Member {
   middleName         String?
   lastName           String
   birthDate          DateTime
-  gender             String
+  gender              String
   maritalStatus      String
   phone              String
   educationLevel     String?
@@ -457,7 +476,7 @@ model Member {
   region             Region              @relation("RegionMembers", fields: [regionId], references: [id], onDelete: Restrict)
   zone               ZoneCity            @relation("ZoneMembers", fields: [zoneId], references: [id], onDelete: Restrict)
   subcity            SubcityTown?        @relation("SubcityMembers", fields: [subcityId], references: [id], onDelete: Restrict)
-  district           District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
+  district            District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
   institutions       MemberInstitution[]
   registration       Registration?       @relation("MemberRegistration")
   @@index([phone])
@@ -519,6 +538,34 @@ model Registration {
   @@index([type])
   @@index([phone])
   @@index([nationalIdentity])
+}
+
+model License {
+  id                String                  @id @default(uuid()) @db.Uuid
+  licenseNumber     String?                 @unique
+  institutionId     String                  @db.Uuid
+  licenseType       String
+  status            LicenseStatus            @default(PENDING)
+  applicationStatus LicenseApplicationStatus @default(DRAFT)
+  issuedAt          DateTime?
+  effectiveFrom     DateTime?
+  expiresAt         DateTime?
+  suspendedAt       DateTime?
+  revokedAt         DateTime?
+  reason            String?
+  issuedBy          String?                 @db.Uuid
+  approvedBy        String?                 @db.Uuid
+  createdBy         String?                 @db.Uuid
+  reviewedBy        String?                 @db.Uuid
+  approvedAt        DateTime?
+  reviewedAt        DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  institution       Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  @@index([institutionId])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([applicationStatus])
 }
 
 model AuditLog {

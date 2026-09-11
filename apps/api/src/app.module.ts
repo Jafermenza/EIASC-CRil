@@ -10,9 +10,10 @@ import { LocationsModule } from './locations/locations.module';
 import { RegistrationsModule } from './registrations/registrations.module';
 import { InstitutionsModule } from './institutions/institutions.module';
 import { UsersModule } from './users/users.module';
+import { LicensingModule } from './licensing/licensing.module';
 
 @Module({
-  imports: [PrismaModule, LocationsModule, RegistrationsModule, InstitutionsModule, UsersModule],
+  imports: [PrismaModule, LocationsModule, RegistrationsModule, InstitutionsModule, UsersModule, LicensingModule],
   controllers: [HealthController, AuthController],
   providers: [AuthService, AuthGuard, RolesGuard, AuthorizationService],
   exports: [PrismaModule, AuthService, AuthGuard, RolesGuard, AuthorizationService],
