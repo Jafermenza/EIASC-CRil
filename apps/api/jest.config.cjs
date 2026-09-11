@@ -12,6 +12,7 @@ module.exports = {
         esModuleInterop: true,
         isolatedModules: true
       },
+      diagnostics: false,
       useESM: true
     }]
   },
