@@ -15,6 +15,12 @@ export interface ResourceScope {
 export class AuthorizationService {
   constructor(private readonly prisma: PrismaService) {}
 
+  assertAnyRole(user: AuthenticatedUser, roles: RoleCode[]): void {
+    if (!roles.some((role) => user.roles.includes(role))) {
+      throw new ForbiddenException('You do not have permission to perform this action');
+    }
+  }
+
   async canAccess(user: AuthenticatedUser, resource: ResourceScope): Promise<boolean> {
     if (user.roles.includes(RoleCode.SUPER_ADMIN) || user.roles.includes(RoleCode.NATIONAL_ADMIN)) return true;
 
