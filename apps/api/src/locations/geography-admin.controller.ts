@@ -23,6 +23,7 @@ export class GeographyAdminController {
 
   @Post('import')
   import(@Req() request: AuthenticatedRequest, @Body() body: Record<string, unknown>) {
+    if (!request.user) throw new BadRequestException('Authenticated user is unavailable');
     return this.geography.importExcel(this.fileBase64(body), this.string(body.sourceVersion) ?? 'manual', request.user.id);
   }
 
