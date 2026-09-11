@@ -74,7 +74,7 @@ export class AllocationService {
     if (!run) throw new NotFoundException('Allocation run not found');
     return run;
   }
-  private validateFormula(input: object) { this.parseFormula(input); }
+  private validateFormula(input: AllocationFormula) { this.parseFormula(input as Prisma.JsonValue); }
   private parseFormula(input: Prisma.JsonValue): AllocationFormula {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Allocation formula must be a JSON object');
     const formula = input as AllocationFormula;
