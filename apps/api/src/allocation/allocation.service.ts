@@ -38,18 +38,21 @@ export class AllocationService {
     const counts = await this.prisma.memberInstitution.groupBy({ by: ['institutionId'], where: { status: 'ACTIVE', member: { status: 'ACTIVE' }, institution: { status: 'ACTIVE' } }, _count: { memberId: true } });
     const byInstitution = new Map(counts.map((row) => [row.institutionId, row._count.memberId]));
     const eligible = institutions.map((institution) => ({ institutionId: institution.id, memberCount: byInstitution.get(institution.id) ?? 0 }));
-    const equalizationPool = (formula.equalizationPerInstitution ?? 0) * eligible.length;
+    const eligibleMemberCount = eligible.reduce((sum, row) => sum + row.memberCount, 0);
+    const equalizationPerInstitution = formula.equalizationPerInstitution ?? 0;
+    const equalizationPool = equalizationPerInstitution * eligible.length;
     const proportionalPool = Math.max(0, input.fundingPool - equalizationPool);
     const rawTotal = eligible.reduce((sum, row) => sum + row.memberCount * (formula.perMemberMultiplier ?? 0), 0);
     const multiplier = rawTotal > 0 ? proportionalPool / rawTotal : 0;
+    const basePerMemberAmount = Number(((formula.perMemberMultiplier ?? 0) * multiplier).toFixed(2));
     const allocations = eligible.map((row) => {
-      let amount = row.memberCount * (formula.perMemberMultiplier ?? 0) * multiplier + (formula.equalizationPerInstitution ?? 0);
+      let amount = row.memberCount * (formula.perMemberMultiplier ?? 0) * multiplier + equalizationPerInstitution;
       if (formula.minimumInstitutionAmount !== undefined) amount = Math.max(amount, formula.minimumInstitutionAmount);
       if (formula.maximumInstitutionAmount !== undefined) amount = Math.min(amount, formula.maximumInstitutionAmount);
       return { institutionId: row.institutionId, memberCount: row.memberCount, amount: Number(amount.toFixed(2)) };
     });
     const totalAllocated = Number(allocations.reduce((sum, row) => sum + row.amount, 0).toFixed(2));
-    const run = await this.prisma.allocationRun.create({ data: { policyId: policy.id, period: input.period, fundingPool: input.fundingPool, policyVersion: policy.version, equalizationPool, totalAllocated, status: AllocationRunStatus.PREVIEW, calculatedBy: user.id, results: { createMany: { data: allocations.map((row) => ({ institutionId: row.institutionId, eligibleMemberCount: row.memberCount, memberCount: row.memberCount, baseAmount: Number((row.amount - (formula.equalizationPerInstitution ?? 0)).toFixed(2)), equalizationAmount: formula.equalizationPerInstitution ?? 0, totalAmount: row.amount })) } } } });
+    const run = await this.prisma.allocationRun.create({ data: { policyId: policy.id, period: input.period, fundingPool: input.fundingPool, policyVersion: policy.version, eligibleMemberCount, basePerMemberAmount, equalizationPool, totalAllocated, status: AllocationRunStatus.PREVIEW, calculatedBy: user.id, results: { createMany: { data: allocations.map((row) => ({ institutionId: row.institutionId, eligibleMemberCount: row.memberCount, memberCount: row.memberCount, baseAmount: Number((row.amount - equalizationPerInstitution).toFixed(2)), equalizationAmount: equalizationPerInstitution, totalAmount: row.amount })) } } } });
     return run;
   }
 
