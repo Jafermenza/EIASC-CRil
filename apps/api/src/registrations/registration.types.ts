@@ -23,7 +23,7 @@ export interface IndividualRegistrationInput {
   employmentStatus?: string;
   regionId: string;
   zoneId: string;
-  subcityId: string;
+  subcityId?: string;
   districtId: string;
   currentAddress?: string;
   nationalIdentity?: string;
