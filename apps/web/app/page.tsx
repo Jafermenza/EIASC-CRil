@@ -8,24 +8,15 @@ const actions = [
 ];
 
 const capabilities = [
-  { number: '01', title: 'Registration', text: 'Structured registration for individuals and Islamic institutions with clear application pathways.' },
-  { number: '02', title: 'Institutional licensing', text: 'Jurisdiction-aware review and licensing workflows with controlled administrative actions.' },
-  { number: '03', title: 'Digital credentials', text: 'Secure credentials designed for straightforward verification and trusted public access.' },
-  { number: '04', title: 'Accountability', text: 'Role-based administration and auditable actions support transparent institutional governance.' },
+  { number: '01', title: 'Registration', text: 'Structured registration for individuals and Islamic institutions with clear application pathways.', href: '/register' },
+  { number: '02', title: 'Institutional licensing', text: 'Jurisdiction-aware review and licensing workflows with controlled administrative actions.', href: '/login' },
+  { number: '03', title: 'Digital credentials', text: 'Secure credentials designed for straightforward verification and trusted public access.', href: '/verify' },
+  { number: '04', title: 'Accountability', text: 'Role-based administration and auditable actions support transparent institutional governance.', href: '/login' },
 ];
 
 export default function HomePage() {
   return (
     <main>
-      <header className="site-header">
-        <div className="site-header-inner">
-          <Link className="brand" href="/" aria-label="EIASC CRil home"><span className="brand-symbol">E</span><span><strong>EIASC</strong><small>CRil Platform</small></span></Link>
-          <nav className="site-nav" aria-label="Primary navigation">
-            <a href="#services">Services</a><a href="#about">About CRil</a><Link className="button button-secondary" href="/login">Platform sign in</Link>
-          </nav>
-        </div>
-      </header>
-
       <section className="home-hero">
         <div className="hero-copy">
           <p className="eyebrow">ETHIOPIAN ISLAMIC AFFAIRS SUPREME COUNCIL</p>
@@ -45,7 +36,7 @@ export default function HomePage() {
       <section className="section" id="services">
         <div className="section-heading"><div><p className="eyebrow">PLATFORM CAPABILITIES</p><h2>Built around clear public and administrative journeys.</h2></div><p>Every service is presented with a defined purpose, consistent controls and a professional digital experience.</p></div>
         <div className="capability-grid">
-          {capabilities.map((item) => <article className="capability-card" key={item.number}><span>{item.number}</span><h3>{item.title}</h3><p>{item.text}</p><Link href={item.title === 'Institutional licensing' ? '/login' : '/'}>Explore service <span aria-hidden="true">→</span></Link></article>)}
+          {capabilities.map((item) => <article className="capability-card" key={item.number}><span>{item.number}</span><h3>{item.title}</h3><p>{item.text}</p><Link href={item.href}>Explore service <span aria-hidden="true">→</span></Link></article>)}
         </div>
       </section>
 
