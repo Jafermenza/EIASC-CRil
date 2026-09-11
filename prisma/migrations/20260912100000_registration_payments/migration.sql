@@ -24,7 +24,7 @@ CREATE TABLE "RegistrationPayment" (
   CONSTRAINT "RegistrationPayment_registrationId_fkey" FOREIGN KEY ("registrationId") REFERENCES "Registration"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "RegistrationPayment_institutionApplicationId_fkey" FOREIGN KEY ("institutionApplicationId") REFERENCES "InstitutionApplication"("id") ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT "RegistrationPayment_verifiedBy_fkey" FOREIGN KEY ("verifiedBy") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE,
-  CONSTRAINT "RegistrationPayment_one_application_check" CHECK (("registrationId" IS NOT NULL)::int + ("institutionApplicationId" IS NOT NULL)::int <= 1)
+  CONSTRAINT "RegistrationPayment_one_application_check" CHECK ((CASE WHEN "registrationId" IS NOT NULL THEN 1 ELSE 0 END) + (CASE WHEN "institutionApplicationId" IS NOT NULL THEN 1 ELSE 0 END) <= 1)
 );
 
 CREATE UNIQUE INDEX "RegistrationPayment_referenceNumber_key" ON "RegistrationPayment"("referenceNumber");
