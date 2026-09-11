@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { RegistrationsService } from './registrations.service';
 
 describe('RegistrationsService', () => {
