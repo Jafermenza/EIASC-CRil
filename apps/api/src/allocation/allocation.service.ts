@@ -41,12 +41,9 @@ export class AllocationService {
     const eligibleMemberCount = eligible.reduce((sum, row) => sum + row.memberCount, 0);
     const equalizationPerInstitution = formula.equalizationPerInstitution ?? 0;
     const equalizationPool = equalizationPerInstitution * eligible.length;
-    const proportionalPool = Math.max(0, input.fundingPool - equalizationPool);
-    const rawTotal = eligible.reduce((sum, row) => sum + row.memberCount * (formula.perMemberMultiplier ?? 0), 0);
-    const multiplier = rawTotal > 0 ? proportionalPool / rawTotal : 0;
-    const basePerMemberAmount = Number(((formula.perMemberMultiplier ?? 0) * multiplier).toFixed(2));
+    const basePerMemberAmount = Number((input.fundingPool * (formula.perMemberMultiplier ?? 0)).toFixed(2));
     const allocations = eligible.map((row) => {
-      let amount = row.memberCount * (formula.perMemberMultiplier ?? 0) * multiplier + equalizationPerInstitution;
+      let amount = row.memberCount * basePerMemberAmount + equalizationPerInstitution;
       if (formula.minimumInstitutionAmount !== undefined) amount = Math.max(amount, formula.minimumInstitutionAmount);
       if (formula.maximumInstitutionAmount !== undefined) amount = Math.min(amount, formula.maximumInstitutionAmount);
       return { institutionId: row.institutionId, memberCount: row.memberCount, amount: Number(amount.toFixed(2)) };
@@ -77,6 +74,7 @@ export class AllocationService {
     if (!run) throw new NotFoundException('Allocation run not found');
     return run;
   }
+
   private validateFormula(input: AllocationFormula) { this.parseFormula(input as Prisma.JsonValue); }
   private parseFormula(input: Prisma.JsonValue): AllocationFormula {
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new BadRequestException('Allocation formula must be a JSON object');
