@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import PublicChrome from '../components/layout/public-chrome';
 import { ThemeProvider } from '../components/ui/theme-provider';
+import { ToastProvider } from '../components/ui/toast-provider';
 
 export const metadata: Metadata = {
   title: 'EIASC Community Registration & Institutional Licensing',
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body><ThemeProvider><PublicChrome>{children}</PublicChrome></ThemeProvider></body>
+      <body><ThemeProvider><ToastProvider><PublicChrome>{children}</PublicChrome></ToastProvider></ThemeProvider></body>
     </html>
   );
 }
