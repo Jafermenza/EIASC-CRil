@@ -6,8 +6,9 @@ import { AllocationService } from './allocation.service';
 @UseGuards(AuthGuard)
 export class AllocationController {
   constructor(private readonly allocation: AllocationService) {}
+
   @Post('policies')
-  createPolicy(@Req() req: AuthenticatedRequest, @Body() body: any) { return this.allocation.createPolicy(req.user!, body); }
+  createPolicy(@Req() req: AuthenticatedRequest, @Body() body: { name: string; version: string; effectiveFrom: string; eligibilityRules: object; formulaDefinition: object }) { return this.allocation.createPolicy(req.user!, body); }
   @Patch('policies/:id/approve')
   approvePolicy(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.allocation.approvePolicy(req.user!, id); }
   @Post('runs/preview')
@@ -17,5 +18,5 @@ export class AllocationController {
   @Patch('runs/:id/finalize')
   finalize(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.allocation.finalize(req.user!, id); }
   @Get('runs/:id')
-  get(@Param('id') id: string) { return this.allocation.get(id); }
+  get(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.allocation.get(req.user!, id); }
 }
