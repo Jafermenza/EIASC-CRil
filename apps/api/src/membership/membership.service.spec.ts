@@ -10,7 +10,16 @@ describe('MembershipService', () => {
   };
   const authorization = { assertCanAccess: jest.fn() };
   const service = new MembershipService(prisma as never, authorization as never);
-  const admin = { id: 'admin-1', roles: [RoleCode.NATIONAL_ADMIN], jurisdictionLevel: JurisdictionLevel.NATIONAL, jurisdictionId: null, institutionId: null };
+  const admin = {
+    id: 'admin-1',
+    email: null,
+    phone: null,
+    status: 'ACTIVE' as const,
+    roles: [RoleCode.NATIONAL_ADMIN],
+    jurisdictionLevel: JurisdictionLevel.NATIONAL,
+    jurisdictionId: null,
+    institutionId: null,
+  };
 
   beforeEach(() => jest.clearAllMocks());
 
