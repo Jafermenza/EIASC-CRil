@@ -10,6 +10,7 @@ const sections = [
   { label: 'Overview', roles: ALL_ADMIN_ROLES, items: [{ label: 'Dashboard', href: '/admin/dashboard' }] },
   { label: 'Registration', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Institution applications', href: '/admin/institutions' }] },
   { label: 'Governance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Licensing', href: '/admin/licenses' }] },
+  { label: 'Intelligence', roles: ALL_ADMIN_ROLES, items: [{ label: 'Reports & trends', href: '/admin/reports' }] },
   { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Users & roles', href: '/admin/users' }, { label: 'Settings', href: '/admin/settings' }] },
   { label: 'Operations', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'FINANCE_OFFICER'], items: [{ label: 'Notifications', href: '/notifications' }] },
 ];
@@ -28,10 +29,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <Link className="sidebar-public-link" href="/">← Public platform</Link>
       </aside>
       <div className="app-main">
-        <header className="app-topbar"><div><span className="mobile-context">EIASC</span><strong>{pathname.startsWith('/admin/institutions') ? 'Institution registry' : pathname.startsWith('/admin/licenses') ? 'Licensing' : 'Administration'}</strong></div><div className="topbar-actions"><ThemeControls /><Link className="notification-link" href="/notifications" aria-label="Open notifications">🔔 <span>Notifications</span></Link></div></header>
+        <header className="app-topbar"><div><span className="mobile-context">EIASC</span><strong>{pathname.startsWith('/admin/institutions') ? 'Institution registry' : pathname.startsWith('/admin/licenses') ? 'Licensing' : pathname.startsWith('/admin/reports') ? 'Reports & trends' : 'Administration'}</strong></div><div className="topbar-actions"><ThemeControls /><Link className="notification-link" href="/notifications" aria-label="Open notifications">🔔 <span>Notifications</span></Link></div></header>
         <div className="app-content">{children}</div>
       </div>
-      <nav className="mobile-bottom-nav" aria-label="Primary administration navigation"><Link className={pathname.startsWith('/admin/dashboard') ? 'active' : ''} href="/admin/dashboard">Home</Link>{canSeeUsers && <Link className={pathname.startsWith('/admin/users') ? 'active' : ''} href="/admin/users">Users</Link>}<Link className={pathname.startsWith('/admin/licenses') ? 'active' : ''} href="/admin/licenses">Licensing</Link><Link href="/notifications">More</Link></nav>
+      <nav className="mobile-bottom-nav" aria-label="Primary administration navigation"><Link className={pathname.startsWith('/admin/dashboard') ? 'active' : ''} href="/admin/dashboard">Home</Link>{canSeeUsers && <Link className={pathname.startsWith('/admin/users') ? 'active' : ''} href="/admin/users">Users</Link>}<Link className={pathname.startsWith('/admin/reports') ? 'active' : ''} href="/admin/reports">Reports</Link><Link href="/notifications">More</Link></nav>
     </div>
   );
 }
