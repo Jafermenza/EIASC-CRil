@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { PrismaClient, RoleCode, JurisdictionLevel } from '@prisma/client';
 import { hashPassword } from '../apps/api/src/auth/crypto';
 
