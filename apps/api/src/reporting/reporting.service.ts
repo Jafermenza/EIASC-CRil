@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { JurisdictionLevel, RoleCode } from '@prisma/client';
+import { JurisdictionLevel } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
@@ -28,14 +28,19 @@ export class ReportingService {
     if (effectiveScope.zoneId) { memberWhere.zoneId = effectiveScope.zoneId; institutionWhere.zoneId = effectiveScope.zoneId; applicationWhere.zoneId = effectiveScope.zoneId; }
     if (effectiveScope.subcityId) { memberWhere.subcityId = effectiveScope.subcityId; institutionWhere.subcityId = effectiveScope.subcityId; applicationWhere.subcityId = effectiveScope.subcityId; }
     if (effectiveScope.districtId) { memberWhere.districtId = effectiveScope.districtId; institutionWhere.districtId = effectiveScope.districtId; applicationWhere.districtId = effectiveScope.districtId; }
-    if (effectiveScope.institutionId) { institutionWhere.id = effectiveScope.institutionId; applicationWhere.institutionId = effectiveScope.institutionId; memberWhere.institutionId = effectiveScope.institutionId; }
-    const [members, activeMembers, institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses] = await Promise.all([
-      this.prisma.member.count({ where: memberWhere }), this.prisma.member.count({ where: { ...memberWhere, status: 'ACTIVE' } }),
+    if (effectiveScope.institutionId) applicationWhere.institutionId = effectiveScope.institutionId;
+    const memberFilter = effectiveScope.institutionId ? { member: { status: 'ACTIVE' }, institutionId: effectiveScope.institutionId } : { member: { status: 'ACTIVE' }, ...(memberWhere as object) };
+    const activeMemberFilter = effectiveScope.institutionId ? memberFilter : { ...memberWhere, status: 'ACTIVE' };
+    const memberCounts = effectiveScope.institutionId
+      ? [this.prisma.memberInstitution.count({ where: memberFilter }), this.prisma.memberInstitution.count({ where: activeMemberFilter })]
+      : [this.prisma.member.count({ where: memberWhere }), this.prisma.member.count({ where: { ...memberWhere, status: 'ACTIVE' } })];
+    const [memberPair, institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses] = await Promise.all([
+      Promise.all(memberCounts),
       this.prisma.institution.count({ where: institutionWhere }), this.prisma.institution.count({ where: { ...institutionWhere, status: 'ACTIVE' } }),
       this.prisma.institutionApplication.count({ where: { ...applicationWhere, status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'CORRECTION_REQUIRED', 'RESUBMITTED'] } } }),
       this.prisma.institutionApplication.count({ where: { ...applicationWhere, status: 'APPROVED' } }), this.prisma.institutionApplication.count({ where: { ...applicationWhere, status: 'REJECTED' } }),
       this.prisma.license.count({ where: { institution: institutionWhere, status: 'ACTIVE' } }), this.prisma.license.count({ where: { institution: institutionWhere, status: 'EXPIRED' } }), this.prisma.license.count({ where: { institution: institutionWhere, status: 'SUSPENDED' } }),
     ]);
-    return { members, activeMembers, institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses };
+    return { members: memberPair[0], activeMembers: memberPair[1], institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses };
   }
 }
