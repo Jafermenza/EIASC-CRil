@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 
 const API = '/api/v1';
-const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
-const levels = ['NATIONAL','REGION','ZONE_CITY','SUBCITY_TOWN','DISTRICT','INSTITUTION'];
+const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','SUBCITY_TOWN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -47,7 +46,7 @@ export default function UsersPage() {
       <input placeholder="Phone (optional)" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
       <input placeholder="Initial password (10+ characters)" type="password" minLength={10} required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/>
       <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>{roles.map(r => <option key={r}>{r}</option>)}</select>
-      <select value={form.jurisdictionLevel} onChange={e => setForm({ ...form, jurisdictionLevel: e.target.value })}>{levels.map(l => <option key={l}>{l}</option>)}</select>
+      <select value={form.jurisdictionLevel} onChange={e => setForm({ ...form, jurisdictionLevel: e.target.value })}>{['NATIONAL','REGION','ZONE_CITY','SUBCITY_TOWN','DISTRICT','INSTITUTION'].map(l => <option key={l}>{l}</option>)}</select>
       {form.jurisdictionLevel !== 'NATIONAL' && form.jurisdictionLevel !== 'INSTITUTION' && <input placeholder="Jurisdiction ID" required value={form.jurisdictionId} onChange={e => setForm({ ...form, jurisdictionId: e.target.value })}/>} 
       {form.jurisdictionLevel === 'INSTITUTION' && <input placeholder="Institution ID" required value={form.institutionId} onChange={e => setForm({ ...form, institutionId: e.target.value })}/>} 
       <button className="button" type="submit">Create user</button>
