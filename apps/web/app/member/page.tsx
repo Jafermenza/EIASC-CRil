@@ -1,0 +1,34 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+
+type User = { id: string; email?: string | null; phone?: string | null; roles: string[]; jurisdictionLevel: string; jurisdictionId?: string | null; institutionId?: string | null };
+type Notification = { id: string; title: string; message: string; status: string; createdAt: string };
+
+export default function MemberDashboardPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken') || '';
+    if (!token) return;
+    Promise.all([
+      fetch('/api/v1/auth/me', { headers: { authorization: `Bearer ${token}` } }).then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.message || 'Unable to load account'); return body.data; }),
+      fetch('/api/v1/notifications', { headers: { authorization: `Bearer ${token}` } }).then(async (response) => { const body = await response.json(); if (!response.ok) throw new Error(body.message || 'Unable to load notifications'); return body; }),
+    ]).then(([account, inbox]) => { setUser(account); setNotifications(Array.isArray(inbox) ? inbox.slice(0, 5) : []); }).catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load your dashboard.'));
+  }, []);
+
+  return <main className="shell" style={{ maxWidth: 1100 }}>
+    <div className="hero"><p className="eyebrow">EIASC · MEMBER PORTAL</p><h1>My dashboard</h1><p className="lead">Your authenticated CRil workspace for account status, notifications and member services.</p></div>
+    {error && <section className="error-reason" role="alert"><strong>Dashboard could not be loaded</strong><span>{error}</span></section>}
+    <section className="grid">
+      <article><p className="eyebrow">ACCOUNT</p><h2>{user?.email || user?.phone || 'Authenticated member'}</h2><p>Roles: {user?.roles.join(', ') || 'MEMBER'}</p></article>
+      <article><p className="eyebrow">JURISDICTION</p><h2>{user?.jurisdictionLevel || '—'}</h2><p>{user?.jurisdictionId || 'Assigned jurisdiction is managed by EIASC.'}</p></article>
+      <article><p className="eyebrow">NOTIFICATIONS</p><h2>{notifications.length}</h2><p>Recent messages in your secure inbox.</p><Link className="button button-secondary" href="/notifications">Open inbox</Link></article>
+    </section>
+    <section className="workflow-panel"><div className="section-heading compact"><div><p className="eyebrow">MEMBER SERVICES</p><h2>Continue</h2></div></div><div className="action-row"><Link className="button button-primary" href="/track">Track an application</Link><Link className="button button-secondary" href="/verify">Verify a credential</Link></div></section>
+    <section className="workflow-panel"><h2>Recent notifications</h2>{notifications.length ? notifications.map((item) => <article key={item.id} style={{ padding: '1rem 0', borderBottom: '1px solid var(--border)' }}><strong>{item.title}</strong><p>{item.message}</p><small>{new Date(item.createdAt).toLocaleString()}</small></article>) : <p>No notifications yet.</p>}</section>
+  </main>;
+}
