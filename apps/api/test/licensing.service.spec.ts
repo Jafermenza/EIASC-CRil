@@ -1,5 +1,6 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
 import { LicenseApplicationStatus, LicenseStatus, RoleCode } from '@prisma/client';
+import { jest } from '@jest/globals';
 import { LicensingService } from '../src/licensing/licensing.service';
 
 const nationalUser = {
