@@ -1,4 +1,7 @@
 import { Module } from '@nestjs/common';
+import { AuthGuard } from '../auth/auth.guard';
+import { AuthService } from '../auth/auth.service';
+import { RolesGuard } from '../auth/roles.guard';
 import { PrismaService } from '../prisma.service';
 import { PaymentsController } from './payments.controller';
 import { PaymentSettingsController } from './payment-settings.controller';
@@ -7,7 +10,14 @@ import { PaymentSettingsService } from './payment-settings.service';
 
 @Module({
   controllers: [PaymentsController, PaymentSettingsController],
-  providers: [PaymentsService, PaymentSettingsService, PrismaService],
+  providers: [
+    PaymentsService,
+    PaymentSettingsService,
+    PrismaService,
+    AuthService,
+    AuthGuard,
+    RolesGuard,
+  ],
   exports: [PaymentsService, PaymentSettingsService],
 })
 export class PaymentsModule {}
