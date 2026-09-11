@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { JurisdictionLevel } from '@prisma/client';
+import { JurisdictionLevel, MemberStatus } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
@@ -35,8 +35,8 @@ export class ReportingService {
   async dashboard(user: AuthenticatedUser, scope: { regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string }) {
     const { effectiveScope, memberWhere, institutionWhere, applicationWhere } = await this.scopedWhere(user, scope);
     const memberCounts = effectiveScope.institutionId
-      ? [this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, member: { status: 'ACTIVE' } } }), this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, status: 'ACTIVE', member: { status: 'ACTIVE' } } })]
-      : [this.prisma.member.count({ where: memberWhere }), this.prisma.member.count({ where: { ...memberWhere, status: 'ACTIVE' } })];
+      ? [this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, member: { status: MemberStatus.ACTIVE } } }), this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, status: 'ACTIVE', member: { status: MemberStatus.ACTIVE } } })]
+      : [this.prisma.member.count({ where: memberWhere }), this.prisma.member.count({ where: { ...memberWhere, status: MemberStatus.ACTIVE } })];
     const [memberPair, institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses] = await Promise.all([
       Promise.all(memberCounts),
       this.prisma.institution.count({ where: institutionWhere }), this.prisma.institution.count({ where: { ...institutionWhere, status: 'ACTIVE' } }),
@@ -54,7 +54,7 @@ export class ReportingService {
     for (let offset = safeMonths - 1; offset >= 0; offset -= 1) {
       const start = new Date(); start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0); start.setUTCMonth(start.getUTCMonth() - offset);
       const end = new Date(start); end.setUTCMonth(end.getUTCMonth() + 1);
-      const memberBase = effectiveScope.institutionId ? { member: { status: 'ACTIVE' }, institutionId: effectiveScope.institutionId, createdAt: { gte: start, lt: end } } : { ...memberWhere, createdAt: { gte: start, lt: end } };
+      const memberBase = effectiveScope.institutionId ? { member: { status: MemberStatus.ACTIVE }, institutionId: effectiveScope.institutionId, createdAt: { gte: start, lt: end } } : { ...memberWhere, createdAt: { gte: start, lt: end } };
       const [members, institutions, applications, licenses] = await Promise.all([
         effectiveScope.institutionId ? this.prisma.memberInstitution.count({ where: memberBase }) : this.prisma.member.count({ where: memberBase }),
         this.prisma.institution.count({ where: { ...institutionWhere, createdAt: { gte: start, lt: end } } }),
