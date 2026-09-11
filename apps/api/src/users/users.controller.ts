@@ -12,19 +12,24 @@ export class UsersController {
   constructor(private readonly users: UsersService) {}
 
   @Get()
-  list(@Req() request: AuthenticatedRequest) { return this.users.list(request.user); }
+  list(@Req() request: AuthenticatedRequest) { return this.users.list(this.actor(request)); }
 
   @Get(':id')
-  get(@Req() request: AuthenticatedRequest, @Param('id') id: string) { return this.users.get(request.user, id); }
+  get(@Req() request: AuthenticatedRequest, @Param('id') id: string) { return this.users.get(this.actor(request), id); }
 
   @Post()
   create(@Req() request: AuthenticatedRequest, @Body() body: Record<string, unknown>, @Headers('x-request-id') requestId?: string) {
-    return this.users.create(request.user, this.parseCreate(body), requestId);
+    return this.users.create(this.actor(request), this.parseCreate(body), requestId);
   }
 
   @Patch(':id')
   update(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: Record<string, unknown>, @Headers('x-request-id') requestId?: string) {
-    return this.users.update(request.user, id, this.parseUpdate(body), requestId);
+    return this.users.update(this.actor(request), id, this.parseUpdate(body), requestId);
+  }
+
+  private actor(request: AuthenticatedRequest) {
+    if (!request.user) throw new BadRequestException('Authenticated user is unavailable');
+    return request.user;
   }
 
   private parseCreate(body: Record<string, unknown>) {
