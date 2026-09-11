@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { MembershipStatus, RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -18,7 +18,7 @@ export class MembershipController {
   @Patch(':id/status')
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
   status(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { status?: MembershipStatus }) {
-    if (!body?.status) throw new Error('status is required');
+    if (!body?.status) throw new BadRequestException('status is required');
     return this.memberships.setStatus(req.user!, id, body.status);
   }
 }
