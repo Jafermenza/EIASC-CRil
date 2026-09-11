@@ -26,11 +26,45 @@ npm run db:generate
 docker compose up -d postgres
 npm run db:migrate
 npm run db:seed
+npm run db:bootstrap
 npm run dev
 ```
 
 Frontend: `http://localhost:3000`
 API health: `http://localhost:4000/api/v1/health`
+
+## Ethiopia geographic reference data
+
+Registration and jurisdiction selection use persistent PostgreSQL reference data for Ethiopia's administrative geography. The approved source is the maintained project repository:
+
+- **Source repository:** `Jafermenza/ethiopia-administrative-divisions`
+- **Source:** urlJafermenza/ethiopia-administrative-divisionshttps://github.com/Jafermenza/ethiopia-administrative-divisions
+- **Pinned source commit:** `418739e33760bf79661f3914e2d8c9cf33248437`
+- **Source data:** `data/hierarchy.json`
+- **Last updated:** 2026-09-08
+- **License:** CC-BY-4.0
+- **Coverage:** 15 regions, 107 zones, 1,148 woredas
+- **Coordinates:** included by the source dataset for administrative levels; the EIASC-CRil registration model currently persists the administrative codes, names and hierarchy used for jurisdiction validation.
+
+The source dataset provides machine-readable JSON, NDJSON and CSV formats and includes English/local names, stable IDs, parent/ancestor references and WGS84 latitude/longitude fields. citeturn0search0
+
+EIASC-CRil imports the pinned hierarchy into PostgreSQL during `npm run db:bootstrap`. The application does **not** download geography on every startup. After import, registration and jurisdiction APIs read the database through `/api/v1/locations/*`.
+
+The bootstrap sequence is:
+
+```text
+Prisma migrations
+  -> system/reference seed
+  -> pinned Ethiopia geography import
+  -> geography verification
+  -> application/public exposure
+```
+
+The importer records the source repository, source version, source URL, import status and imported counts in `GeographyImport`. Geography verification is a release gate and must confirm 15 regions, 107 zones, 1,148 woredas and no orphaned hierarchy records before production exposure.
+
+The source repository's README identifies the dataset as CC-BY-4.0 and provides the complete region/zone/woreda hierarchy and schema. fileciteturn271file0
+
+To deliberately update the approved geography version, change `GEOGRAPHY_SOURCE_VERSION` and `GEOGRAPHY_SOURCE_URL` together, run the import and verification gates, review the resulting counts, and record the new source commit in the acceptance record. Do not silently switch to an unreviewed geography dataset.
 
 ## M1 authentication configuration
 
@@ -66,6 +100,7 @@ npm run lint
 npm run typecheck
 npm test
 npm run build
+npm run db:verify-geography
 ```
 
 The MVP deliberately excludes payment gateways, Fayda API integration, biometrics, native mobile apps, USSD, AI decision-making, blockchain, microservices and other post-MVP functionality listed in `PRD.md`.
