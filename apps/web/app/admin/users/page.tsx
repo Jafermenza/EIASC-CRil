@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 const API = '/api/v1';
-const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','SUBCITY_TOWN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
+const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
