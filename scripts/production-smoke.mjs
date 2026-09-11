@@ -15,6 +15,6 @@ async function check(name, url, expectedStatuses = [200]) {
 }
 
 await check('Public web', `${webUrl}/`);
-await check('API health', `${apiUrl}/health`);
-await check('Public verification route', `${webUrl}/verify`, [200, 308]);
+await check('Public login', `${webUrl}/login`);
+await check('API health', `${apiUrl}/api/v1/health`);
 console.log('Production smoke test passed.');
