@@ -7,6 +7,7 @@ import { JurisdictionLevel } from '@prisma/client';
 export interface ReportScope {
   regionId?: string;
   zoneId?: string;
+  subcityId?: string;
   districtId?: string;
   institutionId?: string;
 }
@@ -17,21 +18,25 @@ export class ReportingService {
 
   private async effectiveScope(user: AuthenticatedUser, requested: ReportScope): Promise<ReportScope> {
     const scope: ReportScope = { ...requested };
-    if (user.jurisdictionLevel === JurisdictionLevel.REGION) scope.regionId = user.jurisdictionId ?? undefined;
-    if (user.jurisdictionLevel === JurisdictionLevel.ZONE_CITY) scope.zoneId = user.jurisdictionId ?? undefined;
-    if (user.jurisdictionLevel === JurisdictionLevel.SUBCITY_TOWN) scope.zoneId = scope.zoneId;
-    if (user.jurisdictionLevel === JurisdictionLevel.DISTRICT) scope.districtId = user.jurisdictionId ?? undefined;
-    if (user.jurisdictionLevel === JurisdictionLevel.INSTITUTION) scope.institutionId = user.institutionId ?? user.jurisdictionId ?? undefined;
-    if (requested.institutionId || requested.regionId || requested.zoneId || requested.districtId) {
+    switch (user.jurisdictionLevel) {
+      case JurisdictionLevel.REGION: scope.regionId = user.jurisdictionId ?? undefined; break;
+      case JurisdictionLevel.ZONE_CITY: scope.zoneId = user.jurisdictionId ?? undefined; break;
+      case JurisdictionLevel.SUBCITY_TOWN: scope.subcityId = user.jurisdictionId ?? undefined; break;
+      case JurisdictionLevel.DISTRICT: scope.districtId = user.jurisdictionId ?? undefined; break;
+      case JurisdictionLevel.INSTITUTION: scope.institutionId = user.institutionId ?? user.jurisdictionId ?? undefined; break;
+      default: break;
+    }
+    if (requested.institutionId || requested.regionId || requested.zoneId || requested.subcityId || requested.districtId) {
       await this.authorization.assertCanAccess(user, requested);
     }
     return scope;
   }
 
   private where(scope: ReportScope) {
-    const where: Record<string, unknown> = {};
+    const where: Record<string, string> = {};
     if (scope.regionId) where.regionId = scope.regionId;
     if (scope.zoneId) where.zoneId = scope.zoneId;
+    if (scope.subcityId) where.subcityId = scope.subcityId;
     if (scope.districtId) where.districtId = scope.districtId;
     if (scope.institutionId) where.institutionId = scope.institutionId;
     return where;
@@ -40,13 +45,14 @@ export class ReportingService {
   async dashboard(user: AuthenticatedUser, requested: ReportScope) {
     const scope = await this.effectiveScope(user, requested);
     const memberWhere = this.where(scope);
-    const institutionWhere: Record<string, unknown> = {};
+    const institutionWhere: Record<string, string> = {};
     if (scope.regionId) institutionWhere.regionId = scope.regionId;
     if (scope.zoneId) institutionWhere.zoneId = scope.zoneId;
+    if (scope.subcityId) institutionWhere.subcityId = scope.subcityId;
     if (scope.districtId) institutionWhere.districtId = scope.districtId;
     if (scope.institutionId) institutionWhere.id = scope.institutionId;
     const applicationWhere = this.where(scope);
-    const licenseWhere = scope.institutionId ? { institutionId: scope.institutionId } : scope.regionId ? { institution: { regionId: scope.regionId } } : scope.zoneId ? { institution: { zoneId: scope.zoneId } } : scope.districtId ? { institution: { districtId: scope.districtId } } : {};
+    const licenseWhere = scope.institutionId ? { institutionId: scope.institutionId } : scope.regionId ? { institution: { regionId: scope.regionId } } : scope.zoneId ? { institution: { zoneId: scope.zoneId } } : scope.subcityId ? { institution: { subcityId: scope.subcityId } } : scope.districtId ? { institution: { districtId: scope.districtId } } : {};
 
     const [members, activeMembers, institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses] = await Promise.all([
       this.prisma.member.count({ where: memberWhere }),
@@ -78,11 +84,7 @@ export class ReportingService {
 
   async institutions(user: AuthenticatedUser, requested: ReportScope) {
     const scope = await this.effectiveScope(user, requested);
-    const where: Record<string, unknown> = {};
-    if (scope.regionId) where.regionId = scope.regionId;
-    if (scope.zoneId) where.zoneId = scope.zoneId;
-    if (scope.districtId) where.districtId = scope.districtId;
-    if (scope.institutionId) where.id = scope.institutionId;
+    const where = this.where(scope);
     const [total, active, suspended, revoked, byType] = await Promise.all([
       this.prisma.institution.count({ where }),
       this.prisma.institution.count({ where: { ...where, status: 'ACTIVE' } }),
@@ -109,7 +111,7 @@ export class ReportingService {
 
   async licenses(user: AuthenticatedUser, requested: ReportScope) {
     const scope = await this.effectiveScope(user, requested);
-    const where = scope.institutionId ? { institutionId: scope.institutionId } : scope.regionId ? { institution: { regionId: scope.regionId } } : scope.zoneId ? { institution: { zoneId: scope.zoneId } } : scope.districtId ? { institution: { districtId: scope.districtId } } : {};
+    const where = scope.institutionId ? { institutionId: scope.institutionId } : scope.regionId ? { institution: { regionId: scope.regionId } } : scope.zoneId ? { institution: { zoneId: scope.zoneId } } : scope.subcityId ? { institution: { subcityId: scope.subcityId } } : scope.districtId ? { institution: { districtId: scope.districtId } } : {};
     const [total, active, expired, suspended, revoked] = await Promise.all([
       this.prisma.license.count({ where }),
       this.prisma.license.count({ where: { ...where, status: 'ACTIVE' } }),
