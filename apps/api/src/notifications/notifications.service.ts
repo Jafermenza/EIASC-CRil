@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { NotificationChannel, NotificationStatus } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
@@ -35,11 +35,18 @@ export class NotificationsService {
     return notification;
   }
 
+  async testEmail(user: AuthenticatedUser) {
+    if (!this.emailProvider) throw new ServiceUnavailableException('Resend email provider is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.');
+    const recipient = await this.prisma.user.findUnique({ where: { id: user.id }, select: { email: true } });
+    if (!recipient?.email) throw new ServiceUnavailableException('The authenticated user does not have an email address.');
+    const notification = await this.create(user.id, { type: 'EMAIL_PROVIDER_TEST', title: 'EIASC CRil email delivery test', message: 'This is a live production email delivery test from EIASC CRil.', channel: NotificationChannel.EMAIL });
+    if (notification.status !== NotificationStatus.SENT) throw new ServiceUnavailableException('Resend rejected or failed the test delivery. Check notification delivery metadata.');
+    return { delivered: true, notificationId: notification.id, recipient: recipient.email };
+  }
+
   async notifyEvent(recipientId: string, event: NotificationEvent, channel: NotificationChannel = NotificationChannel.IN_APP) { return this.create(recipientId, { ...event, channel }); }
 
-  async list(user: AuthenticatedUser, unreadOnly = false) {
-    return this.prisma.notification.findMany({ where: { recipientId: user.id, ...(unreadOnly ? { readAt: null } : {}) }, orderBy: { createdAt: 'desc' }, take: 100 });
-  }
+  async list(user: AuthenticatedUser, unreadOnly = false) { return this.prisma.notification.findMany({ where: { recipientId: user.id, ...(unreadOnly ? { readAt: null } : {}) }, orderBy: { createdAt: 'desc' }, take: 100 }); }
   async markRead(user: AuthenticatedUser, id: string) {
     const notification = await this.prisma.notification.findFirst({ where: { id, recipientId: user.id } });
     if (!notification) throw new NotFoundException('Notification not found');
