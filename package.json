@@ -17,6 +17,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:import-geography": "tsx scripts/import-geography.ts",
     "db:verify-geography": "tsx scripts/verify-geography.ts",
+    "db:bootstrap": "npm run db:deploy && npm run db:seed && npm run db:import-geography && npm run db:verify-geography",
     "test:e2e": "playwright test",
     "security:review": "node scripts/security-review.mjs",
     "ops:smoke": "node scripts/production-smoke.mjs",
