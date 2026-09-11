@@ -1,15 +1,16 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { CredentialStatus, CredentialType, RoleCode } from '@prisma/client';
+import { CredentialStatus, CredentialType, NotificationChannel, RoleCode } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 
 const CREDENTIAL_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR];
 
 @Injectable()
 export class CredentialsService {
-  constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
+  constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService, private readonly notifications: NotificationsService) {}
   private hash(token: string) { return createHash('sha256').update(token).digest('hex'); }
   private async number(type: CredentialType) {
     const prefix = type === CredentialType.MEMBER ? 'EIASC-M' : type === CredentialType.INSTITUTION ? 'EIASC-I' : 'EIASC-L';
@@ -23,6 +24,7 @@ export class CredentialsService {
     if (!user.roles.some((role) => CREDENTIAL_ROLES.includes(role))) throw new ConflictException('Credential issuance is not permitted');
     const token = randomBytes(32).toString('base64url');
     const data: { memberId?: string; institutionId?: string; licenseId?: string; expiresAt?: Date } = {};
+    let notificationInstitutionId: string | undefined;
     if (type === CredentialType.MEMBER) {
       const member = await this.prisma.member.findUnique({ where: { id: subjectId } });
       if (!member) throw new NotFoundException('Member not found');
@@ -34,17 +36,20 @@ export class CredentialsService {
       if (!institution) throw new NotFoundException('Institution not found');
       if (institution.status !== 'ACTIVE') throw new ConflictException('Only active institutions may receive credentials');
       await this.authorization.assertCanAccess(user, { institutionId: subjectId });
-      data.institutionId = subjectId;
+      data.institutionId = subjectId; notificationInstitutionId = subjectId;
     } else {
       const license = await this.prisma.license.findUnique({ where: { id: subjectId }, include: { institution: true } });
       if (!license) throw new NotFoundException('License not found');
       if (license.status !== 'ACTIVE') throw new ConflictException('Only active licenses may receive credentials');
       await this.authorization.assertCanAccess(user, { institutionId: license.institutionId });
-      data.licenseId = subjectId;
-      data.expiresAt = license.expiresAt ?? undefined;
+      data.licenseId = subjectId; data.expiresAt = license.expiresAt ?? undefined; notificationInstitutionId = license.institutionId;
     }
     const credential = await this.prisma.credential.create({ data: { credentialNumber: await this.number(type), type, tokenHash: this.hash(token), ...data } });
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'CREDENTIAL_ISSUED', entityType: 'Credential', entityId: credential.id, metadata: { type, subjectId } } });
+    if (notificationInstitutionId) {
+      const recipients = await this.prisma.user.findMany({ where: { institutionId: notificationInstitutionId, status: 'ACTIVE' }, select: { id: true } });
+      await Promise.all(recipients.flatMap((recipient) => [this.notifications.notifyEvent(recipient.id, { type: 'CREDENTIAL_ISSUED', title: 'Credential issued', message: `A ${type.toLowerCase()} credential ${credential.credentialNumber} has been issued.`, metadata: { credentialId: credential.id } }), this.notifications.notifyEvent(recipient.id, { type: 'CREDENTIAL_ISSUED_EMAIL', title: 'EIASC credential issued', message: `A ${type.toLowerCase()} credential ${credential.credentialNumber} has been issued.`, metadata: { credentialId: credential.id } }, NotificationChannel.EMAIL)]));
+    }
     return this.publicCredential(credential, token);
   }
   async revoke(user: AuthenticatedUser, id: string) {
