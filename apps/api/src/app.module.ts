@@ -15,9 +15,10 @@ import { CredentialsModule } from './credentials/credentials.module';
 import { ReportingModule } from './reporting/reporting.module';
 import { AllocationModule } from './allocation/allocation.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MembershipModule } from './membership/membership.module';
 
 @Module({
-  imports: [PrismaModule, LocationsModule, RegistrationsModule, InstitutionsModule, UsersModule, LicensingModule, CredentialsModule, ReportingModule, AllocationModule, NotificationsModule],
+  imports: [PrismaModule, LocationsModule, RegistrationsModule, InstitutionsModule, UsersModule, LicensingModule, CredentialsModule, ReportingModule, AllocationModule, NotificationsModule, MembershipModule],
   controllers: [HealthController, AuthController],
   providers: [AuthService, AuthGuard, RolesGuard, AuthorizationService],
   exports: [PrismaModule, AuthService, AuthGuard, RolesGuard, AuthorizationService],
