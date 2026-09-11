@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { GeographyImportStatus, PrismaService } from '@prisma/client';
+import { GeographyImportStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { PrismaService } from '../prisma.service';
 
 type Row = {
   Region?: unknown;
