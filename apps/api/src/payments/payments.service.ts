@@ -16,40 +16,18 @@ export class PaymentsService {
     return Number(value.toFixed(2));
   }
 
-  fees() {
-    return {
-      currency: 'ETB',
-      individual: this.fee('INDIVIDUAL'),
-      institution: this.fee('INSTITUTION'),
-      methods: METHODS,
-    };
-  }
-
+  fees() { return { currency: 'ETB', individual: this.fee('INDIVIDUAL'), institution: this.fee('INSTITUTION'), methods: METHODS }; }
   private apiBase() { return (process.env.API_PUBLIC_URL ?? '').replace(/\/$/, ''); }
   private webBase() { return (process.env.WEB_PUBLIC_URL ?? process.env.FRONTEND_URL ?? '').replace(/\/$/, ''); }
 
   async initializeChapa(input: ChapaInitializeInput) {
     if (!process.env.CHAPA_SECRET_KEY) throw new BadRequestException('Chapa API is not configured');
-    const kind = input.kind;
-    const amount = this.fee(kind);
-    const txRef = `EIASC-${kind === 'INDIVIDUAL' ? 'MEM' : 'INST'}-${Date.now()}-${createOpaqueToken(5).toUpperCase()}`;
-    const response = await fetch('https://api.chapa.co/v1/transaction/initialize', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        amount: String(amount), currency: 'ETB', email: input.email, first_name: input.firstName ?? input.name ?? 'EIASC',
-        last_name: input.lastName ?? 'Applicant', phone_number: input.phone, tx_ref: txRef,
-        callback_url: `${this.apiBase()}/api/v1/payments/chapa/callback`,
-        return_url: `${this.webBase()}/register/${kind === 'INDIVIDUAL' ? 'individual' : 'institution'}?payment_ref=${encodeURIComponent(txRef)}`,
-        customization: { title: 'EIASC Registration', description: `${kind === 'INDIVIDUAL' ? 'Individual' : 'Institution'} registration fee` },
-      }),
-    });
+    const amount = this.fee(input.kind);
+    const txRef = `EIASC-${input.kind === 'INDIVIDUAL' ? 'MEM' : 'INST'}-${Date.now()}-${createOpaqueToken(5).toUpperCase()}`;
+    const response = await fetch('https://api.chapa.co/v1/transaction/initialize', { method: 'POST', headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: String(amount), currency: 'ETB', email: input.email, first_name: input.firstName ?? input.name ?? 'EIASC', last_name: input.lastName ?? 'Applicant', phone_number: input.phone, tx_ref: txRef, callback_url: `${this.apiBase()}/api/v1/payments/chapa/callback`, return_url: `${this.webBase()}/register/${input.kind === 'INDIVIDUAL' ? 'individual' : 'institution'}?payment_ref=${encodeURIComponent(txRef)}`, customization: { title: 'EIASC Registration', description: `${input.kind === 'INDIVIDUAL' ? 'Individual' : 'Institution'} registration fee` } }) });
     const data: any = await response.json().catch(() => ({}));
     if (!response.ok || data.status !== 'success' || !data.data?.checkout_url) throw new BadRequestException(data.message ?? 'Chapa payment could not be initialized');
-    await this.prisma.$executeRaw`
-      INSERT INTO "RegistrationPayment" ("method","amount","currency","referenceNumber","status","intentToken","metadata","updatedAt")
-      VALUES ('CHAPA', ${amount}, 'ETB', ${txRef}, 'INITIATED', ${createOpaqueToken(24)}, ${JSON.stringify({ kind })}::jsonb, CURRENT_TIMESTAMP)
-    `;
+    await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("method","amount","currency","referenceNumber","status","intentToken","metadata","updatedAt") VALUES ('CHAPA', ${amount}, 'ETB', ${txRef}, 'INITIATED', ${createOpaqueToken(24)}, ${JSON.stringify({ kind })}::jsonb, CURRENT_TIMESTAMP)`;
     return { method: 'CHAPA', referenceNumber: txRef, amount, currency: 'ETB', checkoutUrl: data.data.checkout_url };
   }
 
@@ -61,15 +39,12 @@ export class PaymentsService {
     const data: any = await response.json().catch(() => ({}));
     if (!response.ok || data.status !== 'success' || data.data?.status !== 'success') return { paid: false, data };
     if (expectedAmount !== undefined && Number(data.data.amount) !== Number(expectedAmount)) throw new ConflictException('Chapa payment amount does not match the required registration fee');
-    await this.prisma.$executeRaw`
-      UPDATE "RegistrationPayment" SET "status"='PAID', "providerReference"=${data.data.reference ?? null}, "verifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP
-      WHERE "referenceNumber"=${ref} AND "method"='CHAPA'
-    `;
+    await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='PAID', "providerReference"=${data.data.reference ?? null}, "verifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
     return { paid: true, data: data.data };
   }
 
   async callback(referenceNumber: string) {
-    const payment = await this.prisma.$queryRaw<any[]>`SELECT "id","amount","status" FROM "RegistrationPayment" WHERE "referenceNumber"=${referenceNumber} AND "method"='CHAPA' LIMIT 1`;
+    const payment = await this.prisma.$queryRaw<any[]>`SELECT "id","amount" FROM "RegistrationPayment" WHERE "referenceNumber"=${referenceNumber} AND "method"='CHAPA' LIMIT 1`;
     if (!payment[0]) throw new NotFoundException('Payment reference not found');
     return this.verifyChapa(referenceNumber, Number(payment[0].amount));
   }
@@ -88,51 +63,45 @@ export class PaymentsService {
 
   async attachToApplication(kind: RegistrationKind, applicationId: string, input: PaymentInput) {
     const payment = await this.validateForSubmission(kind, input);
-    const registrationColumn = kind === 'INDIVIDUAL' ? 'registrationId' : 'institutionApplicationId';
     const existing = await this.prisma.$queryRaw<any[]>`SELECT "id","status" FROM "RegistrationPayment" WHERE "referenceNumber"=${payment.referenceNumber} LIMIT 1`;
-    if (existing[0]?.status === 'PAID' && kind === 'INSTITUTION') {
-      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "institutionApplicationId"=${applicationId}::uuid, "receiptUrl"=${payment.receiptUrl}, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
-    } else if (existing[0]?.status === 'PAID' && kind === 'INDIVIDUAL') {
-      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "registrationId"=${applicationId}::uuid, "receiptUrl"=${payment.receiptUrl}, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
+    if (existing[0]) {
+      if (existing[0].status === 'PAID') {
+        if (kind === 'INSTITUTION') await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "institutionApplicationId"=${applicationId}::uuid, "receiptUrl"=${payment.receiptUrl}, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
+        else await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "registrationId"=${applicationId}::uuid, "receiptUrl"=${payment.receiptUrl}, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
+      } else if (payment.method !== 'CHAPA') {
+        if (kind === 'INSTITUTION') await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "institutionApplicationId"=${applicationId}::uuid, "receiptUrl"=${payment.receiptUrl}, "status"='PENDING', "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
+        else await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "registrationId"=${applicationId}::uuid, "receiptUrl"=${payment.receiptUrl}, "status"='PENDING', "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
+      }
     } else {
-      await this.prisma.$executeRawUnsafe(`INSERT INTO "RegistrationPayment" ("${registrationColumn}","method","amount","currency","referenceNumber","status","receiptUrl","updatedAt") VALUES ($1::uuid,$2::"RegistrationPaymentMethod",$3,'ETB',$4,$5::"RegistrationPaymentStatus",$6,CURRENT_TIMESTAMP)`, applicationId, payment.method, payment.amount, payment.referenceNumber, payment.method === 'CHAPA' ? 'PAID' : 'PENDING', payment.receiptUrl);
+      if (kind === 'INSTITUTION') await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("institutionApplicationId","method","amount","currency","referenceNumber","status","receiptUrl","updatedAt") VALUES (${applicationId}::uuid,${payment.method}::"RegistrationPaymentMethod",${payment.amount},'ETB',${payment.referenceNumber},'PENDING',${payment.receiptUrl},CURRENT_TIMESTAMP)`;
+      else await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("registrationId","method","amount","currency","referenceNumber","status","receiptUrl","updatedAt") VALUES (${applicationId}::uuid,${payment.method}::"RegistrationPaymentMethod",${payment.amount},'ETB',${payment.referenceNumber},'PENDING',${payment.receiptUrl},CURRENT_TIMESTAMP)`;
     }
     return this.getForApplication(kind, applicationId);
   }
 
   async getForApplication(kind: RegistrationKind, applicationId: string) {
-    const column = kind === 'INDIVIDUAL' ? 'registrationId' : 'institutionApplicationId';
-    const rows = await this.prisma.$queryRaw<any[]>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "${Prisma.raw(column)}"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`;
-    return rows[0] ?? null;
+    if (kind === 'INDIVIDUAL') return (await this.prisma.$queryRaw<any[]>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "registrationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`)[0] ?? null;
+    return (await this.prisma.$queryRaw<any[]>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "institutionApplicationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`)[0] ?? null;
   }
 
   async queue(user: { roles: string[] }) {
     const allowed = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','FINANCE_OFFICER','INSPECTOR'];
     if (!user.roles.some((role) => allowed.includes(role))) throw new ForbiddenException('Payment review permission required');
-    return this.prisma.$queryRaw<any[]>`
-      SELECT p."id", p."method", p."amount", p."currency", p."referenceNumber", p."providerReference", p."status", p."submittedAt", p."verifiedAt", p."rejectionReason",
-             r."trackingCode" AS "individualTrackingCode", r."firstName", r."lastName", ia."trackingCode" AS "institutionTrackingCode", ia."institutionName"
-      FROM "RegistrationPayment" p
-      LEFT JOIN "Registration" r ON r."id"=p."registrationId"
-      LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
-      ORDER BY p."submittedAt" DESC LIMIT 200
-    `;
+    return this.prisma.$queryRaw<any[]>`SELECT p."id", p."method", p."amount", p."currency", p."referenceNumber", p."providerReference", p."status", p."submittedAt", p."verifiedAt", p."rejectionReason", r."trackingCode" AS "individualTrackingCode", r."firstName", r."lastName", ia."trackingCode" AS "institutionTrackingCode", ia."institutionName" FROM "RegistrationPayment" p LEFT JOIN "Registration" r ON r."id"=p."registrationId" LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId" ORDER BY p."submittedAt" DESC LIMIT 200`;
   }
 
   async verifyManual(id: string, userId: string, approve: boolean, reason?: string) {
-    if (!id) throw new BadRequestException('Payment id is required');
-    const rows = await this.prisma.$queryRaw<any[]>`SELECT "id","method","status" FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`;
+    const rows = await this.prisma.$queryRaw<any[]>`SELECT "id","method" FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`;
     if (!rows[0]) throw new NotFoundException('Payment not found');
     if (rows[0].method === 'CHAPA') throw new BadRequestException('Chapa payments are verified automatically');
-    await this.prisma.$executeRaw`
-      UPDATE "RegistrationPayment" SET "status"=${approve ? 'PAID' : 'REJECTED'}::"RegistrationPaymentStatus", "verifiedBy"=${userId}::uuid, "verifiedAt"=CURRENT_TIMESTAMP, "rejectionReason"=${approve ? null : (reason?.trim() || 'Payment rejected')}, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid
-    `;
-    return this.prisma.$queryRaw<any[]>`SELECT * FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`;
+    await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"=${approve ? 'PAID' : 'REJECTED'}::"RegistrationPaymentStatus", "verifiedBy"=${userId}::uuid, "verifiedAt"=CURRENT_TIMESTAMP, "rejectionReason"=${approve ? null : (reason?.trim() || 'Payment rejected')}, "updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid`;
+    return (await this.prisma.$queryRaw<any[]>`SELECT * FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`)[0];
   }
 
   async assertPaid(kind: RegistrationKind, applicationId: string) {
-    const column = kind === 'INDIVIDUAL' ? 'registrationId' : 'institutionApplicationId';
-    const rows = await this.prisma.$queryRaw<any[]>`SELECT "status" FROM "RegistrationPayment" WHERE "${Prisma.raw(column)}"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`;
+    const rows = kind === 'INDIVIDUAL'
+      ? await this.prisma.$queryRaw<any[]>`SELECT "status" FROM "RegistrationPayment" WHERE "registrationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`
+      : await this.prisma.$queryRaw<any[]>`SELECT "status" FROM "RegistrationPayment" WHERE "institutionApplicationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`;
     if (!rows[0] || rows[0].status !== 'PAID') throw new BadRequestException('Registration fee must be verified before approval');
   }
 }
