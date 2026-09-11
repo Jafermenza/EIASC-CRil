@@ -35,36 +35,114 @@ API health: `http://localhost:4000/api/v1/health`
 
 ## Ethiopia geographic reference data
 
-Registration and jurisdiction selection use persistent PostgreSQL reference data for Ethiopia's administrative geography. The approved source is the maintained project repository:
+Registration, institutional applications and jurisdiction authorization use persistent PostgreSQL reference data for Ethiopia's administrative geography. The canonical source for this project is:
 
-- **Source repository:** `Jafermenza/ethiopia-administrative-divisions`
-- **Source:** urlJafermenza/ethiopia-administrative-divisionshttps://github.com/Jafermenza/ethiopia-administrative-divisions
+- **Repository:** `Jafermenza/ethiopia-administrative-divisions`
+- **Source URL:** https://github.com/Jafermenza/ethiopia-administrative-divisions
 - **Pinned source commit:** `418739e33760bf79661f3914e2d8c9cf33248437`
-- **Source data:** `data/hierarchy.json`
+- **Canonical hierarchy file:** `data/hierarchy.json`
 - **Last updated:** 2026-09-08
 - **License:** CC-BY-4.0
 - **Coverage:** 15 regions, 107 zones, 1,148 woredas
-- **Coordinates:** included by the source dataset for administrative levels; the EIASC-CRil registration model currently persists the administrative codes, names and hierarchy used for jurisdiction validation.
 
-The source dataset provides machine-readable JSON, NDJSON and CSV formats and includes English/local names, stable IDs, parent/ancestor references and WGS84 latitude/longitude fields. citeturn0search0
+### Canonical hierarchy
 
-EIASC-CRil imports the pinned hierarchy into PostgreSQL during `npm run db:bootstrap`. The application does **not** download geography on every startup. After import, registration and jurisdiction APIs read the database through `/api/v1/locations/*`.
+The source defines exactly three administrative levels:
 
-The bootstrap sequence is:
+```text
+Ethiopia
+└── Region (15)
+    └── Zone (107)
+        └── Woreda (1,148)
+```
+
+The source record schema defines `id`, `level`, bilingual/local names, slug, parent/ancestor references, child counts, optional postal codes and WGS84 latitude/longitude coordinates. Levels are `1=region`, `2=zone`, `3=woreda`.
+
+The published regional distribution is:
+
+| Region | Zones | Woredas |
+|---|---:|---:|
+| Tigray | 6 | 75 |
+| Afar | 6 | 49 |
+| Amhara | 14 | 225 |
+| Oromia | 22 | 349 |
+| Somali | 11 | 100 |
+| Benishangul-Gumuz | 4 | 26 |
+| Central Ethiopia | 10 | 69 |
+| South Ethiopia | 12 | 93 |
+| South West Ethiopia | 6 | 59 |
+| Gambela | 4 | 15 |
+| Harari | 1 | 9 |
+| Addis Ababa | 1 | 11 |
+| Dire Dawa | 2 | 13 |
+| Sidama | 5 | 37 |
+| Contested | 3 | 18 |
+| **Total** | **107** | **1,148** |
+
+Source files available from the approved repository include `data/hierarchy.json`, `data/all-region.json`, `data/all-zone.json`, `data/all-woreda.json`, `data/all-flat.json`, `data/all-flat.ndjson`, `data/all-flat.csv` and `data/schema.json`.
+
+### EIASC-CRil database mapping
+
+The canonical source is imported into the existing application hierarchy as follows:
+
+| Source level | Source identifier | EIASC-CRil table | Application meaning |
+|---|---|---|---|
+| Region | `ETxx` | `Region` | Regional jurisdiction |
+| Zone | `ETxxxx` | `ZoneCity` | Zone/city jurisdiction |
+| Woreda | `ETxxxxxx` | `District` | District/woreda jurisdiction |
+
+The source's three-level hierarchy is authoritative. `SubcityTown` remains an optional application model for workflows that need a separate sub-city/town dataset; it is **not populated from the canonical three-level source** and must not be inferred from a woreda record.
+
+The importer preserves the stable source identifiers as database codes and preserves the English display name used by registration and jurisdiction APIs. The source also provides local-language names and coordinates for downstream enrichment; these must not be replaced with guessed or manually invented geography values.
+
+### Import and verification architecture
+
+Geography is **database reference data**, not frontend/static data and not data downloaded on every application startup.
 
 ```text
 Prisma migrations
   -> system/reference seed
   -> pinned Ethiopia geography import
-  -> geography verification
+  -> source hierarchy validation
+  -> database verification
   -> application/public exposure
 ```
 
-The importer records the source repository, source version, source URL, import status and imported counts in `GeographyImport`. Geography verification is a release gate and must confirm 15 regions, 107 zones, 1,148 woredas and no orphaned hierarchy records before production exposure.
+Run:
 
-The source repository's README identifies the dataset as CC-BY-4.0 and provides the complete region/zone/woreda hierarchy and schema. fileciteturn271file0
+```bash
+npm run db:bootstrap
+```
 
-To deliberately update the approved geography version, change `GEOGRAPHY_SOURCE_VERSION` and `GEOGRAPHY_SOURCE_URL` together, run the import and verification gates, review the resulting counts, and record the new source commit in the acceptance record. Do not silently switch to an unreviewed geography dataset.
+The geography import:
+
+1. Downloads only the explicitly pinned `data/hierarchy.json` source.
+2. Validates that the payload has the expected nested region → zone → woreda hierarchy.
+3. Rejects duplicate IDs and missing IDs/names.
+4. Rejects source-count drift unless the approved source is deliberately updated.
+5. Requires exactly **15 regions, 107 zones and 1,148 woredas**.
+6. Upserts the hierarchy into PostgreSQL using the source IDs as stable codes.
+7. Clears an old `subcityId` on canonical-source woredas so the three-level source cannot accidentally inherit an unrelated sub-city relationship.
+8. Records source repository, source version, source URL, import status and counts in `GeographyImport`.
+9. Runs geography verification before the system is considered ready for public registration.
+
+After import, registration and jurisdiction APIs read the database through `/api/v1/locations/*`. The public application must never depend on GitHub being available at registration time.
+
+### Source attribution and update policy
+
+This project uses the `Jafermenza/ethiopia-administrative-divisions` fork of the Open Admin Data Ethiopia dataset. The dataset is published under **CC-BY-4.0** and attributes Open Admin Data. The approved source commit is pinned so production deployments are reproducible.
+
+To update geography deliberately:
+
+1. Review the new source commit and its hierarchy/schema.
+2. Update `GEOGRAPHY_SOURCE_VERSION` and `GEOGRAPHY_SOURCE_URL` together.
+3. Run `npm run db:import-geography`.
+4. Run `npm run db:verify-geography`.
+5. Confirm the new region/zone/woreda counts and hierarchy relationships.
+6. Update the acceptance record with the new commit, date and evidence.
+7. Only then expose the updated geography to production registration.
+
+Do not silently switch to an unreviewed geography dataset or use a live external API as the registration database.
 
 ## M1 authentication configuration
 
