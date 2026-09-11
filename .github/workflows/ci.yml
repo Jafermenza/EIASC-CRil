@@ -13,6 +13,7 @@ jobs:
       DATABASE_URL: postgresql://cril:cril@localhost:5432/cril?schema=public
       JWT_SECRET: ci-secret-that-is-at-least-32-characters-long
       JWT_ISSUER: eiasc-cril
+      GEOGRAPHY_SOURCE_VERSION: 418739e33760bf79661f3914e2d8c9cf33248437
     services:
       postgres:
         image: postgres:16-alpine
@@ -36,6 +37,8 @@ jobs:
       - run: npm run db:generate
       - run: npx prisma db push --force-reset --accept-data-loss
       - run: npm run db:seed
+      - run: npm run db:import-geography
+      - run: npm run db:verify-geography
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
