@@ -7,7 +7,12 @@ const MEMBER_ADMIN_EMAIL = 'e2e-institution-admin@example.test';
 const MEMBER_ADMIN_PASSWORD = 'e2e-institution-admin-12345';
 
 test.beforeAll(async () => {
-  const institution = await prisma.institution.findUniqueOrThrow({ where: { institutionCode: 'E2E-INSTITUTION-2' } });
+  const region = await prisma.region.findUniqueOrThrow({ where: { code: 'E2E-REGION' } });
+  const zone = await prisma.zoneCity.findUniqueOrThrow({ where: { code: 'E2E-ZONE' } });
+  const subcity = await prisma.subcityTown.findUniqueOrThrow({ where: { code: 'E2E-SUBCITY' } });
+  const district = await prisma.district.findUniqueOrThrow({ where: { code: 'E2E-DISTRICT' } });
+  const type = await prisma.institutionType.findUniqueOrThrow({ where: { code: 'E2E-MOSQUE' } });
+  const institution = await prisma.institution.upsert({ where: { institutionCode: 'E2E-INSTITUTION-2' }, update: { status: 'ACTIVE' }, create: { institutionCode: 'E2E-INSTITUTION-2', name: 'E2E Security Institution', institutionTypeId: type.id, establishmentDate: new Date('2021-01-01'), phone: '+251911000002', email: 'e2e-security@example.test', address: 'E2E security address', regionId: region.id, zoneId: zone.id, subcityId: subcity.id, districtId: district.id, status: 'ACTIVE' } });
   const role = await prisma.role.findUniqueOrThrow({ where: { code: 'INSTITUTION_ADMIN' } });
   const user = await prisma.user.upsert({ where: { email: MEMBER_ADMIN_EMAIL }, update: { passwordHash: await hashPassword(MEMBER_ADMIN_PASSWORD), status: 'ACTIVE', institutionId: institution.id }, create: { email: MEMBER_ADMIN_EMAIL, passwordHash: await hashPassword(MEMBER_ADMIN_PASSWORD), status: 'ACTIVE', institutionId: institution.id, jurisdictionLevel: 'INSTITUTION' } });
   await prisma.userRole.upsert({ where: { userId_roleId: { userId: user.id, roleId: role.id } }, update: {}, create: { userId: user.id, roleId: role.id } });
