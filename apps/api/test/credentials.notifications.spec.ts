@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { CredentialsService } from '../src/credentials/credentials.service';
 
 describe('Credential notification event', () => {
