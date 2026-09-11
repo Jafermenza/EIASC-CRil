@@ -1,5 +1,8 @@
-import { Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { NotificationsService } from './notifications.service';
 
 @Controller('notifications')
@@ -10,4 +13,8 @@ export class NotificationsController {
   list(@Req() req: AuthenticatedRequest, @Query('unreadOnly') unreadOnly?: string) { return this.notifications.list(req.user!, unreadOnly === 'true'); }
   @Patch(':id/read')
   read(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.notifications.markRead(req.user!, id); }
+  @Post('test-email')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.INSTITUTION_ADMIN)
+  testEmail(@Req() req: AuthenticatedRequest) { return this.notifications.testEmail(req.user!); }
 }
