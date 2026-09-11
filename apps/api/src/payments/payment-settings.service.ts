@@ -3,12 +3,15 @@ import { PrismaService } from '../prisma.service';
 
 const MANAGE_ROLES = ['SUPER_ADMIN'];
 
+type BankInput = { id?: string; bankName: string; accountName: string; accountNumber: string; branch?: string; active?: boolean };
+type PaymentSettingsInput = { individualFee?: number | null; institutionFee?: number | null; banks?: BankInput[] };
+
 @Injectable()
 export class PaymentSettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
   private async setting(key: string): Promise<string | null> {
-    const rows = await this.prisma.$queryRaw<any[]>`SELECT "value" FROM "PlatformSetting" WHERE "key"=${key} LIMIT 1`;
+    const rows = await this.prisma.$queryRaw<Array<{ value: string | null }>>`SELECT "value" FROM "PlatformSetting" WHERE "key"=${key} LIMIT 1`;
     return rows[0]?.value ?? null;
   }
 
@@ -22,7 +25,7 @@ export class PaymentSettingsService {
   async getPublic() {
     const individual = await this.setting('REGISTRATION_INDIVIDUAL_FEE_ETB');
     const institution = await this.setting('REGISTRATION_INSTITUTION_FEE_ETB');
-    const banks = await this.prisma.$queryRaw<any[]>`
+    const banks = await this.prisma.$queryRaw<Array<{ id: string; bankName: string; accountName: string; accountNumber: string; branch: string | null }>>`
       SELECT "id","bankName","accountName","accountNumber","branch"
       FROM "RegistrationBank"
       WHERE "active"=TRUE
@@ -46,20 +49,21 @@ export class PaymentSettingsService {
     return { ...publicConfig, telebirr };
   }
 
-  async update(roles: string[], input: { individualFee?: number | null; institutionFee?: number | null; banks?: Array<{ id?: string; bankName: string; accountName: string; accountNumber: string; branch?: string; active?: boolean }> }) {
+  async update(roles: string[], input: PaymentSettingsInput) {
     if (!roles.some((role) => MANAGE_ROLES.includes(role))) throw new ForbiddenException('Super Admin permission required');
     if (input.individualFee !== undefined && input.individualFee !== null && (!Number.isFinite(input.individualFee) || input.individualFee < 0)) throw new BadRequestException('Individual fee must be a non-negative amount');
     if (input.institutionFee !== undefined && input.institutionFee !== null && (!Number.isFinite(input.institutionFee) || input.institutionFee < 0)) throw new BadRequestException('Institution fee must be a non-negative amount');
     if (input.individualFee !== undefined) await this.setSetting('REGISTRATION_INDIVIDUAL_FEE_ETB', input.individualFee === null ? null : String(input.individualFee));
     if (input.institutionFee !== undefined) await this.setSetting('REGISTRATION_INSTITUTION_FEE_ETB', input.institutionFee === null ? null : String(input.institutionFee));
 
-    if (input.banks) {
+    const banks = input.banks;
+    if (banks !== undefined) {
       await this.prisma.$transaction(async (tx) => {
-        const ids = input.banks.filter((b) => b.id).map((b) => b.id as string);
+        const ids = banks.filter((b) => b.id).map((b) => b.id as string);
         if (ids.length) await tx.$executeRawUnsafe(`UPDATE "RegistrationBank" SET "active"=FALSE,"updatedAt"=CURRENT_TIMESTAMP WHERE "id" NOT IN (${ids.map((id) => `'${id.replace(/'/g, "''")}'`).join(',')})`);
         else await tx.$executeRaw`UPDATE "RegistrationBank" SET "active"=FALSE,"updatedAt"=CURRENT_TIMESTAMP`;
-        for (let index = 0; index < input.banks.length; index += 1) {
-          const bank = input.banks[index];
+        for (let index = 0; index < banks.length; index += 1) {
+          const bank = banks[index];
           if (!bank.bankName?.trim() || !bank.accountName?.trim() || !bank.accountNumber?.trim()) throw new BadRequestException('Each bank requires bank name, account name and account number');
           if (bank.id) {
             await tx.$executeRaw`UPDATE "RegistrationBank" SET "bankName"=${bank.bankName.trim()},"accountName"=${bank.accountName.trim()},"accountNumber"=${bank.accountNumber.trim()},"branch"=${bank.branch?.trim() || null},"active"=${bank.active !== false},"displayOrder"=${index},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${bank.id}::uuid`;
