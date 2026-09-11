@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 export default function InstitutionTrackPage(){
   const [code,setCode]=useState(''); const [phone,setPhone]=useState(''); const [data,setData]=useState<any>(null); const [error,setError]=useState('');
   useEffect(()=>{const c=new URLSearchParams(window.location.search).get('code');if(c)setCode(c);},[]);

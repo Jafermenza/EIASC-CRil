@@ -148,7 +148,16 @@ export class LicensingService {
   async get(user: AuthenticatedUser, id: string) {
     const license = await this.prisma.license.findUnique({
       where: { id },
-      include: { institution: true },
+      include: {
+        institution: {
+          include: {
+            documents: {
+              select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true },
+              orderBy: { createdAt: 'desc' },
+            },
+          },
+        },
+      },
     });
     if (!license) throw new NotFoundException('License not found');
     await this.authorization.assertCanAccess(user, {
@@ -159,6 +168,39 @@ export class LicensingService {
       districtId: license.institution.districtId,
     });
     return this.expireIfNeeded(license);
+  }
+
+  async verifyPublic(licenseNumber: string) {
+    const normalized = licenseNumber.trim().toUpperCase();
+    if (!normalized) throw new BadRequestException('License number is required');
+    const license = await this.prisma.license.findUnique({
+      where: { licenseNumber: normalized },
+      select: {
+        licenseNumber: true,
+        licenseType: true,
+        status: true,
+        issuedAt: true,
+        effectiveFrom: true,
+        expiresAt: true,
+        institution: { select: { institutionCode: true, name: true, status: true } },
+      },
+    });
+    if (!license || license.status !== LicenseStatus.ACTIVE || license.institution.status !== 'ACTIVE') {
+      throw new NotFoundException('Active license not found');
+    }
+    if (license.expiresAt && license.expiresAt <= new Date()) {
+      throw new NotFoundException('Active license not found');
+    }
+    return {
+      verified: true,
+      licenseNumber: license.licenseNumber,
+      licenseType: license.licenseType,
+      status: license.status,
+      issuedAt: license.issuedAt,
+      effectiveFrom: license.effectiveFrom,
+      expiresAt: license.expiresAt,
+      institution: license.institution,
+    };
   }
 
   async create(user: AuthenticatedUser, input: CreateLicenseInput) {
@@ -221,6 +263,28 @@ export class LicensingService {
     const { license } = await this.transitionApplication(user, id, LicenseApplicationStatus.APPROVED);
     const updated = await this.prisma.license.update({ where: { id }, data: { applicationStatus: LicenseApplicationStatus.APPROVED, approvedBy: user.id, approvedAt: new Date() } });
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'LICENSE_APPROVED', entityType: 'License', entityId: id, metadata: { fromStatus: license.applicationStatus } } });
+    return updated;
+  }
+
+  async reject(user: AuthenticatedUser, id: string, reason: string) {
+    const { license, reason: clean } = await this.transitionApplication(user, id, LicenseApplicationStatus.REJECTED, reason);
+    const updated = await this.prisma.license.update({ where: { id }, data: { applicationStatus: LicenseApplicationStatus.REJECTED, reason: clean, approvedBy: null, approvedAt: null } });
+    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'LICENSE_REJECTED', entityType: 'License', entityId: id, metadata: { reason: clean, fromStatus: license.applicationStatus } } });
+    return updated;
+  }
+
+  async resubmit(user: AuthenticatedUser, id: string) {
+    const license = await this.get(user, id);
+    if (license.applicationStatus !== LicenseApplicationStatus.CORRECTION_REQUIRED) {
+      throw new ConflictException('License application is not awaiting correction');
+    }
+    const updated = await this.prisma.license.update({
+      where: { id },
+      data: { applicationStatus: LicenseApplicationStatus.RESUBMITTED, reason: null, reviewedBy: null, reviewedAt: null },
+    });
+    await this.prisma.auditLog.create({
+      data: { actorUserId: user.id, action: 'LICENSE_RESUBMITTED', entityType: 'License', entityId: id, metadata: { fromStatus: license.applicationStatus } },
+    });
     return updated;
   }
 

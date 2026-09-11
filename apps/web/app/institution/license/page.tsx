@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const API = '/api/v1';
 
 export default function InstitutionLicensePage() {
   const [license, setLicense] = useState<any>(null);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken') || '';
@@ -17,6 +17,15 @@ export default function InstitutionLicensePage() {
       .then((data) => setLicense(data.items?.[0] ?? null))
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load license'));
   }, []);
+
+  async function resubmit() {
+    if (!license) return; setError(''); setBusy(true);
+    try {
+      const token = localStorage.getItem('accessToken') || '';
+      const response = await fetch(`${API}/licenses/${license.id}/resubmit`, { method: 'POST', headers: { authorization: `Bearer ${token}` } });
+      const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Unable to resubmit license application'); setLicense(data);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to resubmit license application'); } finally { setBusy(false); }
+  }
 
   return (
     <main className="shell" style={{ maxWidth: 900 }}>
@@ -34,6 +43,7 @@ export default function InstitutionLicensePage() {
         <p><strong>Type:</strong> {license.licenseType}</p>
         <p><strong>Issued:</strong> {license.issuedAt ? new Date(license.issuedAt).toLocaleDateString() : '—'}</p>
         <p><strong>Expires:</strong> {license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : 'Not set'}</p>
+        {license.applicationStatus === 'CORRECTION_REQUIRED' && <><p>{license.reason || 'Corrections are required before review can continue.'}</p><button className="button button-primary" disabled={busy} onClick={() => void resubmit()}>{busy ? 'Resubmitting…' : 'Resubmit application'}</button></>}
       </div></section>}
     </main>
   );

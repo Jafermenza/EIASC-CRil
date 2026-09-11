@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 export default function InstitutionAdminPage(){
   const [items,setItems]=useState<any[]>([]);const [status,setStatus]=useState('');const [search,setSearch]=useState('');const [page,setPage]=useState(1);const [totalPages,setTotalPages]=useState(1);const [error,setError]=useState('');
   async function load(){setError('');const token=typeof window==='undefined'?'':localStorage.getItem('accessToken')||'';const q=new URLSearchParams({page:String(page),pageSize:'25'});if(status)q.set('applicationStatus',status);if(search)q.set('search',search);try{const r=await fetch(`${API}/admin/institutions/applications?${q}`,{headers:{authorization:`Bearer ${token}`}});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to load applications');setItems(d.items||[]);setTotalPages(d.totalPages||1);}catch(e){setError(e instanceof Error?e.message:'Unable to load applications');}}

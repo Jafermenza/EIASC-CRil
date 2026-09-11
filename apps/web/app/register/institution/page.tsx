@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 
 type Location = { id: string; name: string };
 type Type = { id: string; code: string; name: string; description?: string };
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 
 export default function InstitutionRegistrationPage() {
   const [regions, setRegions] = useState<Location[]>([]); const [zones, setZones] = useState<Location[]>([]); const [subcities, setSubcities] = useState<Location[]>([]); const [districts, setDistricts] = useState<Location[]>([]); const [types, setTypes] = useState<Type[]>([]);

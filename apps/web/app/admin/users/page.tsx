@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
 const levels = ['NATIONAL','REGION','ZONE_CITY','SUBCITY_TOWN','DISTRICT','INSTITUTION'];
 

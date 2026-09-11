@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 
 type Location = { id: string; code: string; name: string };
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 
 export default function IndividualRegistrationPage() {
   const [regions, setRegions] = useState<Location[]>([]);

@@ -9,6 +9,24 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://cril:cril@localhost:5432/cril?schema=public
+      JWT_SECRET: ci-secret-that-is-at-least-32-characters-long
+      JWT_ISSUER: eiasc-cril
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cril
+          POSTGRES_PASSWORD: cril
+          POSTGRES_DB: cril
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cril -d cril"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,7 +34,11 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run db:generate
+      - run: npm run db:deploy
+      - run: npm run db:seed
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

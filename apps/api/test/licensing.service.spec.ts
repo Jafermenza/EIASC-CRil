@@ -72,4 +72,80 @@ describe('LicensingService', () => {
     const { instance } = service();
     await expect(instance.renew(nationalUser, 'license-1', '2020-01-01T00:00:00.000Z')).rejects.toThrow('expiresAt must be a valid future date');
   });
+
+  it('completes the accepted lifecycle and audits every decision', async () => {
+    const { instance, prisma } = service();
+    const state: any = {
+      id: 'license-1',
+      institutionId: 'institution-1',
+      status: LicenseStatus.PENDING,
+      applicationStatus: LicenseApplicationStatus.SUBMITTED,
+      approvedBy: null,
+      institution: { regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1' },
+    };
+    (instance as any).get = jest.fn().mockImplementation(async () => state);
+    prisma.license.update.mockImplementation(async ({ data }: any) => Object.assign(state, data));
+    prisma.license.findUnique.mockResolvedValue(null);
+    prisma.license.create.mockResolvedValue(state);
+    await instance.review(nationalUser, state.id);
+    state.applicationStatus = LicenseApplicationStatus.UNDER_REVIEW;
+    await instance.requestCorrection(nationalUser, state.id, 'Provide the inspection report');
+    state.applicationStatus = LicenseApplicationStatus.CORRECTION_REQUIRED;
+    await instance.resubmit(nationalUser, state.id);
+    state.applicationStatus = LicenseApplicationStatus.RESUBMITTED;
+    await instance.review(nationalUser, state.id);
+    state.applicationStatus = LicenseApplicationStatus.UNDER_REVIEW;
+    await instance.approve(nationalUser, state.id);
+    state.applicationStatus = LicenseApplicationStatus.APPROVED;
+    await instance.issue(nationalUser, state.id, '2099-01-01T00:00:00.000Z');
+    state.status = LicenseStatus.ACTIVE;
+    await instance.suspend(nationalUser, state.id, 'Inspection required');
+    state.status = LicenseStatus.SUSPENDED;
+    await instance.restore(nationalUser, state.id);
+    state.status = LicenseStatus.ACTIVE;
+    await instance.renew(nationalUser, state.id, '2099-12-31T00:00:00.000Z');
+    state.status = LicenseStatus.ACTIVE;
+    await instance.revoke(nationalUser, state.id, 'License withdrawn by authority');
+    expect(state.status).toBe(LicenseStatus.REVOKED);
+    expect(state.licenseNumber).toMatch(/^EIASC-L-\d{4}-[A-Z0-9]{6}$/);
+    expect(prisma.auditLog.create).toHaveBeenCalledTimes(10);
+  });
+
+  it('supports rejecting an application with a reason', async () => {
+    const { instance, prisma } = service();
+    (instance as any).get = jest.fn().mockResolvedValue({
+      id: 'license-1', institutionId: 'institution-1', status: LicenseStatus.PENDING,
+      applicationStatus: LicenseApplicationStatus.UNDER_REVIEW,
+      institution: { regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1' },
+    });
+    prisma.license.update.mockResolvedValue({ applicationStatus: LicenseApplicationStatus.REJECTED });
+    const result = await instance.reject(nationalUser, 'license-1', 'Eligibility evidence was insufficient');
+    expect(result.applicationStatus).toBe(LicenseApplicationStatus.REJECTED);
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'LICENSE_REJECTED' }),
+    }));
+  });
+
+  it('does not allow an institution administrator to resubmit another institution license', async () => {
+    const { instance, authorization } = service();
+    authorization.assertCanAccess.mockRejectedValue(new ForbiddenException('Resource is outside your jurisdiction'));
+    (instance as any).get = jest.fn().mockRejectedValue(new ForbiddenException('Resource is outside your jurisdiction'));
+    await expect(instance.resubmit(institutionAdmin, 'license-1')).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('marks an active license expired when it is read after its expiry', async () => {
+    const { instance, prisma } = service();
+    const expired = {
+      id: 'license-1', institutionId: 'institution-1', status: LicenseStatus.ACTIVE,
+      expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+      institution: { regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1', documents: [] },
+    };
+    prisma.license.findUnique.mockResolvedValue(expired);
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(prisma));
+    prisma.license.update.mockResolvedValue({ ...expired, status: LicenseStatus.EXPIRED });
+    await expect(instance.get(nationalUser, 'license-1')).resolves.toEqual(expect.objectContaining({ status: LicenseStatus.EXPIRED }));
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'LICENSE_EXPIRED' }),
+    }));
+  });
 });

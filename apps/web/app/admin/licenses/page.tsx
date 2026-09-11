@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import type { FormEvent } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+const API = '/api/v1';
 
 type License = { id: string; licenseNumber?: string | null; licenseType: string; status: string; applicationStatus: string; issuedAt?: string | null; expiresAt?: string | null; institution: { id: string; name: string; institutionCode?: string | null; status: string } };
 
 export default function LicensesPage() {
-  const [items, setItems] = useState<License[]>([]); const [status, setStatus] = useState(''); const [applicationStatus, setApplicationStatus] = useState(''); const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [totalPages, setTotalPages] = useState(1); const [error, setError] = useState(''); const [loading, setLoading] = useState(false);
+  const [items, setItems] = useState<License[]>([]); const [status, setStatus] = useState(''); const [applicationStatus, setApplicationStatus] = useState(''); const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [totalPages, setTotalPages] = useState(1); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); const [institutionId, setInstitutionId] = useState(''); const [licenseType, setLicenseType] = useState('INSTITUTIONAL'); const [creating, setCreating] = useState(false);
 
   async function load() {
     setError(''); setLoading(true); const token = typeof window === 'undefined' ? '' : localStorage.getItem('accessToken') || '';
@@ -17,6 +18,16 @@ export default function LicensesPage() {
     catch (err) { setError(err instanceof Error ? err.message : 'Unable to load licenses'); } finally { setLoading(false); }
   }
   useEffect(() => { void load(); }, [page, status, applicationStatus]);
+
+  async function createApplication(event: FormEvent) {
+    event.preventDefault(); setError(''); setCreating(true);
+    try {
+      const token = localStorage.getItem('accessToken') || '';
+      const response = await fetch(`${API}/licenses`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ institutionId: institutionId.trim(), licenseType }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Unable to create license application');
+      setInstitutionId(''); await load(); window.location.href = `/admin/licenses/${data.id}`;
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to create license application'); } finally { setCreating(false); }
+  }
 
   return (
     <main className="shell">
@@ -28,6 +39,14 @@ export default function LicensesPage() {
           <div className="field"><label htmlFor="application-status">Application stage</label><select id="application-status" value={applicationStatus} onChange={(event) => { setPage(1); setApplicationStatus(event.target.value); }}><option value="">All application stages</option><option>SUBMITTED</option><option>UNDER_REVIEW</option><option>CORRECTION_REQUIRED</option><option>RESUBMITTED</option><option>APPROVED</option><option>REJECTED</option></select></div>
           <div className="field"><label htmlFor="license-status">License state</label><select id="license-status" value={status} onChange={(event) => { setPage(1); setStatus(event.target.value); }}><option value="">All license states</option><option>PENDING</option><option>ACTIVE</option><option>EXPIRED</option><option>SUSPENDED</option><option>REVOKED</option></select></div>
           <div className="field field-action"><span aria-hidden="true">&nbsp;</span><button className="button button-primary" type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search registry'}</button></div>
+        </form>
+      </section>
+      <section className="workflow-panel">
+        <div className="section-heading compact"><div><p className="eyebrow">NEW APPLICATION</p><h2>Start institutional licensing</h2></div><p>Use the approved institution ID from the institution registry. The API verifies eligibility and jurisdiction.</p></div>
+        <form className="form-grid" onSubmit={createApplication}>
+          <div className="field"><label htmlFor="institution-id">Approved institution ID</label><input id="institution-id" required value={institutionId} onChange={(event) => setInstitutionId(event.target.value)} placeholder="Institution UUID" /></div>
+          <div className="field"><label htmlFor="license-type">License type</label><input id="license-type" required value={licenseType} onChange={(event) => setLicenseType(event.target.value)} /></div>
+          <div className="field field-action"><span aria-hidden="true">&nbsp;</span><button className="button button-primary" type="submit" disabled={creating}>{creating ? 'Creating…' : 'Create application'}</button></div>
         </form>
       </section>
       {error && <section className="grid"><article><p className="form-error" role="alert">{error}</p></article></section>}

@@ -454,7 +454,7 @@ The institution registry must become the authoritative parent for institutional 
 
 ## Status
 
-**NEXT**
+**COMPLETE**
 
 ## Objective
 
@@ -669,23 +669,23 @@ Actions must be state-aware.
 M4 is complete when:
 
 ```text
-[ ] Eligible institution identified
-[ ] License application created
-[ ] License reviewed
-[ ] Correction supported
-[ ] Approval supported
-[ ] License issued
-[ ] License number generated
-[ ] Expiration supported
-[ ] Renewal supported
-[ ] Suspension supported
-[ ] Restoration supported
-[ ] Revocation supported
-[ ] Authorization tested
-[ ] Audit created
-[ ] UI completed
-[ ] API tested
-[ ] E2E test passes
+[x] Eligible institution identified
+[x] License application created
+[x] License reviewed
+[x] Correction supported
+[x] Approval supported
+[x] License issued
+[x] License number generated
+[x] Expiration supported
+[x] Renewal supported
+[x] Suspension supported
+[x] Restoration supported
+[x] Revocation supported
+[x] Authorization tested
+[x] Audit created
+[x] UI completed
+[x] API tested
+[x] E2E test passes
 ```
 
 ---

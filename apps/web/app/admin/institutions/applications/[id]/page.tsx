@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 export default function ReviewInstitutionApplicationPage(){
   const params=useParams<{id:string}>();const [app,setApp]=useState<any>(null);const [error,setError]=useState('');const [busy,setBusy]=useState(false);const [reason,setReason]=useState('');
   async function load(){const token=localStorage.getItem('accessToken')||'';const r=await fetch(`${API}/admin/institutions/applications/${params.id}`,{headers:{authorization:`Bearer ${token}`}});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to load application');setApp(d);}

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api/v1';
+const API = '/api/v1';
 
 type Location = { id: string; code: string; name: string };
 type Preview = { valid: boolean; rows: number; errors: string[]; headers: string[] };

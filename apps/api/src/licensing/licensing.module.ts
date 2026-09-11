@@ -5,10 +5,11 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { PrismaService } from '../prisma.service';
 import { LicensingController } from './licensing.controller';
+import { PublicLicensingController } from './public-licensing.controller';
 import { LicensingService } from './licensing.service';
 
 @Module({
-  controllers: [LicensingController],
+  controllers: [LicensingController, PublicLicensingController],
   providers: [LicensingService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
   exports: [LicensingService],
 })
