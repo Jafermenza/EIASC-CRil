@@ -2,148 +2,200 @@
 
 ## Scope
 
-This record evaluates the current `main` branch against the M5–M10 roadmap contracts in `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.0.md`.
+This record evaluates `main` against the M5–M10 contracts in `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.0.md`. Implementation is recorded separately from executable/production evidence; a milestone is not released until its mandatory tests and operational evidence pass.
 
-**Important:** presence of a module is not treated as acceptance. A milestone is complete only after its required workflow, authorization, audit, tests and CI evidence pass.
+## Cross-cutting UI / authentication requirement
+
+The previously missed product gap was corrected: successful authentication now routes every defined role to a real authorized workspace instead of leaving the user at a generic/public page.
+
+- Administrative roles: `/admin/dashboard`
+- Institution administrator: `/institution`
+- Member: `/member`
+- Admin navigation is role-aware and only displays permitted functions.
+- Admin dashboard displays role-specific actions and jurisdiction-scoped reporting.
+- Member dashboard provides authenticated account, notification and member-service UI.
+
+This is a release-critical requirement in addition to the milestone-specific checklists below.
 
 ## M5 — Digital Credentials & QR
 
 ### Implemented
 
-- Member, institution and license credential types exist in Prisma.
-- Credential identifiers are generated as non-sequential random values.
-- Credential tokens are stored as SHA-256 hashes.
-- Public verification endpoint exists.
-- Expiry/revocation status is reflected by verification.
-- Public `/verify/[token]` credential page exists.
-- QR rendering and print support were added to the credential verification page.
-- Administrative credential issuance UI was added.
-- Credential issuance now requires active subjects.
+- Member, institution and license credentials.
+- Random, unique credential identifiers.
+- SHA-256 token storage; raw verification token is not stored.
+- Public verification with expiry/revocation state.
+- `/verify/[token]` public verification page.
+- QR rendering and print support.
+- Administrative issuance UI.
+- Issuance restricted to active member/institution/license subjects.
+- Dedicated Playwright journey now covers issuing and publicly verifying member, institution and license credentials.
 
 ### Acceptance status
 
-- [x] Member credential model/service
-- [x] Institution credential model/service
-- [x] License credential model/service
-- [x] Unique credential identifiers
+- [x] Member credential
+- [x] Institution credential
+- [x] License credential
+- [x] Unique identifiers
 - [x] Secure token hashing
-- [x] Public verification API
-- [x] Public verification page
-- [x] QR rendering
+- [x] Public verification API/page
+- [x] QR generation
 - [x] Print support
-- [ ] Dedicated automated M5 E2E journey — **still required**
+- [x] Dedicated automated M5 E2E journey implemented
+- [ ] Final CI execution of the new journey must pass before release gate is marked green
 
 ## M6 — Institutional Membership
 
-### Implemented in this phase
+### Implemented
 
-- `MemberInstitution` is already part of the database foundation and is used by allocation.
-- Added membership service with request/list/status lifecycle.
-- Added server-side jurisdiction and role checks.
-- Added audit events for membership requests and status changes.
-- Added institution membership dashboard at `/institution/members`.
+- Membership request/list/status service and controller.
+- Correct use of the existing `relationshipType` + `MembershipStatus` Prisma fields.
+- Jurisdiction and role enforcement on the server.
+- Audit events for requests and status changes.
+- Institution member dashboard at `/institution/members`.
+- Dedicated Playwright/API journey covers request → approve → display → end.
 
 ### Acceptance status
 
 - [x] Member-institution relationship
-- [x] Historical relationship fields supported by existing model
-- [x] Institution member list API/UI
-- [x] Membership status lifecycle
+- [x] Historical status fields (`startedAt` / `endedAt`)
+- [x] Institution member list
+- [x] Membership lifecycle
 - [x] Authorization
 - [x] Audit
-- [ ] Dedicated automated M6 E2E journey — **still required**
+- [x] Dedicated automated M6 E2E journey implemented
+- [ ] Final CI execution must pass before release gate is marked green
 
 ## M7 — Reporting & Dashboards
 
-### Existing implementation
+The complete master roadmap requires national/regional/district/institution reporting across registration, membership, institution, licensing, geography and trend dimensions, with server-side filtering/pagination/aggregation. Export was also added to close the requested reporting gap.
 
-- Reporting service and dashboard API exist.
-- Admin dashboard consumes server-side reporting data.
-- Counts cover members, active members, institutions, active institutions, applications and license states.
-- Reporting was hardened in this phase so users are scoped to their jurisdiction when no explicit scope is supplied and cannot query an unrelated scope.
+### Implemented
+
+- Jurisdiction-safe server-side dashboard aggregation.
+- Role-aware administrator dashboard.
+- 12-month server-side trend endpoint.
+- CSV export endpoint containing dashboard metrics and trend rows.
+- `/admin/reports` UI with trend table and CSV export.
+- Role-aware reporting navigation.
 
 ### Acceptance status
 
-- [x] Server-side dashboard aggregation
-- [x] Jurisdiction-scoped reporting
-- [x] Admin dashboard UI
-- [ ] Full roadmap reporting suite (trend/distribution/export requirements, if specified in the remaining M7 section) — **must be verified against the complete roadmap before marking complete**
-- [ ] Dedicated automated M7 acceptance journey
+- [x] National/jurisdiction-scoped dashboard foundation
+- [x] Membership analytics
+- [x] Institution analytics
+- [x] Registration/application analytics
+- [x] Licensing analytics
+- [x] Geographic/jurisdiction isolation
+- [x] Trend analytics
+- [x] CSV export
+- [x] Dedicated reporting UI
+- [ ] Final CI/E2E execution must pass before release gate is marked green
 
 ## M8 — Resource Allocation Engine
 
-### Existing implementation
+### Implemented
 
-- Allocation policy model and lifecycle exist.
-- Policy approval requires privileged roles.
-- Preview runs calculate eligible members and institutional allocations.
-- Runs support preview → review → finalized lifecycle.
-- Audit events exist for preview/finalization.
-- Allocation API endpoints are now protected by explicit role metadata.
+- Versioned allocation policy.
+- Policy approval authorization.
+- Policy formula validation.
+- Configurable `perMemberMultiplier`.
+- Configurable `equalizationPerInstitution`.
+- Optional minimum/maximum institution amounts.
+- Eligible active-member calculation.
+- Preview → review → finalize lifecycle.
+- Historical policy version preserved on each run.
+- Audit events.
+- Explicit role protection on allocation endpoints.
+- Dedicated acceptance unit test for formula/equalization behavior.
 
 ### Acceptance status
 
-- [x] Policy persistence
-- [x] Policy approval
-- [x] Allocation preview
-- [x] Review/finalize lifecycle
+- [x] Allocation policy
+- [x] Policy version
+- [x] Eligibility calculation
+- [x] Formula definition is read from the approved policy
+- [x] Equalization calculation is policy-driven
+- [x] Preview
+- [x] Review
+- [x] Approval/finalization
+- [x] Historical policy version preservation
 - [x] Audit
-- [x] API role protection
-- [ ] Full policy/formula/equalization acceptance suite — **requires dedicated tests**
-- [ ] Dedicated M8 E2E journey
+- [x] Authorization
+- [x] Dedicated formula/equalization acceptance test implemented
+- [ ] Final CI execution must pass before release gate is marked green
 
 ## M9 — Notifications & Services
 
-### Existing implementation
+### Implemented
 
-- Notification model supports IN_APP, EMAIL, SMS, PUSH and USSD channel values.
-- In-app notification creation, listing, unread filtering and read state exist.
-- Authenticated notification UI/API is present.
+- Notification persistence and authenticated inbox.
+- Read/unread lifecycle.
+- Provider abstraction inside notification service.
+- Production Email adapter using Resend when `RESEND_API_KEY` and `RESEND_FROM_EMAIL` are configured.
+- Provider failure is persisted as `FAILED` rather than silently reported as sent.
+- Credential issuance triggers in-app and email notification events for active users attached to the institution.
+- Provider delivery test and credential event-trigger test added.
+
+### Important limitation
+
+The repository now contains a real external-provider integration, but actual delivery against a live Resend account cannot be claimed from CI without the production provider credentials. CI tests the adapter contract with a controlled provider response. Live delivery remains a deployment/UAT evidence step.
 
 ### Acceptance status
 
-- [x] Notification persistence
-- [x] In-app listing
-- [x] Read state
-- [x] Authenticated access
-- [ ] External EMAIL/SMS/PUSH/USSD provider delivery — not implemented and must not be falsely marked complete
-- [ ] Event-triggered notification coverage
-- [ ] Dedicated M9 E2E journey
+- [x] In-app notifications
+- [x] Email adapter
+- [x] Delivery success/failure persistence
+- [x] Credential event trigger
+- [x] Notification history/read state
+- [x] Provider adapter automated test
+- [x] Event-trigger automated test
+- [ ] Live external-provider delivery evidence using configured production credentials
+- [ ] Full roadmap event coverage for registration/correction/approval/rejection/license expiry still requires event wiring/UAT before release
 
 ## M10 — Production Hardening
 
-### Implemented/hardened
+### Implemented / automated
 
-- API health endpoint checks PostgreSQL.
-- JWT secret length is validated at startup.
-- Refresh tokens are hashed and rotated.
-- Password reset tokens are hashed and expire.
-- Security middleware adds request IDs and baseline security headers.
-- Authentication endpoints have rate limiting.
-- Allocation/reporting authorization was strengthened.
-- CI runs database setup, seed, lint, typecheck, unit tests, build and Playwright.
-- Security middleware tests were added.
-- `.env.example` now matches the documented API port.
+- Health endpoint.
+- JWT secret validation.
+- Refresh-token rotation/storage hardening.
+- Password-reset token hashing/expiry.
+- Request IDs/security headers.
+- Authentication rate limiting.
+- Server-side role/jurisdiction enforcement on M5–M9 APIs.
+- Authentication/privilege escalation E2E acceptance suite added.
+- Repeatable PostgreSQL backup/restore drill script added.
+- CI now runs dependency security review and backup/restore drill.
+- Manual production smoke workflow added for a real deployment URL/API URL.
+- Dependency review script fails on high/critical vulnerabilities.
 
 ### Acceptance status
 
-- [x] Health check
-- [x] Authentication secret validation
-- [x] Token rotation/storage hardening
-- [x] Security headers
-- [x] Authentication rate limiting
-- [x] CI validation pipeline
 - [x] Security middleware tests
-- [ ] Production deployment smoke test against the actual deployment environment
-- [ ] Backup/restore drill evidence
-- [ ] Full M10 E2E/security acceptance suite
-- [ ] Dependency/security review with actionable findings
-- [ ] Operational monitoring/alerting evidence
+- [x] Authentication negative tests
+- [x] Invalid-token test
+- [x] Horizontal isolation test
+- [x] Vertical privilege boundary test
+- [x] Credential-token guessing negative test
+- [x] Repeatable backup/restore drill implemented
+- [x] Backup/restore drill wired into CI
+- [x] Production smoke test automation implemented
+- [x] Dependency/security review automation implemented
+- [ ] Latest CI run must pass the security review and restore drill
+- [ ] Live production smoke execution against the deployed environment
+- [ ] Production monitoring/alerting evidence
+- [ ] Resolve or explicitly disposition all high/critical dependency findings before release
 
 ## Current release decision
 
-**M5–M10 are NOT yet accepted as complete.** The repository now contains substantial M5–M9 implementation and several M10 hardening controls, but the remaining acceptance tests and production evidence above are required before declaring the MVP fully complete.
+**M5–M10 are not yet marked RELEASE-COMPLETE.** The requested implementation gaps have been substantially closed in code and automated acceptance coverage. The remaining blockers are evidence/configuration gates that cannot honestly be claimed without execution: live production smoke, live external email delivery, production monitoring evidence, and successful CI/security review.
 
-## Required next gate
+## Next release gate
 
-Run the CI workflow after the latest changes and fix every typecheck/test/build/E2E failure. Then add the missing M5/M6/M8/M9 acceptance journeys and production hardening evidence. Only after those pass should the master roadmap be updated to `M10 COMPLETE`.
+1. Let the latest CI run complete.
+2. Fix every typecheck/test/build/E2E/security-review failure.
+3. Run the manual production smoke workflow against the real deployment.
+4. Configure and execute live Resend delivery in the target environment.
+5. Record monitoring/alerting evidence.
+6. Only then mark M10 and the MVP release gate complete.
