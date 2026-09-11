@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { PaymentsService } from './payments.service';
 
 describe('PaymentsService', () => {
