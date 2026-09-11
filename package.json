@@ -4,11 +4,7 @@
   "version": "0.1.0",
   "description": "EIASC Community Registration & Institutional Licensing Platform",
   "packageManager": "npm@10.9.8",
-  "workspaces": [
-    "apps/web",
-    "apps/api",
-    "packages/*"
-  ],
+  "workspaces": ["apps/web", "apps/api", "packages/*"],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace @eiasc/web\" \"npm run dev --workspace @eiasc/api\"",
     "build": "npm run build --workspace @eiasc/api && npm run build --workspace @eiasc/web",
@@ -21,26 +17,12 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:import-geography": "tsx scripts/import-geography.ts",
     "db:verify-geography": "tsx scripts/verify-geography.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "security:review": "node scripts/security-review.mjs",
+    "ops:smoke": "node scripts/production-smoke.mjs",
+    "ops:backup-restore": "bash scripts/backup-restore-drill.sh"
   },
-  "dependencies": {
-    "dotenv": "^16.4.7",
-    "xlsx": "0.18.5"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.52.0",
-    "@types/node": "20.17.24",
-    "@types/react": "18.3.18",
-    "@types/react-dom": "18.3.5",
-    "@typescript-eslint/eslint-plugin": "8.26.0",
-    "@typescript-eslint/parser": "8.26.0",
-    "concurrently": "9.1.2",
-    "eslint": "8.57.1",
-    "prisma": "5.22.0",
-    "tsx": "4.19.3",
-    "typescript": "5.8.2"
-  },
-  "prisma": {
-    "seed": "tsx prisma/seed.ts"
-  }
+  "dependencies": { "dotenv": "^16.4.7", "xlsx": "0.18.5" },
+  "devDependencies": { "@playwright/test": "^1.52.0", "@types/node": "20.17.24", "@types/react": "18.3.18", "@types/react-dom": "18.3.5", "@typescript-eslint/eslint-plugin": "8.26.0", "@typescript-eslint/parser": "8.26.0", "concurrently": "9.1.2", "eslint": "8.57.1", "prisma": "5.22.0", "tsx": "4.19.3", "typescript": "5.8.2" },
+  "prisma": { "seed": "tsx prisma/seed.ts" }
 }
