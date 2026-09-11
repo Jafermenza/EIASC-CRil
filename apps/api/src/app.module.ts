@@ -1,6 +1,6 @@
 import { Module } from '@nestjs/common';
 import { HealthController } from './health.controller';
-import { PrismaService } from './prisma.service';
+import { PrismaModule } from './prisma.module';
 import { AuthController } from './auth/auth.controller';
 import { AuthService } from './auth/auth.service';
 import { AuthGuard } from './auth/auth.guard';
@@ -12,9 +12,9 @@ import { InstitutionsModule } from './institutions/institutions.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
-  imports: [LocationsModule, RegistrationsModule, InstitutionsModule, UsersModule],
+  imports: [PrismaModule, LocationsModule, RegistrationsModule, InstitutionsModule, UsersModule],
   controllers: [HealthController, AuthController],
-  providers: [PrismaService, AuthService, AuthGuard, RolesGuard, AuthorizationService],
-  exports: [PrismaService, AuthService, AuthGuard, RolesGuard, AuthorizationService],
+  providers: [AuthService, AuthGuard, RolesGuard, AuthorizationService],
+  exports: [PrismaModule, AuthService, AuthGuard, RolesGuard, AuthorizationService],
 })
 export class AppModule {}
