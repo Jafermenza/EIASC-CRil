@@ -14,6 +14,8 @@ jobs:
       JWT_SECRET: ci-secret-that-is-at-least-32-characters-long
       JWT_ISSUER: eiasc-cril
       GEOGRAPHY_SOURCE_VERSION: 418739e33760bf79661f3914e2d8c9cf33248437
+      REGISTRATION_INDIVIDUAL_FEE_ETB: 100
+      REGISTRATION_INSTITUTION_FEE_ETB: 500
     services:
       postgres:
         image: postgres:16-alpine
@@ -36,6 +38,8 @@ jobs:
       - run: npm install
       - run: npm run db:generate
       - run: npx prisma db push --force-reset --accept-data-loss
+      - name: Apply non-Prisma payment ledger migration
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912100000_registration_payments/migration.sql
       - run: npm run db:seed
       - run: npm run db:import-geography
       - run: npm run db:verify-geography
