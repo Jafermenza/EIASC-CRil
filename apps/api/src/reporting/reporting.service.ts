@@ -29,10 +29,8 @@ export class ReportingService {
     if (effectiveScope.subcityId) { memberWhere.subcityId = effectiveScope.subcityId; institutionWhere.subcityId = effectiveScope.subcityId; applicationWhere.subcityId = effectiveScope.subcityId; }
     if (effectiveScope.districtId) { memberWhere.districtId = effectiveScope.districtId; institutionWhere.districtId = effectiveScope.districtId; applicationWhere.districtId = effectiveScope.districtId; }
     if (effectiveScope.institutionId) applicationWhere.institutionId = effectiveScope.institutionId;
-    const memberFilter = effectiveScope.institutionId ? { member: { status: 'ACTIVE' }, institutionId: effectiveScope.institutionId } : { member: { status: 'ACTIVE' }, ...(memberWhere as object) };
-    const activeMemberFilter = effectiveScope.institutionId ? memberFilter : { ...memberWhere, status: 'ACTIVE' };
     const memberCounts = effectiveScope.institutionId
-      ? [this.prisma.memberInstitution.count({ where: memberFilter }), this.prisma.memberInstitution.count({ where: activeMemberFilter })]
+      ? [this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, member: { status: 'ACTIVE' } } }), this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, status: 'ACTIVE', member: { status: 'ACTIVE' } } })]
       : [this.prisma.member.count({ where: memberWhere }), this.prisma.member.count({ where: { ...memberWhere, status: 'ACTIVE' } })];
     const [memberPair, institutions, activeInstitutions, pendingApplications, approvedApplications, rejectedApplications, activeLicenses, expiredLicenses, suspendedLicenses] = await Promise.all([
       Promise.all(memberCounts),
