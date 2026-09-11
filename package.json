@@ -19,6 +19,7 @@
     "db:verify-geography": "tsx scripts/verify-geography.ts"
   },
   "dependencies": {
+    "dotenv": "^16.4.7",
     "xlsx": "0.18.5"
   },
   "devDependencies": {
