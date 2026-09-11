@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { MembershipStatus, RoleCode } from '@prisma/client';
+import { InstitutionRelationshipType, MembershipStatus, RoleCode } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
@@ -12,7 +12,7 @@ export class MembershipService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
   private assertRole(user: AuthenticatedUser, roles: RoleCode[]) { if (!user.roles.some((role) => roles.includes(role))) throw new ConflictException('Membership action is not permitted'); }
   async list(user: AuthenticatedUser, institutionId: string) { this.assertRole(user, MANAGE_ROLES); await this.authorization.assertCanAccess(user, { institutionId }); return this.prisma.memberInstitution.findMany({ where: { institutionId }, include: { member: true, institution: { select: { id: true, name: true, institutionCode: true } } }, orderBy: [{ status: 'asc' }, { startedAt: 'desc' }] }); }
-  async request(user: AuthenticatedUser, body: { memberId?: string; institutionId?: string; membershipType?: string; isPrimary?: boolean }) {
+  async request(user: AuthenticatedUser, body: { memberId?: string; institutionId?: string; relationshipType?: InstitutionRelationshipType; isPrimary?: boolean }) {
     this.assertRole(user, MANAGE_ROLES);
     if (!body.memberId?.trim() || !body.institutionId?.trim()) throw new BadRequestException('memberId and institutionId are required');
     await this.authorization.assertCanAccess(user, { institutionId: body.institutionId });
@@ -21,7 +21,7 @@ export class MembershipService {
     if (!institution || institution.status !== 'ACTIVE') throw new ConflictException('Institution must be active');
     const existing = await this.prisma.memberInstitution.findFirst({ where: { memberId: body.memberId, institutionId: body.institutionId, status: { in: [MembershipStatus.PENDING, MembershipStatus.ACTIVE, MembershipStatus.SUSPENDED] } } });
     if (existing) throw new ConflictException('An active or pending membership already exists');
-    const membership = await this.prisma.memberInstitution.create({ data: { memberId: body.memberId, institutionId: body.institutionId, membershipType: body.membershipType?.trim() || 'GENERAL', status: MembershipStatus.PENDING, startedAt: new Date(), isPrimary: body.isPrimary ?? false } });
+    const membership = await this.prisma.memberInstitution.create({ data: { memberId: body.memberId, institutionId: body.institutionId, relationshipType: body.relationshipType ?? InstitutionRelationshipType.PRIMARY, status: MembershipStatus.PENDING, startedAt: new Date(), } });
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'MEMBERSHIP_REQUESTED', entityType: 'MemberInstitution', entityId: membership.id, metadata: { memberId: body.memberId, institutionId: body.institutionId } } });
     return membership;
   }
