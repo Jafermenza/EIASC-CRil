@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { LocationsService } from './locations.service';
 
 describe('LocationsService', () => {
