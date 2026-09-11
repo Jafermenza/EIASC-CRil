@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { NotificationsService } from '../src/notifications/notifications.service';
 
 describe('NotificationsService provider delivery', () => {
