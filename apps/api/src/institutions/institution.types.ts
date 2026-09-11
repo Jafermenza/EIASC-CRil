@@ -15,7 +15,7 @@ export interface InstitutionApplicationInput {
   secondaryPhone?: string;
   regionId: string;
   zoneId: string;
-  subcityId: string;
+  subcityId?: string;
   districtId: string;
   address: string;
   mission?: string;
@@ -31,7 +31,7 @@ export interface InstitutionApplicationInput {
   documents?: Array<{ documentType: string; fileName: string; mimeType: string; size: number }>;
 }
 
-export interface InstitutionApplicationUpdateInput extends Partial<InstitutionApplicationInput> {}
+export type InstitutionApplicationUpdateInput = Partial<InstitutionApplicationInput>;
 
 export interface DecisionInput { reason?: string }
 

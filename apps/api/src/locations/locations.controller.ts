@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
 import { LocationsService } from './locations.service';
 
 @Controller('locations')
@@ -21,7 +21,18 @@ export class LocationsController {
   }
 
   @Get('districts')
-  districts(@Query('parentId') parentId?: string) {
-    return this.locations.getDistricts(parentId);
+  districts(@Query('parentId') parentId?: string, @Query('zoneId') zoneId?: string) {
+    if (!parentId && !zoneId) return this.locations.getDistricts();
+    return this.locations.getDistricts(parentId, zoneId);
+  }
+
+  @Get('health')
+  async health() {
+    try {
+      const [regions, zones] = await Promise.all([this.locations.getRegions(), this.locations.getZones()]);
+      return { ready: regions.length > 0 && zones.length > 0, regions: regions.length, zones: zones.length };
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Unable to read geography');
+    }
   }
 }

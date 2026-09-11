@@ -3,8 +3,8 @@ import { LocationsService } from './locations.service';
 describe('LocationsService', () => {
   const prisma = {
     region: { findMany: jest.fn() },
-    zoneCity: { findMany: jest.fn() },
-    subcityTown: { findMany: jest.fn() },
+    zoneCity: { findMany: jest.fn(), findUnique: jest.fn() },
+    subcityTown: { findMany: jest.fn(), findUnique: jest.fn() },
     district: { findMany: jest.fn(), findUnique: jest.fn() },
   };
   const service = new LocationsService(prisma as never);
@@ -43,38 +43,32 @@ describe('LocationsService', () => {
     expect(prisma.district.findMany).toHaveBeenCalledWith({
       where: { subcityId: 'subcity-1' },
       orderBy: { name: 'asc' },
-      select: { id: true, code: true, name: true, subcityId: true },
+      select: { id: true, code: true, name: true, subcityId: true, zoneId: true },
     });
   });
 
-  it('validates the complete region-to-district chain', async () => {
-    prisma.district.findUnique.mockResolvedValue({
-      id: 'district-1',
-      subcityId: 'subcity-1',
-      subcity: {
-        id: 'subcity-1',
-        zoneId: 'zone-1',
-        zone: { id: 'zone-1', regionId: 'region-1' },
-      },
-    });
+  it('validates the complete region-to-district chain through a subcity', async () => {
+    prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.district.findUnique.mockResolvedValue({ id: 'district-1', zoneId: null, subcityId: 'subcity-1' });
+    prisma.subcityTown.findUnique.mockResolvedValue({ id: 'subcity-1', zoneId: 'zone-1' });
     await expect(
       service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1', subcityId: 'subcity-1', districtId: 'district-1' }),
     ).resolves.toBeUndefined();
   });
 
   it('rejects a cross-parent hierarchy', async () => {
-    prisma.district.findUnique.mockResolvedValue({
-      id: 'district-1',
-      subcityId: 'subcity-1',
-      subcity: {
-        id: 'subcity-1',
-        zoneId: 'zone-1',
-        zone: { id: 'zone-1', regionId: 'region-A' },
-      },
-    });
+    prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-A' });
     await expect(
       service.validateHierarchy({ regionId: 'region-B', zoneId: 'zone-1', subcityId: 'subcity-1', districtId: 'district-1' }),
     ).rejects.toThrow('Location hierarchy is invalid');
+  });
+
+  it('validates a district directly under a zone', async () => {
+    prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.district.findUnique.mockResolvedValue({ id: 'district-1', zoneId: 'zone-1', subcityId: null });
+    await expect(
+      service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1', districtId: 'district-1' }),
+    ).resolves.toBeUndefined();
   });
 
   it('rejects an explicitly empty parent filter', async () => {
