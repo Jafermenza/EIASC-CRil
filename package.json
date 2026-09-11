@@ -18,6 +18,9 @@
     "db:import-geography": "tsx scripts/import-geography.ts",
     "db:verify-geography": "tsx scripts/verify-geography.ts"
   },
+  "dependencies": {
+    "xlsx": "0.18.5"
+  },
   "devDependencies": {
     "@types/node": "20.17.24",
     "@types/react": "18.3.18",
