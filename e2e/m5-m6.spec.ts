@@ -19,11 +19,7 @@ test.beforeAll(async () => {
   const zone = await prisma.zoneCity.findUniqueOrThrow({ where: { code: 'E2E-ZONE' } });
   const subcity = await prisma.subcityTown.findUniqueOrThrow({ where: { code: 'E2E-SUBCITY' } });
   const district = await prisma.district.findUniqueOrThrow({ where: { code: 'E2E-DISTRICT' } });
-  const member = await prisma.member.upsert({
-    where: { membershipNumber: 'E2E-MEMBER-0001' },
-    update: { status: 'ACTIVE' },
-    create: { membershipNumber: 'E2E-MEMBER-0001', firstName: 'E2E', lastName: 'Member', birthDate: new Date('1990-01-01'), gender: 'OTHER', maritalStatus: 'SINGLE', phone: '+251911000001', regionId: region.id, zoneId: zone.id, subcityId: subcity.id, districtId: district.id, status: 'ACTIVE' },
-  });
+  const member = await prisma.member.upsert({ where: { membershipNumber: 'E2E-MEMBER-0001' }, update: { status: 'ACTIVE' }, create: { membershipNumber: 'E2E-MEMBER-0001', firstName: 'E2E', lastName: 'Member', birthDate: new Date('1990-01-01'), gender: 'OTHER', maritalStatus: 'SINGLE', phone: '+251911000001', regionId: region.id, zoneId: zone.id, subcityId: subcity.id, districtId: district.id, status: 'ACTIVE' } });
   await prisma.memberInstitution.deleteMany({ where: { memberId: member.id, institutionId: institution.id } });
   await prisma.license.deleteMany({ where: { institutionId: institution.id } });
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: ADMIN_EMAIL } });
@@ -47,7 +43,7 @@ test('M5 credentials: issue and publicly verify member, institution and license 
     const href = await verificationLink.getAttribute('href');
     expect(href).toMatch(/\/verify\/.+/);
     await page.goto(href!);
-    await expect(page.getByText('Verified')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Credential verified' })).toBeVisible();
   }
 });
 
