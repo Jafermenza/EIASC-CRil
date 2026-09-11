@@ -34,7 +34,7 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npm run db:generate
-      - run: npm run db:deploy
+      - run: npx prisma db push --force-reset --accept-data-loss
       - run: npm run db:seed
       - run: npm run lint
       - run: npm run typecheck
