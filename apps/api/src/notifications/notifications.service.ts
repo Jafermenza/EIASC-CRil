@@ -15,22 +15,41 @@ class ResendEmailProvider implements NotificationProvider {
   }
 }
 
+class AfroMessageSmsProvider implements NotificationProvider {
+  constructor(private readonly token: string, private readonly identifierId: string, private readonly sender: string, private readonly callback?: string) {}
+  async send(input: { to: string; subject: string; message: string }) {
+    const response = await fetch('https://api.afromessage.com/api/send', { method: 'POST', headers: { authorization: `Bearer ${this.token}`, 'content-type': 'application/json' }, body: JSON.stringify({ from: this.identifierId, sender: this.sender, to: input.to, message: input.message, ...(this.callback ? { callback: this.callback } : {}) }) });
+    const body = await response.json().catch(() => null) as { acknowledge?: string; message?: string } | null;
+    if (!response.ok || body?.acknowledge !== 'success') throw new Error(`AfroMessage SMS delivery failed with HTTP ${response.status}${body?.message ? `: ${body.message}` : ''}`);
+  }
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly emailProvider: NotificationProvider | null;
+  private readonly smsProvider: NotificationProvider | null;
   constructor(private readonly prisma: PrismaService) {
-    const key = process.env.RESEND_API_KEY;
-    const from = process.env.RESEND_FROM_EMAIL;
-    this.emailProvider = key && from ? new ResendEmailProvider(key, from) : null;
+    const emailKey = process.env.RESEND_API_KEY;
+    const emailFrom = process.env.RESEND_FROM_EMAIL;
+    this.emailProvider = emailKey && emailFrom ? new ResendEmailProvider(emailKey, emailFrom) : null;
+    const smsToken = process.env.AFRO_MESSAGE_TOKEN;
+    const smsIdentifier = process.env.AFRO_MESSAGE_IDENTIFIER_ID;
+    const smsSender = process.env.AFRO_MESSAGE_SENDER_NAME;
+    const smsCallback = process.env.AFRO_MESSAGE_STATUS_CALLBACK;
+    this.smsProvider = smsToken && smsIdentifier && smsSender ? new AfroMessageSmsProvider(smsToken, smsIdentifier, smsSender, smsCallback) : null;
   }
 
   async create(recipientId: string, input: NotificationEvent & { channel?: NotificationChannel }) {
-    const recipient = await this.prisma.user.findUnique({ where: { id: recipientId }, select: { email: true } });
+    const recipient = await this.prisma.user.findUnique({ where: { id: recipientId }, select: { email: true, phone: true } });
     const notification = await this.prisma.notification.create({ data: { recipientId, type: input.type, title: input.title, message: input.message, channel: input.channel ?? NotificationChannel.IN_APP, metadata: input.metadata } });
     if (notification.channel === NotificationChannel.IN_APP) return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } });
     if (notification.channel === NotificationChannel.EMAIL && this.emailProvider && recipient?.email) {
       try { await this.emailProvider.send({ to: recipient.email, subject: notification.title, message: notification.message }); return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } }); }
       catch (error) { return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.FAILED, metadata: { ...(input.metadata ?? {}), deliveryError: error instanceof Error ? error.message : 'Email delivery failed' } } }); }
+    }
+    if (notification.channel === NotificationChannel.SMS && this.smsProvider && recipient?.phone) {
+      try { await this.smsProvider.send({ to: recipient.phone, subject: notification.title, message: notification.message }); return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } }); }
+      catch (error) { return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.FAILED, metadata: { ...(input.metadata ?? {}), deliveryError: error instanceof Error ? error.message : 'SMS delivery failed' } } }); }
     }
     return notification;
   }
@@ -42,6 +61,15 @@ export class NotificationsService {
     const notification = await this.create(user.id, { type: 'EMAIL_PROVIDER_TEST', title: 'EIASC CRil email delivery test', message: 'This is a live production email delivery test from EIASC CRil.', channel: NotificationChannel.EMAIL });
     if (notification.status !== NotificationStatus.SENT) throw new ServiceUnavailableException('Resend rejected or failed the test delivery. Check notification delivery metadata.');
     return { delivered: true, notificationId: notification.id, recipient: recipient.email };
+  }
+
+  async testSms(user: AuthenticatedUser) {
+    if (!this.smsProvider) throw new ServiceUnavailableException('AfroMessage SMS provider is not configured. Set AFRO_MESSAGE_TOKEN, AFRO_MESSAGE_IDENTIFIER_ID and AFRO_MESSAGE_SENDER_NAME.');
+    const recipient = await this.prisma.user.findUnique({ where: { id: user.id }, select: { phone: true } });
+    if (!recipient?.phone) throw new ServiceUnavailableException('The authenticated user does not have a phone number.');
+    const notification = await this.create(user.id, { type: 'SMS_PROVIDER_TEST', title: 'EIASC CRil SMS delivery test', message: 'This is a live production SMS delivery test from EIASC CRil.', channel: NotificationChannel.SMS });
+    if (notification.status !== NotificationStatus.SENT) throw new ServiceUnavailableException('AfroMessage rejected or failed the test delivery. Check notification delivery metadata.');
+    return { delivered: true, notificationId: notification.id, recipient: recipient.phone };
   }
 
   async notifyEvent(recipientId: string, event: NotificationEvent, channel: NotificationChannel = NotificationChannel.IN_APP) { return this.create(recipientId, { ...event, channel }); }
