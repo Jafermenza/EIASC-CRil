@@ -31,7 +31,7 @@ test('M10 security acceptance: authentication, horizontal isolation and vertical
   const crossInstitution = await request.get('http://127.0.0.1:4000/api/v1/memberships/institution/00000000-0000-0000-0000-000000000001', { headers: { authorization: `Bearer ${accessToken}` } });
   expect([403, 404]).toContain(crossInstitution.status());
   const credentialEscalation = await request.post('http://127.0.0.1:4000/api/v1/credentials', { headers: { authorization: `Bearer ${accessToken}` }, data: { type: 'INSTITUTION', subjectId: '00000000-0000-0000-0000-000000000001' } });
-  expect(credentialEscalation.status()).toBe(409);
+  expect(credentialEscalation.status()).toBe(403);
   const tokenGuess = await request.get('http://127.0.0.1:4000/api/v1/credentials/verify/guess-that-is-not-a-real-token');
   expect(tokenGuess.status()).toBe(404);
 });
