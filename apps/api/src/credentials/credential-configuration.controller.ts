@@ -12,7 +12,7 @@ export class CredentialConfigurationController {
   @Get()
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN)
-  get() { return this.configuration.get(); }
+  get(@Req() req: AuthenticatedRequest) { return this.configuration.getForUser(req.user!); }
   @Put()
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN)
