@@ -3,11 +3,13 @@ import { RoleCode } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
 
+const REPORT_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN];
+
 @Injectable()
 export class CredentialReportService {
   constructor(private readonly prisma: PrismaService) {}
   async report(user: AuthenticatedUser, from?: string, to?: string) {
-    if (!user.roles.some((r) => [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN].includes(r))) throw new BadRequestException('Credential reporting is restricted to authorized administrators');
+    if (!user.roles.some((r) => REPORT_ROLES.includes(r))) throw new BadRequestException('Credential reporting is restricted to authorized administrators');
     const start = from ? new Date(from) : new Date(new Date().getFullYear(), 0, 1); const end = to ? new Date(to) : new Date();
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) throw new BadRequestException('Invalid report date range');
     const regionId = user.roles.includes(RoleCode.REGIONAL_ADMIN) ? user.jurisdictionId : null;
