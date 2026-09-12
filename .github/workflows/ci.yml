@@ -43,7 +43,7 @@ jobs:
       - name: Apply non-Prisma registration payment settings migration
         run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912110000_registration_payment_settings/migration.sql
       - name: Apply digital credential migrations
-        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130000_digital_credentials/migration.sql && npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130100_digital_credential_automation/migration.sql
+        run: npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130000_digital_credentials/migration.sql && npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130100_digital_credential_automation/migration.sql && npx prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130200_fix_credential_token_encoding/migration.sql
       - run: npm run db:seed
       - run: npm run db:import-geography
       - run: npm run db:verify-geography
