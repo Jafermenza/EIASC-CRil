@@ -8,12 +8,13 @@ import { PaymentsModule } from '../payments/payments.module';
 import { PrismaService } from '../prisma.service';
 import { InstitutionDocumentsController } from './institution-documents.controller';
 import { InstitutionDocumentsService } from './institution-documents.service';
+import { InstitutionTypesAdminController } from './institution-types-admin.controller';
 import { InstitutionsController } from './institutions.controller';
 import { InstitutionsService } from './institutions.service';
 
 @Module({
   imports: [LocationsModule, PaymentsModule],
-  controllers: [InstitutionsController, InstitutionDocumentsController],
+  controllers: [InstitutionsController, InstitutionDocumentsController, InstitutionTypesAdminController],
   providers: [InstitutionsService, InstitutionDocumentsService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
   exports: [InstitutionsService],
 })
