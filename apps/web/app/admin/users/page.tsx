@@ -3,54 +3,22 @@
 import { useEffect, useState } from 'react';
 
 const API = '/api/v1';
-const roles = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
+const roles = ['NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','INSPECTOR','FINANCE_OFFICER','INSTITUTION_ADMIN','MEMBER'];
+const levels = ['NATIONAL','REGION','ZONE_CITY','SUBCITY_TOWN','DISTRICT','INSTITUTION'];
+type User = { id:string; email:string|null; phone:string|null; roles:string[]; status:string; jurisdictionLevel:string; jurisdictionId:string|null; institutionId:string|null };
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  const [form, setForm] = useState({ email: '', phone: '', password: '', role: 'REGISTRAR', jurisdictionLevel: 'NATIONAL', jurisdictionId: '', institutionId: '' });
-
-  async function load() {
-    const token = localStorage.getItem('accessToken') || '';
-    const response = await fetch(`${API}/users`, { headers: { authorization: `Bearer ${token}` } });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Unable to load users');
-    setUsers(data);
-  }
-
-  useEffect(() => { load().catch((e) => setError(e.message)); }, []);
-
-  async function createUser(event: React.FormEvent) {
-    event.preventDefault(); setError(''); setMessage('');
-    try {
-      const token = localStorage.getItem('accessToken') || '';
-      const response = await fetch(`${API}/users`, {
-        method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to create user');
-      setMessage(`User created: ${data.email || data.phone || data.id}`);
-      setForm({ ...form, email: '', phone: '', password: '' });
-      await load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create user'); }
-  }
-
-  return <main className="shell" style={{ maxWidth: 1200 }}>
-    <div className="hero"><p className="eyebrow">EIASC · ADMINISTRATION</p><h1>User management</h1><p className="lead">Create and manage accounts within your authorized jurisdiction.</p></div>
-    {error && <article className="grid"><div>{error}</div></article>}
-    {message && <article className="grid"><div>{message}</div></article>}
-    <section className="grid"><div><h2>Create user</h2><form onSubmit={createUser} style={{ display: 'grid', gap: 12 }}>
-      <input placeholder="Email" type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}/>
-      <input placeholder="Phone (optional)" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
-      <input placeholder="Initial password (10+ characters)" type="password" minLength={10} required value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}/>
-      <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}>{roles.map(r => <option key={r}>{r}</option>)}</select>
-      <select value={form.jurisdictionLevel} onChange={e => setForm({ ...form, jurisdictionLevel: e.target.value })}>{['NATIONAL','REGION','ZONE_CITY','SUBCITY_TOWN','DISTRICT','INSTITUTION'].map(l => <option key={l}>{l}</option>)}</select>
-      {form.jurisdictionLevel !== 'NATIONAL' && form.jurisdictionLevel !== 'INSTITUTION' && <input placeholder="Jurisdiction ID" required value={form.jurisdictionId} onChange={e => setForm({ ...form, jurisdictionId: e.target.value })}/>} 
-      {form.jurisdictionLevel === 'INSTITUTION' && <input placeholder="Institution ID" required value={form.institutionId} onChange={e => setForm({ ...form, institutionId: e.target.value })}/>} 
-      <button className="button" type="submit">Create user</button>
-    </form></div></section>
-    <section className="grid"><div><h2>Users</h2><table style={{ width: '100%' }}><thead><tr><th>Account</th><th>Role</th><th>Scope</th><th>Status</th></tr></thead><tbody>{users.map(u => <tr key={u.id}><td>{u.email || u.phone || u.id}</td><td>{u.roles.join(', ')}</td><td>{u.jurisdictionLevel}{u.jurisdictionId ? ` · ${u.jurisdictionId}` : ''}</td><td>{u.status}</td></tr>)}</tbody></table></div></section>
+  const [users,setUsers]=useState<User[]>([]); const [error,setError]=useState(''); const [message,setMessage]=useState(''); const [editing,setEditing]=useState<User|null>(null);
+  const [form,setForm]=useState({email:'',phone:'',password:'',role:'REGISTRAR',jurisdictionLevel:'NATIONAL',jurisdictionId:'',institutionId:'',status:'ACTIVE'});
+  const headers=()=>({authorization:`Bearer ${localStorage.getItem('accessToken')||''}`,'content-type':'application/json'});
+  async function load(){const r=await fetch(`${API}/users`,{headers:headers()});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to load users');setUsers(d);}
+  useEffect(()=>{load().catch(e=>setError(e instanceof Error?e.message:'Unable to load users'));},[]);
+  function reset(){setEditing(null);setForm({email:'',phone:'',password:'',role:'REGISTRAR',jurisdictionLevel:'NATIONAL',jurisdictionId:'',institutionId:'',status:'ACTIVE'});}
+  function beginEdit(u:User){setEditing(u);setForm({email:u.email||'',phone:u.phone||'',password:'',role:u.roles[0]||'REGISTRAR',jurisdictionLevel:u.jurisdictionLevel,jurisdictionId:u.jurisdictionId||'',institutionId:u.institutionId||'',status:u.status});setError('');setMessage('');window.scrollTo({top:0,behavior:'smooth'});}
+  async function save(event:React.FormEvent){event.preventDefault();setError('');setMessage('');try{const body:any={role:form.role,jurisdictionLevel:form.jurisdictionLevel,jurisdictionId:form.jurisdictionLevel==='NATIONAL'?null:(form.jurisdictionId||null),institutionId:form.jurisdictionLevel==='INSTITUTION'?(form.institutionId||null):null,status:form.status};if(form.password)body.password=form.password;const url=editing?`${API}/users/${editing.id}`:`${API}/users`;const payload=editing?body:{...body,email:form.email||undefined,phone:form.phone||undefined,password:form.password};const r=await fetch(url,{method:editing?'PATCH':'POST',headers:headers(),body:JSON.stringify(payload)});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to save user');setMessage(editing?'User updated successfully.':'User created successfully.');reset();await load();}catch(e){setError(e instanceof Error?e.message:'Unable to save user');}}
+  return <main className="shell" style={{maxWidth:1200}}><div className="hero"><p className="eyebrow">EIASC · ADMINISTRATION</p><h1>User management</h1><p className="lead">Create and manage accounts within the authorized jurisdiction.</p></div>{error&&<article className="grid"><div role="alert">{error}</div></article>}{message&&<article className="grid"><div role="status">{message}</div></article>}
+    <section className="grid"><div><h2>{editing?'Edit user':'Create user'}</h2>{!editing&&<p>Super Admin creates operational users. Do not create another SUPER_ADMIN from this form. The API remains the final authority for role and jurisdiction permissions.</p>}<form onSubmit={save} style={{display:'grid',gap:12}}><label>Email<input placeholder="Email" type="email" value={form.email} disabled={!!editing} onChange={e=>setForm({...form,email:e.target.value})}/></label><label>Phone<input placeholder="Phone" value={form.phone} disabled={!!editing} onChange={e=>setForm({...form,phone:e.target.value})}/></label>{!editing&&<input placeholder="Initial password (10+ characters)" type="password" minLength={10} required value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/>} {editing&&<input placeholder="New password (optional, 10+ characters)" type="password" minLength={10} value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/>}<label>Role<select value={form.role} onChange={e=>setForm({...form,role:e.target.value})}>{roles.map(r=><option key={r}>{r}</option>)}</select></label><label>Jurisdiction level<select value={form.jurisdictionLevel} onChange={e=>setForm({...form,jurisdictionLevel:e.target.value,jurisdictionId:'',institutionId:''})}>{levels.map(l=><option key={l}>{l}</option>)}</select></label>{form.jurisdictionLevel!=='NATIONAL'&&form.jurisdictionLevel!=='INSTITUTION'&&<input placeholder="Jurisdiction ID" required value={form.jurisdictionId} onChange={e=>setForm({...form,jurisdictionId:e.target.value})}/>} {form.jurisdictionLevel==='INSTITUTION'&&<input placeholder="Institution ID" required value={form.institutionId} onChange={e=>setForm({...form,institutionId:e.target.value})}/>} {editing&&<label>Status<select value={form.status} onChange={e=>setForm({...form,status:e.target.value})}><option>ACTIVE</option><option>SUSPENDED</option><option>DISABLED</option></select></label>}<div className="action-row"><button className="button button-primary" type="submit">{editing?'Save changes':'Create user'}</button>{editing&&<button className="button button-secondary" type="button" onClick={reset}>Cancel</button>}</div></form></div></section>
+    <section className="grid"><div><h2>Creation authority</h2><p><strong>SUPER_ADMIN →</strong> all operational roles and all scopes. <strong>NATIONAL_ADMIN →</strong> subordinate administrative roles within national authority. <strong>REGIONAL/ZONE/DISTRICT_ADMIN →</strong> users only inside their own jurisdiction level and accessible scope. <strong>INSTITUTION_ADMIN →</strong> no user administration. All assignments are checked server-side.</p></div></section>
+    <section className="grid"><div><h2>Users</h2><table style={{width:'100%'}}><thead><tr><th>Account</th><th>Role</th><th>Scope</th><th>Status</th><th>Action</th></tr></thead><tbody>{users.map(u=><tr key={u.id}><td>{u.email||u.phone||u.id}</td><td>{u.roles.join(', ')}</td><td>{u.jurisdictionLevel}{u.jurisdictionId?` · ${u.jurisdictionId}`:''}{u.institutionId?` · ${u.institutionId}`:''}</td><td>{u.status}</td><td><button className="button button-secondary" type="button" onClick={()=>beginEdit(u)}>Edit</button></td></tr>)}</tbody></table></div></section>
   </main>;
 }
