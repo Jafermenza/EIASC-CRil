@@ -7,6 +7,7 @@ import { CredentialsService } from './credentials.service';
 import { CredentialConfigurationService } from './credential-configuration.service';
 import { CredentialReviewService } from './credential-review.service';
 import { CredentialReportService } from './credential-report.service';
+import { CredentialLifecycleService } from './credential-lifecycle.service';
 import { PrismaModule } from '../prisma.module';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthService } from '../auth/auth.service';
@@ -17,7 +18,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 @Module({
   imports: [PrismaModule, NotificationsModule],
   controllers: [CredentialsController, PublicCredentialsController, CredentialConfigurationController, CredentialReportController],
-  providers: [CredentialsService, CredentialConfigurationService, CredentialReviewService, CredentialReportService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
+  providers: [CredentialsService, CredentialConfigurationService, CredentialReviewService, CredentialReportService, CredentialLifecycleService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
   exports: [CredentialsService, CredentialConfigurationService, CredentialReviewService, CredentialReportService],
 })
 export class CredentialsModule {}
