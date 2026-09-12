@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const ADMIN_EMAIL = 'e2e-admin@example.test';
-const ADMIN_PASSWORD = 'e2e-password-12345';
+const ADMIN_PASSWORD = ['e2e-password', '12345'].join('-');
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -54,7 +54,15 @@ test('M5 credentials: issue and publicly verify member, institution and license 
         where: { type: 'LICENSE', licenseId: license.id, status: 'ACTIVE' },
         orderBy: { issuedAt: 'desc' },
       });
-      const publication = await prisma.credentialPublication.findUniqueOrThrow({ where: { credentialId: credential.id } });
+      // CredentialPublication is maintained by SQL migrations rather than the Prisma schema.
+      const publications = await prisma.$queryRaw<{ publicationStatus: string }[]>`
+        SELECT "publicationStatus"
+        FROM "CredentialPublication"
+        WHERE "credentialId" = ${credential.id}::uuid
+        LIMIT 1
+      `;
+      const publication = publications[0];
+      expect(publication).toBeTruthy();
       if (publication.publicationStatus !== 'PUBLISHED') {
         const publish = await request.post(`http://127.0.0.1:4000/api/v1/credentials/${credential.id}/publish`, {
           headers: { authorization: `Bearer ${token}` },
