@@ -17,4 +17,8 @@ export class NotificationsController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.INSTITUTION_ADMIN)
   testEmail(@Req() req: AuthenticatedRequest) { return this.notifications.testEmail(req.user!); }
+  @Post('test-sms')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.INSTITUTION_ADMIN)
+  testSms(@Req() req: AuthenticatedRequest) { return this.notifications.testSms(req.user!); }
 }
