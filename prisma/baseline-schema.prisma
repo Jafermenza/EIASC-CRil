@@ -1,0 +1,185 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+}
+
+enum RoleCode {
+  SUPER_ADMIN
+  NATIONAL_ADMIN
+  REGIONAL_ADMIN
+  ZONE_ADMIN
+  DISTRICT_ADMIN
+  REGISTRAR
+  INSPECTOR
+  FINANCE_OFFICER
+  INSTITUTION_ADMIN
+  MEMBER
+}
+
+enum InstitutionStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REVOKED
+  CLOSED
+}
+
+enum MemberStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REVOKED
+}
+
+model User {
+  id String @id @default(uuid()) @db.Uuid
+  email String? @unique
+  phone String? @unique
+  passwordHash String
+  status UserStatus @default(ACTIVE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  roles UserRole[]
+  auditLogs AuditLog[]
+}
+
+model Role {
+  id String @id @default(uuid()) @db.Uuid
+  code RoleCode @unique
+  name String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users UserRole[]
+}
+
+model UserRole {
+  id String @id @default(uuid()) @db.Uuid
+  userId String @db.Uuid
+  roleId String @db.Uuid
+  createdAt DateTime @default(now())
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  @@unique([userId, roleId])
+}
+
+model Region {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  zones ZoneCity[]
+  @@index([name])
+}
+
+model ZoneCity {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  regionId String @db.Uuid
+  region Region @relation(fields: [regionId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  subcities SubcityTown[]
+  @@index([regionId])
+}
+
+model SubcityTown {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  zoneId String @db.Uuid
+  zone ZoneCity @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  districts District[]
+  @@index([zoneId])
+}
+
+model District {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String
+  subcityId String @db.Uuid
+  subcity SubcityTown @relation(fields: [subcityId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([subcityId])
+}
+
+model InstitutionType {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique
+  name String @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Institution {
+  id String @id @default(uuid()) @db.Uuid
+  institutionCode String? @unique
+  name String
+  institutionTypeId String @db.Uuid
+  regionId String @db.Uuid
+  zoneId String @db.Uuid
+  subcityId String @db.Uuid
+  districtId String @db.Uuid
+  phone String?
+  address String?
+  status InstitutionStatus @default(PENDING)
+  staffCount Int?
+  studentCount Int?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([regionId, zoneId, subcityId, districtId])
+  @@index([status])
+}
+
+model Member {
+  id String @id @default(uuid()) @db.Uuid
+  membershipNumber String? @unique
+  firstName String
+  middleName String?
+  lastName String
+  birthDate DateTime
+  gender String
+  maritalStatus String
+  phone String
+  educationLevel String?
+  employmentStatus String?
+  nationalIdentity String? @unique
+  currentAddress String?
+  regionId String @db.Uuid
+  zoneId String @db.Uuid
+  subcityId String @db.Uuid
+  districtId String @db.Uuid
+  status MemberStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([phone])
+  @@index([regionId, zoneId, subcityId, districtId])
+}
+
+model AuditLog {
+  id String @id @default(uuid()) @db.Uuid
+  actorUserId String? @db.Uuid
+  action String
+  entityType String
+  entityId String?
+  requestId String?
+  metadata Json?
+  createdAt DateTime @default(now())
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([entityType, entityId])
+  @@index([actorUserId, createdAt])
+}
