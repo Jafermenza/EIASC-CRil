@@ -4,12 +4,16 @@ import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { CredentialsService } from './credentials.service';
+import { CredentialReviewService } from './credential-review.service';
 
 @Controller('credentials')
 @UseGuards(AuthGuard, RolesGuard)
 export class CredentialsController {
-  constructor(private readonly credentials: CredentialsService) {}
+  constructor(private readonly credentials: CredentialsService, private readonly review: CredentialReviewService) {}
   @Get('mine') mine(@Req() req: AuthenticatedRequest) { return this.credentials.listMine(req.user!); }
+  @Get('pending-review')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR)
+  pendingReview() { return this.review.pending(); }
   @Get(':id') get(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.credentials.get(id, req.user!); }
   @Post()
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
