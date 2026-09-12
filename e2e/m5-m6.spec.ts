@@ -63,7 +63,7 @@ test('M6 membership: request, approve, display and end an institutional membersh
   await page.evaluate((id) => localStorage.setItem('institutionId', id), institution.id);
   await page.goto('/institution/members');
   await expect(page.getByText('E2E Member')).toBeVisible();
-  await expect(page.getByText('ACTIVE')).toBeVisible();
+  await expect(page.getByText('ACTIVE', { exact: true }).last()).toBeVisible();
   const ending = await request.patch(`http://127.0.0.1:4000/api/v1/memberships/${created.id}/status`, { headers: { authorization: `Bearer ${token}` }, data: { status: 'ENDED' } });
   expect(ending.ok()).toBeTruthy();
 });
