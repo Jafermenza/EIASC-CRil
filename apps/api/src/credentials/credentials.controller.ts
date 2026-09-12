@@ -14,6 +14,9 @@ export class CredentialsController {
   @Get('pending-review')
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR)
   pendingReview() { return this.review.pending(); }
+  @Get(':id/history')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR)
+  history(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.credentials.history(req.user!, id); }
   @Get(':id') get(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.credentials.get(id, req.user!); }
   @Post()
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
@@ -23,5 +26,11 @@ export class CredentialsController {
   publish(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.credentials.publish(req.user!, id); }
   @Post(':id/revoke')
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
-  revoke(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.credentials.revoke(req.user!, id); }
+  revoke(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('Revocation reason is required'); return this.credentials.revoke(req.user!, id, body.reason, 'REVOKED'); }
+  @Post(':id/cancel')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  cancel(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('Cancellation reason is required'); return this.credentials.revoke(req.user!, id, body.reason, 'CANCELLED'); }
+  @Post(':id/terminate')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  terminate(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('Termination reason is required'); return this.credentials.revoke(req.user!, id, body.reason, 'TERMINATED'); }
 }
