@@ -1,132 +1,19 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-
-const API = '/api/v1';
-
-type Config = {
-  certificateTitle: string;
-  certificateSubtitle: string;
-  memberCardTitle: string;
-  issuingAuthority: string;
-  validityYears: number;
-  authorizedSigner: string | null;
-  authorizedTitle: string | null;
-  signatureImageUrl: string | null;
-  sealImageUrl: string | null;
-  institutionLabel: string;
-  locationLabel: string;
-  membershipLabel: string;
-  certificateNumberLabel: string;
-  issueDateLabel: string;
-  expiryDateLabel: string;
-  validForLabel: string;
-};
-
-export default function CredentialSettingsPage() {
-  const [config, setConfig] = useState<Config | null>(null);
-  const [error, setError] = useState('');
-  const [saved, setSaved] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    fetch(`${API}/credentials/configuration`, {
-      headers: {
-        authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
-      },
-    })
-      .then(async (response) => {
-        const body = await response.json();
-        if (!response.ok) {
-          throw new Error(body.message || 'Unable to load credential settings');
-        }
-        setConfig(body);
-      })
-      .catch((cause) => {
-        setError(cause instanceof Error ? cause.message : 'Unable to load credential settings');
-      });
-  }, []);
-
-  const set = (key: keyof Config, value: unknown) => {
-    setConfig((current) => (current ? { ...current, [key]: value } : current));
-  };
-
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
-    if (!config) return;
-
-    setSaving(true);
-    setError('');
-    setSaved('');
-
-    try {
-      const response = await fetch(`${API}/credentials/configuration`, {
-        method: 'PUT',
-        headers: {
-          authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(config),
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        throw new Error(body.message || 'Unable to save');
-      }
-      setConfig(body);
-      setSaved('Credential design and issuance settings saved.');
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to save');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (!config) {
-    return (
-      <main className="shell">
-        <div className="hero">
-          <p className="eyebrow">EIASC · SUPER ADMIN</p>
-          <h1>Credential design</h1>
-          <p className="lead">{error || 'Loading configuration…'}</p>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="shell" style={{ maxWidth: 1100 }}>
-      <div className="hero">
-        <p className="eyebrow">EIASC · SUPER ADMIN</p>
-        <h1>Credential design &amp; issuance</h1>
-        <p className="lead">
-          Configure the published certificate/card wording, validity period and authorized signature/seal artwork.
-        </p>
-      </div>
-      {error && <section className="error-reason" role="alert">{error}</section>}
-      {saved && <section className="workflow-panel" role="status">{saved}</section>}
-      <form className="workflow-panel form-grid" onSubmit={save}>
-        <label>Certificate title<input value={config.certificateTitle} onChange={(event) => set('certificateTitle', event.target.value)} /></label>
-        <label>Certificate subtitle<input value={config.certificateSubtitle} onChange={(event) => set('certificateSubtitle', event.target.value)} /></label>
-        <label>Member card title<input value={config.memberCardTitle} onChange={(event) => set('memberCardTitle', event.target.value)} /></label>
-        <label>Issuing authority<input value={config.issuingAuthority} onChange={(event) => set('issuingAuthority', event.target.value)} /></label>
-        <label>Valid for (years)<input type="number" min="1" max="20" value={config.validityYears} onChange={(event) => set('validityYears', Number(event.target.value))} /></label>
-        <label>Authorized signer<input value={config.authorizedSigner || ''} onChange={(event) => set('authorizedSigner', event.target.value || null)} /></label>
-        <label>Authorized title<input value={config.authorizedTitle || ''} onChange={(event) => set('authorizedTitle', event.target.value || null)} /></label>
-        <label>Signature image URL / data URI<input value={config.signatureImageUrl || ''} onChange={(event) => set('signatureImageUrl', event.target.value || null)} placeholder="https://… or data:image/png;base64,…" /></label>
-        <label>Scanned seal URL / data URI<input value={config.sealImageUrl || ''} onChange={(event) => set('sealImageUrl', event.target.value || null)} placeholder="https://… or data:image/png;base64,…" /></label>
-        <label>Institution label<input value={config.institutionLabel} onChange={(event) => set('institutionLabel', event.target.value)} /></label>
-        <label>Location label<input value={config.locationLabel} onChange={(event) => set('locationLabel', event.target.value)} /></label>
-        <label>Membership number label<input value={config.membershipLabel} onChange={(event) => set('membershipLabel', event.target.value)} /></label>
-        <label>Certificate number label<input value={config.certificateNumberLabel} onChange={(event) => set('certificateNumberLabel', event.target.value)} /></label>
-        <label>Issue date label<input value={config.issueDateLabel} onChange={(event) => set('issueDateLabel', event.target.value)} /></label>
-        <label>Expiry date label<input value={config.expiryDateLabel} onChange={(event) => set('expiryDateLabel', event.target.value)} /></label>
-        <label>Validity label<input value={config.validForLabel} onChange={(event) => set('validForLabel', event.target.value)} /></label>
-        <div className="action-row">
-          <button className="button button-primary" disabled={saving}>
-            {saving ? 'Saving…' : 'Save credential settings'}
-          </button>
-        </div>
-      </form>
-    </main>
-  );
+const API='/api/v1';
+type Config=Record<string,any>;
+const fields=[['certificateTitle','Certificate title'],['certificateSubtitle','Certificate subtitle'],['memberCardTitle','Individual ID title'],['issuingAuthority','Issuing authority'],['authorizingNameEn','Authorizing / license-giving name (English)'],['authorizingNameAr','Authorizing / license-giving name (Arabic)'],['licenseTitle','License title'],['bodyEn','License body (English)'],['bodyAr','License body (Arabic)'],['locationValue','Default location'],['additionalInstitutionInfo','Additional institution information'],['authorizedSigner','Authorized signer'],['authorizedTitle','Authorized title']];
+export default function CredentialSettingsPage(){
+ const [config,setConfig]=useState<Config|null>(null);const[error,setError]=useState('');const[saved,setSaved]=useState('');const[saving,setSaving]=useState(false);
+ useEffect(()=>{fetch(`${API}/credentials/configuration`,{headers:{authorization:`Bearer ${localStorage.getItem('accessToken')||''}`}}).then(async r=>{const b=await r.json();if(!r.ok)throw new Error(b.message||'Unable to load credential settings');setConfig(b);}).catch(e=>setError(e instanceof Error?e.message:'Unable to load credential settings'));},[]);
+ const set=(k:string,v:any)=>setConfig(c=>c?{...c,[k]:v}:c);
+ async function save(e:React.FormEvent){e.preventDefault();if(!config)return;setSaving(true);setError('');setSaved('');try{const r=await fetch(`${API}/credentials/configuration`,{method:'PUT',headers:{authorization:`Bearer ${localStorage.getItem('accessToken')||''}`,'content-type':'application/json'},body:JSON.stringify(config)});const b=await r.json();if(!r.ok)throw new Error(Array.isArray(b.message)?b.message.join(', '):b.message||'Unable to save');setConfig(b);setSaved('Credential and license design saved.');}catch(e){setError(e instanceof Error?e.message:'Unable to save');}finally{setSaving(false);}}
+ if(!config)return <main className="shell"><div className="hero"><p className="eyebrow">EIASC · ADMINISTRATION</p><h1>Digital ID & certificate</h1><p className="lead">{error||'Loading configuration…'}</p></div></main>;
+ return <main className="shell" style={{maxWidth:1200}}><div className="hero"><p className="eyebrow">EIASC · DIGITAL CREDENTIALS</p><h1>License & Digital ID Designer</h1><p className="lead">One database-backed design configuration for institutional licenses and individual membership IDs. Super Admin, National Admin and Regional Admin can edit the permitted configuration.</p></div>{error&&<section className="error-reason" role="alert">{error}</section>}{saved&&<section className="workflow-panel" role="status">{saved}</section>}
+ <form className="grid" onSubmit={save}><section className="workflow-panel"><p className="eyebrow">01 · INSTITUTION LICENSE</p><h2>Institution license layout</h2><div className="form-grid">{fields.map(([k,label])=><label key={k}>{label}{k==='bodyEn'||k==='bodyAr'||k==='additionalInstitutionInfo'?<textarea rows={5} value={config[k]??''} onChange={e=>set(k,e.target.value)} />:<input value={config[k]??''} onChange={e=>set(k,e.target.value)} />}</label>)}</div></section>
+ <section className="workflow-panel"><p className="eyebrow">02 · DATES & NUMBERING</p><h2>Automatic issuance</h2><div className="form-grid"><label>Valid for (years)<input type="number" min="1" max="20" value={config.validityYears??1} onChange={e=>set('validityYears',Number(e.target.value))}/></label><label>Certificate / credential number label<input value={config.certificateNumberLabel??''} onChange={e=>set('certificateNumberLabel',e.target.value)}/></label><label>Issue date label<input value={config.issueDateLabel??''} onChange={e=>set('issueDateLabel',e.target.value)}/></label><label>Expiry date label<input value={config.expiryDateLabel??''} onChange={e=>set('expiryDateLabel',e.target.value)}/></label><label>Validity label<input value={config.validForLabel??''} onChange={e=>set('validForLabel',e.target.value)}/></label><label>QR verification<input type="checkbox" checked={Boolean(config.qrEnabled)} onChange={e=>set('qrEnabled',e.target.checked)}/></label></div><p className="lead" style={{fontSize:14}}>Issue date, expiry date and credential numbers are generated by the issuance system; administrators configure their labels and validity rules here.</p></section>
+ <section className="workflow-panel"><p className="eyebrow">03 · ARTWORK</p><h2>Logo, signature, seal & A4 background</h2><div className="form-grid"><label>Institution logo URL / data URI<input value={config.institutionLogoUrl??''} onChange={e=>set('institutionLogoUrl',e.target.value||null)} /></label><label>Signature scanned picture URL / data URI<input value={config.signatureImageUrl??''} onChange={e=>set('signatureImageUrl',e.target.value||null)} /></label><label>Scanned seal picture URL / data URI<input value={config.sealImageUrl??''} onChange={e=>set('sealImageUrl',e.target.value||null)} /></label><label>Frame / A4 background URL / data URI<input value={config.frameBackgroundUrl??''} onChange={e=>set('frameBackgroundUrl',e.target.value||null)} /></label></div></section>
+ <section className="workflow-panel"><p className="eyebrow">04 · INDIVIDUAL MEMBER ID</p><h2>Wallet-size ID design</h2><div className="form-grid"><label>ID title<input value={config.memberCardTitle??''} onChange={e=>set('memberCardTitle',e.target.value)}/></label><label>Member logo URL / data URI<input value={config.memberLogoUrl??''} onChange={e=>set('memberLogoUrl',e.target.value||null)}/></label><label>Wallet frame / background URL / data URI<input value={config.memberFrameBackgroundUrl??''} onChange={e=>set('memberFrameBackgroundUrl',e.target.value||null)}/></label><label>Additional member information<input value={config.memberAdditionalInfo??''} onChange={e=>set('memberAdditionalInfo',e.target.value||null)}/></label><label>Institution label<input value={config.institutionLabel??''} onChange={e=>set('institutionLabel',e.target.value)}/></label><label>Location label<input value={config.locationLabel??''} onChange={e=>set('locationLabel',e.target.value)}/></label><label>Membership number label<input value={config.membershipLabel??''} onChange={e=>set('membershipLabel',e.target.value)}/></label></div><p className="lead" style={{fontSize:14}}>Member name, membership number, institution, geography, issue/expiry dates and QR verification are populated from the member record at issuance rather than manually retyped.</p></section>
+ <section className="workflow-panel"><div className="action-row"><button className="button button-primary" disabled={saving}>{saving?'Saving…':'Save both credential designs'}</button></div></section></form></main>;
 }
