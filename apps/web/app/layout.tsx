@@ -4,6 +4,7 @@ import PublicChrome from '../components/layout/public-chrome';
 import { ThemeProvider } from '../components/ui/theme-provider';
 import { ToastProvider } from '../components/ui/toast-provider';
 import { I18nProvider } from '../lib/i18n';
+import ServiceWorkerRegister from '../components/pwa/service-worker-register';
 
 export const metadata: Metadata = {
   title: 'EIASC Community Registration & Institutional Licensing',
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body><I18nProvider><ThemeProvider><ToastProvider><PublicChrome>{children}</PublicChrome></ToastProvider></ThemeProvider></I18nProvider></body>
+      <body><ServiceWorkerRegister /><I18nProvider><ThemeProvider><ToastProvider><PublicChrome>{children}</PublicChrome></ToastProvider></ThemeProvider></I18nProvider></body>
     </html>
   );
 }
