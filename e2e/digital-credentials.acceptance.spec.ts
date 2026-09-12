@@ -23,8 +23,15 @@ test('MVP v2 credential automation: approval creates member ID and license certi
   await prisma.license.update({ where: { id: license.id }, data: { applicationStatus: 'APPROVED', approvedBy: admin.id, approvedAt: new Date() } });
   const certificate = await prisma.credential.findFirst({ where: { licenseId: license.id, type: 'LICENSE' } });
   expect(certificate).toBeTruthy();
-  const publication = await prisma.credentialPublication.findUnique({ where: { credentialId: certificate!.id }, select: { publicationStatus: true } });
-  expect(publication?.publicationStatus).toBe('PENDING_REVIEW');
+
+  // CredentialPublication is intentionally maintained by SQL migrations rather than
+  // the Prisma schema. Cast the bound UUID explicitly so PostgreSQL compares uuid=uuid.
+  const publication = await prisma.$queryRaw<Array<{ publicationStatus: string }>>`
+    SELECT "publicationStatus"
+    FROM "CredentialPublication"
+    WHERE "credentialId"=${certificate!.id}::uuid
+  `;
+  expect(publication[0]?.publicationStatus).toBe('PENDING_REVIEW');
 
   const login = await request.post('http://127.0.0.1:4000/api/v1/auth/login', { data: { identifier: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
   expect(login.ok()).toBeTruthy();
