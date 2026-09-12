@@ -14,7 +14,7 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:apply-registration-payments": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912100000_registration_payments/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912110000_registration_payment_settings/migration.sql",
+    "db:apply-registration-payments": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912100000_registration_payments/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912110000_registration_payment_settings/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130000_digital_credentials/migration.sql",
     "db:seed": "tsx prisma/seed.ts",
     "db:import-geography": "tsx scripts/import-geography.ts",
     "db:verify-geography": "tsx scripts/verify-geography.ts",
