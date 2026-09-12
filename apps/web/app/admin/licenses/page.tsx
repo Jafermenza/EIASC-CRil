@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import type { FormEvent } from 'react';
 
 const API = '/api/v1';
@@ -10,7 +9,6 @@ const API = '/api/v1';
 type License = { id: string; licenseNumber?: string | null; licenseType: string; status: string; applicationStatus: string; issuedAt?: string | null; expiresAt?: string | null; institution: { id: string; name: string; institutionCode?: string | null; status: string } };
 
 export default function LicensesPage() {
-  const router = useRouter();
   const [items, setItems] = useState<License[]>([]); const [status, setStatus] = useState(''); const [applicationStatus, setApplicationStatus] = useState(''); const [search, setSearch] = useState(''); const [page, setPage] = useState(1); const [totalPages, setTotalPages] = useState(1); const [error, setError] = useState(''); const [loading, setLoading] = useState(false); const [institutionId, setInstitutionId] = useState(''); const [licenseType, setLicenseType] = useState('INSTITUTIONAL'); const [creating, setCreating] = useState(false);
 
   async function load() {
@@ -26,10 +24,11 @@ export default function LicensesPage() {
     try {
       const token = localStorage.getItem('accessToken') || '';
       const response = await fetch(`${API}/licenses`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ institutionId: institutionId.trim(), licenseType }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Unable to create license application');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to create license application');
       if (!data?.id) throw new Error('License application was created but no record ID was returned');
       setInstitutionId('');
-      router.push(`/admin/licenses/${data.id}`);
+      window.location.assign(`/admin/licenses/${data.id}`);
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to create license application'); } finally { setCreating(false); }
   }
 
