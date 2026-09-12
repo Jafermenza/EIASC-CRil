@@ -15,7 +15,7 @@ export class CredentialsController {
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
   issue(@Req() req: AuthenticatedRequest, @Body() body: { type?: CredentialType; subjectId?: string }) { if (!body?.type || !body.subjectId?.trim()) throw new BadRequestException('type and subjectId are required'); return this.credentials.issue(req.user!, body.type, body.subjectId); }
   @Post(':id/publish')
-  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_CITY as any, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR)
   publish(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.credentials.publish(req.user!, id); }
   @Post(':id/revoke')
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
