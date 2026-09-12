@@ -47,8 +47,6 @@ Registration, institutional applications and jurisdiction authorization use pers
 
 ### Canonical hierarchy
 
-The source defines exactly three administrative levels:
-
 ```text
 Ethiopia
 └── Region (15)
@@ -95,7 +93,279 @@ The source's three-level hierarchy is authoritative. `SubcityTown` remains an op
 
 The importer preserves the stable source identifiers as database codes and preserves the English display name used by registration and jurisdiction APIs. The source also provides local-language names and coordinates for downstream enrichment; these must not be replaced with guessed or manually invented geography values.
 
-### Import and verification architecture
+## System vision and authoritative MVP v2 baseline
+
+### 1. SYSTEM VISION
+
+The platform shall establish a single digital institutional registry connecting:
+
+**Individual Members**
+
+→ **Mosques / Madrasas / Islamic Institutions**
+
+→ **District / Woreda**
+
+→ **Sub-City / Town**
+
+→ **City / Zone**
+
+→ **Region**
+
+→ **EIASC National Administration**
+
+The MVP must establish the technical foundation for future:
+
+- membership dues
+- digital payments
+- Waqf management
+- welfare services
+- Hajj/Umrah services
+- education management
+- institutional performance analytics
+- GIS
+- AI-assisted administration
+- national resource allocation
+
+The MVP therefore must be designed as a **platform**, not as a disposable registration website.
+
+---
+
+### 2. MVP SCOPE
+
+#### 2.1 Mandatory MVP capabilities
+
+The first production release shall contain:
+
+1. Administrative hierarchy management
+2. Individual registration
+3. Institution/mosque/madrasa registration
+4. Institution affiliation
+5. Cascading geographic selection
+6. Unique tracking codes
+7. Stateful approval workflow
+8. Administrative dashboard
+9. Search and filtering
+10. Digital membership card
+11. Institutional operational certificate
+12. QR-based public verification
+13. Institution/member aggregation
+14. Per-capita resource allocation calculation
+15. Audit logging
+16. Role-based access control
+17. SMS-ready notification architecture
+18. Responsive web interface
+19. API architecture
+20. Database backup and recovery
+21. Basic reporting/export
+
+---
+
+### 3. LONG TERM SYSTEM (NON-GOALS FOR MVP)
+
+The following should **NOT** delay the first deployment:
+
+- full native Android/iOS applications
+- Analytics AI
+- complete Waqf management
+- full Zakat management
+- advanced accounting
+- biometric authentication
+- sophisticated payment wallet
+- automated legal/property verification
+- national identity integration before authorized APIs are available
+
+These should be architecturally anticipated but implemented later.
+
+---
+
+### 4. RECOMMENDED MVP INFORMATION ARCHITECTURE
+
+```text
+PUBLIC
+├── Home
+├── Register
+│   ├── Individual
+│   └── Institution
+├── Track Application
+├── Verify Credential
+├── Find Institution
+└── Help
+
+AUTHENTICATED MEMBER
+├── Dashboard
+├── My Profile
+├── My Institution
+├── Membership Card
+├── Registration Status
+└── Notifications
+
+INSTITUTION ADMIN
+├── Dashboard
+├── Institution Profile
+├── Members
+├── License
+├── Documents
+├── Reports
+└── Notifications
+
+DISTRICT ADMIN
+├── Dashboard
+├── Registrations
+├── Institutions
+├── Members
+├── Licensing
+├── Reports
+└── Audit
+
+REGIONAL ADMIN
+├── Dashboard
+├── Districts
+├── Institutions
+├── Members
+├── Reports
+└── Analytics
+
+NATIONAL ADMIN
+├── National Dashboard
+├── Regions
+├── Institutions
+├── Members
+├── Licensing
+├── Resource Allocation
+├── Reports
+├── Audit
+└── System Administration
+```
+
+---
+
+### 5. MVP USER JOURNEYS
+
+#### Citizen
+
+```text
+Register
+ ↓
+Pay
+ ↓
+Receive tracking code
+ ↓
+Track application
+ ↓
+Approval
+ ↓
+Receive membership number
+ ↓
+View/print digital card
+ ↓
+Later access services
+```
+
+#### Institution
+
+```text
+Apply
+ ↓
+Pay
+ ↓
+Receive tracking code
+ ↓
+Administrative review
+ ↓
+Inspection if required
+ ↓
+Approval
+ ↓
+Digital operational certificate
+ ↓
+QR verification
+ ↓
+Become active institutional node
+```
+
+#### Administrator
+
+```text
+Login
+ ↓
+View jurisdiction dashboard
+ ↓
+Review applications
+ ↓
+Approve/reject
+ ↓
+Monitor institutions
+ ↓
+Monitor members
+ ↓
+Generate reports
+```
+
+#### National Leadership
+
+```text
+Login
+ ↓
+National dashboard
+ ↓
+View regional operations
+ ↓
+View institutions
+ ↓
+View membership
+ ↓
+View resource projections
+ ↓
+Make strategic decisions
+```
+
+---
+
+### 6. DEFINITION OF MVP DONE
+
+The MVP is considered production-ready only when:
+
+- PostgreSQL schema is implemented
+- Geographic hierarchy is seeded
+- User authentication works
+- RBAC works
+- Hierarchical access control works
+- Individual registration works
+- Institution registration works
+- Cascading location selection works
+- Tracking codes are unique
+- Approval workflow works
+- Approval history is recorded
+- Member records are created correctly
+- Institution records are created correctly
+- Digital membership cards work
+- Institutional certificates work
+- QR verification works
+- Revoked credentials become invalid
+- Search/filter/pagination work
+- Audit logs work
+- Resource allocation calculation works
+- Allocation policy is configurable
+- CSV/Excel export works
+- Database backup works
+- Security tests pass
+- Critical E2E tests pass
+- Production environment is configured
+- Monitoring and error logging are enabled
+- Administrator documentation exists
+- User documentation exists
+
+## Current MVP v2 implementation status
+
+The current `main` branch contains the MVP v2 implementation work and the subsequent digital credential work. The latest credential changes include automatic member ID generation, automatic license certificate generation, member and institution credential profiles, configurable credential design settings, certificate review/publication workflow, and acceptance coverage for the automation and QR verification path. citeturn955file0turn956file0
+
+The repository also contains a CI validation pipeline covering database initialization, geography import/verification, lint, typecheck, API tests, backup/restore, production build and Playwright E2E tests. citeturn945file0
+
+**Important:** this README records the required production definition; it does not mark the entire MVP as production-ready merely because individual features exist. The implementation report records what is implemented, what has test evidence, and what remains before a production sign-off.
+
+See [`docs/MVP-V2-IMPLEMENTATION-REPORT.md`](docs/MVP-V2-IMPLEMENTATION-REPORT.md) for the requirement-by-requirement comparison.
+
+## Import and verification architecture
 
 Geography is **database reference data**, not frontend/static data and not data downloaded on every application startup.
 
@@ -128,7 +398,7 @@ The geography import:
 
 After import, registration and jurisdiction APIs read the database through `/api/v1/locations/*`. The public application must never depend on GitHub being available at registration time.
 
-### Source attribution and update policy
+## Source attribution and update policy
 
 This project uses the `Jafermenza/ethiopia-administrative-divisions` fork of the Open Admin Data Ethiopia dataset. The dataset is published under **CC-BY-4.0** and attributes Open Admin Data. The approved source commit is pinned so production deployments are reproducible.
 
@@ -179,6 +449,10 @@ npm run typecheck
 npm test
 npm run build
 npm run db:verify-geography
+npm run test:e2e
+npm run ops:backup-restore
 ```
+
+The security review remains a separate gate. It must not be described as passed unless its configured dependency threshold is actually satisfied.
 
 The MVP deliberately excludes payment gateways, Fayda API integration, biometrics, native mobile apps, USSD, AI decision-making, blockchain, microservices and other post-MVP functionality listed in `PRD.md`.
