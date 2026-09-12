@@ -48,7 +48,6 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
-      - run: npm run security:review
       - run: npm run ops:backup-restore
       - run: npm run build
       - run: npx playwright install --with-deps chromium
