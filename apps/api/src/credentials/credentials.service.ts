@@ -1,72 +1,49 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { CredentialStatus, CredentialType, NotificationChannel, RoleCode } from '@prisma/client';
 import { createHash, randomBytes } from 'crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
+import { CredentialConfigurationService } from './credential-configuration.service';
 
 const CREDENTIAL_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR];
+const DECISION_ROLES = new Set<RoleCode>([RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR]);
 
 @Injectable()
 export class CredentialsService {
-  constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService, private readonly notifications: NotificationsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService, private readonly notifications: NotificationsService, private readonly configuration?: CredentialConfigurationService) {}
   private hash(token: string) { return createHash('sha256').update(token).digest('hex'); }
-  private async number(type: CredentialType) {
-    const prefix = type === CredentialType.MEMBER ? 'EIASC-M' : type === CredentialType.INSTITUTION ? 'EIASC-I' : 'EIASC-L';
-    for (let i = 0; i < 10; i += 1) {
-      const number = `${prefix}-${new Date().getUTCFullYear()}-${randomBytes(4).toString('hex').toUpperCase()}`;
-      if (!(await this.prisma.credential.findUnique({ where: { credentialNumber: number }, select: { id: true } }))) return number;
-    }
-    throw new ConflictException('Unable to allocate a credential number');
+  private async number(type: CredentialType) { const prefix = type === CredentialType.MEMBER ? 'EIASC-M' : type === CredentialType.INSTITUTION ? 'EIASC-I' : 'EIASC-L'; for (let i = 0; i < 20; i += 1) { const number = `${prefix}-${new Date().getUTCFullYear()}-${randomBytes(5).toString('hex').toUpperCase().slice(0, 8)}`; if (!(await this.prisma.credential.findUnique({ where: { credentialNumber: number }, select: { id: true } }))) return number; } throw new ConflictException('Unable to allocate a credential number'); }
+  private hijri(date: Date) { return new Intl.DateTimeFormat('en-US-u-ca-islamic-umalqura', { year: 'numeric', month: 'long', day: 'numeric' }).format(date); }
+  private async createPublication(credentialId: string, type: CredentialType, issuedAt: Date, expiresAt: Date | null, title: string, locationLabel?: string, published = false) {
+    const config = this.configuration ? await this.configuration.get() : null;
+    const years = config?.validityYears ?? (expiresAt ? Math.max(1, Math.round((expiresAt.getTime() - issuedAt.getTime()) / 31557600000)) : 1);
+    await this.prisma.$executeRaw`UPDATE "CredentialPublication" SET "publicationStatus"=${published ? 'PUBLISHED' : 'PENDING_REVIEW'}, "validForYears"=${years}, "issueDateHijri"=${this.hijri(issuedAt)}, "expiryDateHijri"=${expiresAt ? this.hijri(expiresAt) : null}, "authorizedSigner"=${config?.authorizedSigner ?? null}, "authorizedTitle"=${config?.authorizedTitle ?? null}, "signatureImageUrl"=${config?.signatureImageUrl ?? null}, "sealImageUrl"=${config?.sealImageUrl ?? null}, "title"=${title}, "locationLabel"=${locationLabel ?? config?.locationLabel ?? 'Location'}, "designVersion"=${type === CredentialType.MEMBER ? 'M5-MEMBER-1' : 'M5-ISLAMIC-1'}, "publishedAt"=${published ? issuedAt : null}, "updatedAt"=CURRENT_TIMESTAMP WHERE "credentialId"=${credentialId}`;
   }
   async issue(user: AuthenticatedUser, type: CredentialType, subjectId: string) {
     if (!user.roles.some((role) => CREDENTIAL_ROLES.includes(role))) throw new ConflictException('Credential issuance is not permitted');
     const token = randomBytes(32).toString('base64url');
     const data: { memberId?: string; institutionId?: string; licenseId?: string; expiresAt?: Date } = {};
-    let notificationInstitutionId: string | undefined;
-    if (type === CredentialType.MEMBER) {
-      const member = await this.prisma.member.findUnique({ where: { id: subjectId } });
-      if (!member) throw new NotFoundException('Member not found');
-      if (member.status !== 'ACTIVE') throw new ConflictException('Only active members may receive credentials');
-      await this.authorization.assertCanAccess(user, { regionId: member.regionId, zoneId: member.zoneId, subcityId: member.subcityId, districtId: member.districtId });
-      data.memberId = subjectId;
-    } else if (type === CredentialType.INSTITUTION) {
-      const institution = await this.prisma.institution.findUnique({ where: { id: subjectId } });
-      if (!institution) throw new NotFoundException('Institution not found');
-      if (institution.status !== 'ACTIVE') throw new ConflictException('Only active institutions may receive credentials');
-      await this.authorization.assertCanAccess(user, { institutionId: subjectId });
-      data.institutionId = subjectId; notificationInstitutionId = subjectId;
-    } else {
-      const license = await this.prisma.license.findUnique({ where: { id: subjectId }, include: { institution: true } });
-      if (!license) throw new NotFoundException('License not found');
-      if (license.status !== 'ACTIVE') throw new ConflictException('Only active licenses may receive credentials');
-      await this.authorization.assertCanAccess(user, { institutionId: license.institutionId });
-      data.licenseId = subjectId; data.expiresAt = license.expiresAt ?? undefined; notificationInstitutionId = license.institutionId;
-    }
+    let notificationInstitutionId: string | undefined; let title = 'Digital Credential'; let location: string | undefined;
+    if (type === CredentialType.MEMBER) { const member = await this.prisma.member.findUnique({ where: { id: subjectId }, include: { region: true, zone: true, district: true } }); if (!member) throw new NotFoundException('Member not found'); if (member.status !== 'ACTIVE') throw new ConflictException('Only active members may receive credentials'); await this.authorization.assertCanAccess(user, { regionId: member.regionId, zoneId: member.zoneId, subcityId: member.subcityId, districtId: member.districtId }); data.memberId = subjectId; title = this.configuration ? (await this.configuration.get()).memberCardTitle : 'Islamic Community Membership'; location = [member.region.name, member.zone.name, member.district.name].filter(Boolean).join(' · '); }
+    else if (type === CredentialType.INSTITUTION) { const institution = await this.prisma.institution.findUnique({ where: { id: subjectId } }); if (!institution) throw new NotFoundException('Institution not found'); if (institution.status !== 'ACTIVE') throw new ConflictException('Only active institutions may receive credentials'); await this.authorization.assertCanAccess(user, { institutionId: subjectId }); data.institutionId = subjectId; notificationInstitutionId = subjectId; title = 'Institution Credential'; }
+    else { const license = await this.prisma.license.findUnique({ where: { id: subjectId }, include: { institution: { include: { region: true, zone: true, district: true } } } }); if (!license) throw new NotFoundException('License not found'); if (license.status !== 'ACTIVE') throw new ConflictException('Only active licenses may receive credentials'); await this.authorization.assertCanAccess(user, { institutionId: license.institutionId }); data.licenseId = subjectId; data.expiresAt = license.expiresAt ?? undefined; notificationInstitutionId = license.institutionId; title = this.configuration ? (await this.configuration.get()).certificateSubtitle : 'OPERATIONAL CERTIFICATE'; location = [license.institution.region.name, license.institution.zone.name, license.institution.district.name].filter(Boolean).join(' · '); }
+    const existing = await this.prisma.credential.findFirst({ where: { type, memberId: data.memberId, institutionId: data.institutionId, licenseId: data.licenseId, status: CredentialStatus.ACTIVE }, select: { id: true, credentialNumber: true } });
+    if (existing) return this.publicCredential(existing as any, token);
     const credential = await this.prisma.credential.create({ data: { credentialNumber: await this.number(type), type, tokenHash: this.hash(token), ...data } });
+    await this.prisma.$executeRaw`INSERT INTO "CredentialPublication" ("credentialId","publicationStatus","validForYears","issueDateHijri","expiryDateHijri","title","locationLabel") VALUES (${credential.id},'PUBLISHED',${(await this.configuration?.get())?.validityYears ?? null},${this.hijri(credential.issuedAt)},${credential.expiresAt ? this.hijri(credential.expiresAt) : null},${title},${location ?? 'Location'}) ON CONFLICT ("credentialId") DO NOTHING`;
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'CREDENTIAL_ISSUED', entityType: 'Credential', entityId: credential.id, metadata: { type, subjectId } } });
-    if (notificationInstitutionId) {
-      const recipients = await this.prisma.user.findMany({ where: { institutionId: notificationInstitutionId, status: 'ACTIVE' }, select: { id: true } });
-      await Promise.all(recipients.flatMap((recipient) => [this.notifications.notifyEvent(recipient.id, { type: 'CREDENTIAL_ISSUED', title: 'Credential issued', message: `A ${type.toLowerCase()} credential ${credential.credentialNumber} has been issued.`, metadata: { credentialId: credential.id } }), this.notifications.notifyEvent(recipient.id, { type: 'CREDENTIAL_ISSUED_EMAIL', title: 'EIASC credential issued', message: `A ${type.toLowerCase()} credential ${credential.credentialNumber} has been issued.`, metadata: { credentialId: credential.id } }, NotificationChannel.EMAIL)]));
-    }
+    if (notificationInstitutionId) { const recipients = await this.prisma.user.findMany({ where: { institutionId: notificationInstitutionId, status: 'ACTIVE' }, select: { id: true } }); await Promise.all(recipients.flatMap((recipient) => [this.notifications.notifyEvent(recipient.id, { type: 'CREDENTIAL_ISSUED', title: 'Credential issued', message: `A ${type.toLowerCase()} credential ${credential.credentialNumber} has been issued.`, metadata: { credentialId: credential.id } }), this.notifications.notifyEvent(recipient.id, { type: 'CREDENTIAL_ISSUED_EMAIL', title: 'EIASC credential issued', message: `A ${type.toLowerCase()} credential ${credential.credentialNumber} has been issued.`, metadata: { credentialId: credential.id } }, NotificationChannel.EMAIL)])); }
     return this.publicCredential(credential, token);
   }
-  async revoke(user: AuthenticatedUser, id: string) {
-    const credential = await this.prisma.credential.findUnique({ where: { id } });
-    if (!credential) throw new NotFoundException('Credential not found');
-    await this.authorization.assertCanAccess(user, { institutionId: credential.institutionId ?? undefined });
-    const updated = await this.prisma.credential.update({ where: { id }, data: { status: CredentialStatus.REVOKED, revokedAt: new Date() } });
-    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'CREDENTIAL_REVOKED', entityType: 'Credential', entityId: id } });
-    return updated;
+  async publish(user: AuthenticatedUser, id: string) { if (!user.roles.some((r) => DECISION_ROLES.has(r))) throw new ForbiddenException('Credential publication is not permitted'); const credential = await this.prisma.credential.findUnique({ where: { id }, include: { institution: true, member: true, license: true } }); if (!credential) throw new NotFoundException('Credential not found'); await this.authorization.assertCanAccess(user, { institutionId: credential.institutionId ?? credential.license?.institutionId ?? undefined, regionId: credential.member?.regionId, zoneId: credential.member?.zoneId, subcityId: credential.member?.subcityId, districtId: credential.member?.districtId }); const now = new Date(); await this.prisma.$executeRaw`UPDATE "CredentialPublication" SET "publicationStatus"='PUBLISHED',"reviewedBy"=${user.id},"reviewedAt"=${now},"publishedAt"=${now},"updatedAt"=CURRENT_TIMESTAMP WHERE "credentialId"=${id}`; await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'CREDENTIAL_PUBLISHED', entityType: 'Credential', entityId: id } }); return this.get(id, user);
   }
-  async verify(token: string) {
-    const credential = await this.prisma.credential.findUnique({ where: { tokenHash: this.hash(token) }, include: { member: true, institution: true, license: { include: { institution: true } } } });
-    if (!credential) throw new NotFoundException('Credential not found');
-    const expired = credential.expiresAt ? credential.expiresAt <= new Date() : false;
-    if (expired && credential.status === CredentialStatus.ACTIVE) await this.prisma.credential.update({ where: { id: credential.id }, data: { status: CredentialStatus.EXPIRED } });
-    const institution = credential.institution ?? credential.license?.institution;
-    return { verified: credential.status === CredentialStatus.ACTIVE && !expired, credentialType: credential.type, credentialNumber: credential.credentialNumber, publicName: credential.member ? `${credential.member.firstName} ${credential.member.lastName}` : institution?.name, institution: institution?.name, status: expired ? CredentialStatus.EXPIRED : credential.status, issuedAt: credential.issuedAt, expiresAt: credential.expiresAt };
+  async listMine(user: AuthenticatedUser) { const credentials = await this.prisma.credential.findMany({ where: { status: CredentialStatus.ACTIVE, OR: [{ institutionId: user.institutionId ?? undefined }, ...(user.phone ? [{ member: { phone: user.phone } }] : [])] }, include: { member: true, institution: true, license: { include: { institution: true } } }, orderBy: { issuedAt: 'desc' } }); const ids = credentials.map((c) => c.id); const publications = ids.length ? await this.prisma.$queryRaw<any[]>`SELECT * FROM "CredentialPublication" WHERE "credentialId" IN (${ids.join(',')})` : []; const byId = new Map(publications.map((p) => [p.credentialId, p])); return credentials.filter((c) => (byId.get(c.id)?.publicationStatus ?? 'PUBLISHED') === 'PUBLISHED').map((c) => this.withPublication(c, byId.get(c.id)));
   }
-  private publicCredential(credential: { id: string; credentialNumber: string; type: CredentialType; status: CredentialStatus; expiresAt: Date | null }, token: string) { const verificationUrl = `/verify/${encodeURIComponent(token)}`; return { ...credential, verificationUrl, qrPayload: verificationUrl }; }
+  async get(id: string, user?: AuthenticatedUser) { const credential = await this.prisma.credential.findUnique({ where: { id }, include: { member: true, institution: true, license: { include: { institution: true } } } }); if (!credential) throw new NotFoundException('Credential not found'); if (user) await this.authorization.assertCanAccess(user, { institutionId: credential.institutionId ?? credential.license?.institutionId ?? undefined, regionId: credential.member?.regionId, zoneId: credential.member?.zoneId, subcityId: credential.member?.subcityId, districtId: credential.member?.districtId }); const rows = await this.prisma.$queryRaw<any[]>`SELECT * FROM "CredentialPublication" WHERE "credentialId"=${id} LIMIT 1`; return this.withPublication(credential, rows[0]); }
+  async revoke(user: AuthenticatedUser, id: string) { const credential = await this.prisma.credential.findUnique({ where: { id } }); if (!credential) throw new NotFoundException('Credential not found'); await this.authorization.assertCanAccess(user, { institutionId: credential.institutionId ?? undefined }); const updated = await this.prisma.credential.update({ where: { id }, data: { status: CredentialStatus.REVOKED, revokedAt: new Date() } }); await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'CREDENTIAL_REVOKED', entityType: 'Credential', entityId: id } }); return updated; }
+  async verify(token: string) { const credential = token.startsWith('EIASC-') ? await this.prisma.credential.findUnique({ where: { credentialNumber: token.toUpperCase() }, include: { member: true, institution: true, license: { include: { institution: true } } } }) : await this.prisma.credential.findUnique({ where: { tokenHash: this.hash(token) }, include: { member: true, institution: true, license: { include: { institution: true } } } }); if (!credential) throw new NotFoundException('Credential not found'); const pub = (await this.prisma.$queryRaw<any[]>`SELECT * FROM "CredentialPublication" WHERE "credentialId"=${credential.id} LIMIT 1`)[0]; if (pub && pub.publicationStatus !== 'PUBLISHED') throw new NotFoundException('Credential not found'); const expired = credential.expiresAt ? credential.expiresAt <= new Date() : false; if (expired && credential.status === CredentialStatus.ACTIVE) await this.prisma.credential.update({ where: { id: credential.id }, data: { status: CredentialStatus.EXPIRED } }); const institution = credential.institution ?? credential.license?.institution; return { verified: credential.status === CredentialStatus.ACTIVE && !expired, credentialType: credential.type, credentialNumber: credential.credentialNumber, publicName: credential.member ? `${credential.member.firstName} ${credential.member.lastName}` : institution?.name, institution: institution?.name, status: expired ? CredentialStatus.EXPIRED : credential.status, issuedAt: credential.issuedAt, expiresAt: credential.expiresAt, issueDateHijri: pub?.issueDateHijri ?? this.hijri(credential.issuedAt), expiryDateHijri: pub?.expiryDateHijri ?? (credential.expiresAt ? this.hijri(credential.expiresAt) : null) }; }
+  private withPublication(credential: any, publication: any) { const institution = credential.institution ?? credential.license?.institution; return { ...credential, publicationStatus: publication?.publicationStatus ?? 'PUBLISHED', issueDateHijri: publication?.issueDateHijri ?? this.hijri(credential.issuedAt), expiryDateHijri: publication?.expiryDateHijri ?? (credential.expiresAt ? this.hijri(credential.expiresAt) : null), authorizedSigner: publication?.authorizedSigner ?? null, authorizedTitle: publication?.authorizedTitle ?? null, signatureImageUrl: publication?.signatureImageUrl ?? null, sealImageUrl: publication?.sealImageUrl ?? null, title: publication?.title ?? (credential.type === 'MEMBER' ? 'Islamic Community Membership' : 'Operational Certificate'), locationLabel: publication?.locationLabel ?? 'Location', designVersion: publication?.designVersion ?? (credential.type === 'MEMBER' ? 'M5-MEMBER-1' : 'M5-ISLAMIC-1'), verificationUrl: `/verify/${encodeURIComponent(credential.credentialNumber)}`, qrPayload: `/verify/${encodeURIComponent(credential.credentialNumber)}`, publicName: credential.member ? `${credential.member.firstName} ${credential.member.lastName}` : institution?.name } }
+  private publicCredential(credential: any, token: string) { return { ...credential, verificationUrl: `/verify/${encodeURIComponent(token)}`, qrPayload: `/verify/${encodeURIComponent(token)}` }; }
 }
