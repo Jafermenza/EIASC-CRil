@@ -5,7 +5,11 @@ import { join } from 'node:path';
 const repoRoot = process.cwd();
 const baselineDir = join(repoRoot, 'prisma', 'migrations', '20260909000000_baseline');
 const migrationFile = join(baselineDir, 'migration.sql');
-const historicalCommit = '538c45041b285c2542a8b51d250a276e92357f9f';
+
+// This is the actual pre-M1 foundation commit containing the original Prisma schema.
+// Do not replace this with a later application commit: later migrations depend on
+// tables that already exist in this foundation.
+const historicalCommit = '03c48e2f34269f6742308ef8c551b61a129b91ed';
 const historicalSchema = join(repoRoot, '.generated-baseline-schema.prisma');
 
 if (existsSync(migrationFile)) process.exit(0);
