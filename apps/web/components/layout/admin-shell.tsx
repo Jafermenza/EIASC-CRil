@@ -12,7 +12,7 @@ const sections = [
   { label: 'Finance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'FINANCE_OFFICER', 'INSPECTOR'], items: [{ label: 'Registration payments', href: '/admin/payments' }] },
   { label: 'Governance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Licensing', href: '/admin/licenses' }] },
   { label: 'Intelligence', roles: ALL_ADMIN_ROLES, items: [{ label: 'Reports & trends', href: '/admin/reports' }] },
-  { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Users & roles', href: '/admin/users' }, { label: 'Settings', href: '/admin/settings' }] },
+  { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Users & roles', href: '/admin/users' }, { label: 'Settings', href: '/admin/settings' }, { label: 'Institution types', href: '/admin/settings/institution-types' }] },
   { label: 'Operations', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'FINANCE_OFFICER'], items: [{ label: 'Notifications', href: '/notifications' }] },
 ];
 
