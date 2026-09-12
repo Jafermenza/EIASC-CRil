@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { NotificationChannel, NotificationStatus, RoleCode } from '@prisma/client';
+import { NotificationChannel, NotificationStatus, Prisma, RoleCode } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
 
@@ -94,15 +94,15 @@ export class NotificationsService {
 
   async create(recipientId: string, input: NotificationEvent & { channel?: NotificationChannel }) {
     const recipient = await this.prisma.user.findUnique({ where: { id: recipientId }, select: { email: true, phone: true } });
-    const notification = await this.prisma.notification.create({ data: { recipientId, type: input.type, title: input.title, message: input.message, channel: input.channel ?? NotificationChannel.IN_APP, metadata: input.metadata } });
+    const notification = await this.prisma.notification.create({ data: { recipientId, type: input.type, title: input.title, message: input.message, channel: input.channel ?? NotificationChannel.IN_APP, metadata: input.metadata as Prisma.InputJsonValue | undefined } });
     if (notification.channel === NotificationChannel.IN_APP) return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } });
     if (notification.channel === NotificationChannel.EMAIL && this.emailProvider && recipient?.email) {
       try { await this.emailProvider.send({ to: recipient.email, subject: notification.title, message: notification.message }); return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } }); }
-      catch (error) { return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.FAILED, metadata: { ...(input.metadata ?? {}), deliveryError: error instanceof Error ? error.message : 'Email delivery failed' } } }); }
+      catch (error) { return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.FAILED, metadata: { ...(input.metadata ?? {}), deliveryError: error instanceof Error ? error.message : 'Email delivery failed' } as Prisma.InputJsonValue } }); }
     }
     if (notification.channel === NotificationChannel.SMS && this.smsProvider && recipient?.phone && await this.smsEnabled()) {
       try { const configuredTemplates = await this.templates(); const template = configuredTemplates[input.type]; const message = template ? this.render(template, input) : notification.message; await this.smsProvider.send({ to: recipient.phone, subject: notification.title, message }); return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } }); }
-      catch (error) { return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.FAILED, metadata: { ...(input.metadata ?? {}), deliveryError: error instanceof Error ? error.message : 'SMS delivery failed' } } }); }
+      catch (error) { return this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.FAILED, metadata: { ...(input.metadata ?? {}), deliveryError: error instanceof Error ? error.message : 'SMS delivery failed' } as Prisma.InputJsonValue } }); }
     }
     return notification;
   }
