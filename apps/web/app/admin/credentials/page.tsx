@@ -53,7 +53,11 @@ export default function CredentialsPage() {
       setError(body.message || 'Unable to issue credential');
       return;
     }
-    setIssued(body);
+    setIssued({
+      ...body,
+      verificationUrl: `/verify/${encodeURIComponent(body.credentialNumber)}`,
+      qrPayload: `/verify/${encodeURIComponent(body.credentialNumber)}`,
+    });
     setSubjectId('');
     await loadPending();
   }
@@ -131,9 +135,19 @@ export default function CredentialsPage() {
           <p>
             Status: {issued.status} · Publication: {issued.publicationStatus || 'PUBLISHED'}
           </p>
-          <Link className="button button-primary" href={`/credentials/${issued.id}`}>
-            Open &amp; print
-          </Link>
+          <div className="action-row">
+            <Link className="button button-primary" href={`/credentials/${issued.id}`}>
+              Open &amp; print
+            </Link>
+            <Link
+              className="button button-secondary"
+              href={issued.verificationUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {issued.verificationUrl}
+            </Link>
+          </div>
         </section>
       )}
 
