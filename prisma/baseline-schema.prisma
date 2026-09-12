@@ -78,24 +78,6 @@ enum InstitutionRelationshipStatus {
   INACTIVE
 }
 
-enum LicenseStatus {
-  PENDING
-  ACTIVE
-  EXPIRED
-  SUSPENDED
-  REVOKED
-}
-
-enum LicenseApplicationStatus {
-  DRAFT
-  SUBMITTED
-  UNDER_REVIEW
-  CORRECTION_REQUIRED
-  RESUBMITTED
-  APPROVED
-  REJECTED
-}
-
 model User {
   id String @id @default(uuid()) @db.Uuid
   email String? @unique
@@ -106,10 +88,6 @@ model User {
   updatedAt DateTime @updatedAt
   roles UserRole[]
   auditLogs AuditLog[]
-  createdPolicies AllocationPolicy[] @relation("PolicyCreatedBy")
-  approvedPolicies AllocationPolicy[] @relation("PolicyApprovedBy")
-  calculatedRuns AllocationRun[] @relation("RunCalculatedBy")
-  approvedRuns AllocationRun[] @relation("RunApprovedBy")
 }
 
 model Role {
@@ -236,7 +214,6 @@ model Institution {
   education InstitutionEducation?
   documents InstitutionDocument[]
   statusHistory InstitutionStatusHistory[]
-  licenses License[]
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([status])
   @@index([name])
@@ -469,34 +446,6 @@ model Registration {
   @@index([type])
   @@index([phone])
   @@index([nationalIdentity])
-}
-
-model License {
-  id String @id @default(uuid()) @db.Uuid
-  licenseNumber String? @unique
-  institutionId String @db.Uuid
-  licenseType String
-  status LicenseStatus @default(PENDING)
-  applicationStatus LicenseApplicationStatus @default(DRAFT)
-  issuedAt DateTime?
-  effectiveFrom DateTime?
-  expiresAt DateTime?
-  suspendedAt DateTime?
-  revokedAt DateTime?
-  reason String?
-  issuedBy String?
-  approvedBy String?
-  createdBy String?
-  reviewedBy String?
-  approvedAt DateTime?
-  reviewedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  @@index([institutionId])
-  @@index([status])
-  @@index([expiresAt])
-  @@index([applicationStatus])
 }
 
 model AuditLog {
