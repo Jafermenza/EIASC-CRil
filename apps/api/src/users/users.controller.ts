@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Headers, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { JurisdictionLevel, RoleCode, UserStatus } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -25,6 +25,13 @@ export class UsersController {
   @Patch(':id')
   update(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: Record<string, unknown>, @Headers('x-request-id') requestId?: string) {
     return this.users.update(this.actor(request), id, this.parseUpdate(body), requestId);
+  }
+
+  @Delete(':id')
+  remove(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Body() body: Record<string, unknown>, @Headers('x-request-id') requestId?: string) {
+    const reason = this.optionalString(body.reason);
+    if (!reason?.trim()) throw new BadRequestException('A deletion/deactivation reason is required');
+    return this.users.remove(this.actor(request), id, reason, requestId);
   }
 
   private actor(request: AuthenticatedRequest) {
