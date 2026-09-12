@@ -32,6 +32,8 @@ jobs:
             git commit -m 'security: refresh dependency lockfile'
             git push
           fi
+      - name: Install locked dependencies
+        run: npm ci
       - name: Audit all dependency severities
         run: npm audit --audit-level=low
       - name: Typecheck
