@@ -64,7 +64,11 @@ test('M5 credentials: issue and publicly verify member, institution and license 
     }
 
     await page.goto(href!);
-    await expect(page.getByRole('heading', { name: 'Credential verified' })).toBeVisible();
+    // The verification page performs a client-side request to the API. In CI the
+    // first dynamic verification route can be compiled lazily by Next.js, so the
+    // assertion must allow that legitimate startup latency without weakening the
+    // actual acceptance condition.
+    await expect(page.getByRole('heading', { name: 'Credential verified' })).toBeVisible({ timeout: 15_000 });
   }
 });
 
