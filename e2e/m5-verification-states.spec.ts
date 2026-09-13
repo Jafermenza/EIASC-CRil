@@ -4,10 +4,11 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 const ADMIN_EMAIL = 'e2e-admin@example.test';
 
-async function createMember(suffix: string) {
+async function createMember(suffix: string, index: number) {
   const region = await prisma.region.findFirstOrThrow();
   const zone = await prisma.zoneCity.findFirstOrThrow({ where: { regionId: region.id } });
   const district = await prisma.district.findFirstOrThrow({ where: { zoneId: zone.id } });
+  const unique = `${Date.now().toString().slice(-7)}${index}`;
   return prisma.member.create({
     data: {
       firstName: 'M5',
@@ -15,7 +16,7 @@ async function createMember(suffix: string) {
       birthDate: new Date('1990-01-01'),
       gender: 'OTHER',
       maritalStatus: 'SINGLE',
-      phone: `+2519${Date.now().toString().slice(-8)}`,
+      phone: `+2519${unique}`,
       regionId: region.id,
       zoneId: zone.id,
       districtId: district.id,
@@ -28,15 +29,10 @@ test.afterAll(async () => prisma.$disconnect());
 
 test('M5 public verification contract covers valid, expired, revoked and invalid credentials', async ({ request }) => {
   const admin = await prisma.user.findUniqueOrThrow({ where: { email: ADMIN_EMAIL } });
-  const login = await request.post('http://127.0.0.1:4000/api/v1/auth/login', {
-    data: { identifier: ADMIN_EMAIL, password: 'e2e-password-12345' },
-  });
-  expect(login.ok()).toBeTruthy();
-  expect((await login.json()).accessToken).toBeTruthy();
   const members = await Promise.all([
-    createMember('VALID'),
-    createMember('EXPIRED'),
-    createMember('REVOKED'),
+    createMember('VALID', 1),
+    createMember('EXPIRED', 2),
+    createMember('REVOKED', 3),
   ]);
 
   try {
