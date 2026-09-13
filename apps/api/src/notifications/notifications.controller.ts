@@ -1,6 +1,6 @@
 import { Body, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { Controller } from '@nestjs/common';
-import { NotificationChannel, RoleCode } from '@prisma/client';
+import { RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
