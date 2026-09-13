@@ -1,4 +1,5 @@
 import { NotificationChannel } from '@prisma/client';
+import { jest } from '@jest/globals';
 import { NotificationDispatcherService } from './notification-dispatcher.service';
 
 describe('NotificationDispatcherService', () => {
