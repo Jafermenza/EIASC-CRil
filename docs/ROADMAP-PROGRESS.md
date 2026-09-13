@@ -39,7 +39,7 @@ M5 acceptance covers automatic credential numbers, public verification, QR, expi
 
 Release commits: `447e4c9b4b40a49132501d6482a93a19769ecde4`, `da3657efc4c55ea3d240f998ee011ab731abd035`, `6c074efc1421d4d5acfa7653b20a5e068cdd9486`.
 
-M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → `SUSPENDED` → `ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after fixture remediation.
+M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → `SUSPENDED` → `ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after the fixture remediation.
 
 **M6 release gate: PASS. PR #13 merged to `main` as `1e724c73790c117e026afcf6a1a297ed8edde2ef`.**
 
@@ -61,11 +61,11 @@ The release stream included the required remediation for lint, unit fixtures, se
 
 **M8 release gate: PASS / MERGED. PR #15 merged to `main` on 2026-09-13 as `712158b649d3c2f125bde30044a821af141aa909`.**
 
-## 2026-09-13 — M9 Notifications & Services — RELEASE CANDIDATE / GATE BLOCKED
+## 2026-09-13 — M9 Notifications & Services — IMPLEMENTED / RELEASE GATE BLOCKED
 
 PR #16: `Release M9: Notifications & Services`. Branch `release/m9-notifications-services`. Current head `b483587ec837c7d03ce214523db151e6cb9da5f5`.
 
-Implemented on the M9 release branch:
+Implemented:
 
 - Shared in-app/email/SMS notification architecture.
 - Resend email adapter and AfroMessage SMS adapter with provider readiness/status that does not expose secrets.
@@ -76,23 +76,110 @@ Implemented on the M9 release branch:
 - Dedicated `e2e/m9-notifications.acceptance.spec.ts`.
 - CI release-gate scope changed to M9 E2E rather than unrelated M8/future suites.
 
-### M9 validation evidence
+### M9 validation
 
-The latest CI run for M9 head is run `34757267536`, job `103729764519`. The job failed before executing validation steps: no runner steps were created. GitHub reported the account-level billing/spending-limit block, so this is **not evidence of a code/test failure** and M9 must not be marked passed or merged until a real runner executes the release-gate steps.
+CI run `34757267536`, job `103729764519`, was blocked before validation steps because GitHub Actions reported an account-level billing/spending-limit/runner availability block. This is **not evidence of a code/test failure**. A real runner execution remains required before release approval.
 
-**M9 release gate: BLOCKED by GitHub Actions billing/runner availability.**
+**M9 release gate: BLOCKED. Not merged / not released.**
 
-M10 is intentionally not marked released or gate-passed until M9 has a completed release gate. M10 work already present in `main` is treated as implementation/gap-closure work, not as M10 release-gate evidence.
+## 2026-09-13 — M10 Platform Settings & Integrations — REVISED RELEASE CANDIDATE
 
-## M10 — PRE-GATE IMPLEMENTATION PRESENT; RELEASE GATE NOT STARTED
+PR #19: `Release M10: Platform Settings & Integrations`. Branch `release/m10-platform-settings-final`. Head `f0ee03196e44c0cba77c72a1ad5fe9e42cd71170`. Base `main`.
 
-Existing M10-related implementation on `main` includes structured operational/security work, dependency security review, backup/restore drill support, production smoke tooling and the dedicated `e2e/m10-security.acceptance.spec.ts` suite. These artifacts are not yet a release-gate result.
+Revised M10 scope includes:
 
-The current `main` CI workflow still runs the M8 acceptance suite, so M10 release-gate CI must be explicitly scoped to M10 after M9 is released. The M10 gate must include the roadmap-required migration/seed/geography validation, lint, typecheck, unit/API tests, security review, backup/restore, build, and dedicated M10 acceptance evidence, with production smoke treated according to its live-environment prerequisites.
+- Platform settings and integration surface.
+- Database-authoritative geography/configuration.
+- Structured operational/request logging without secrets.
+- Dependency security review gate.
+- Backup/restore drill.
+- Production smoke tooling.
+- Authentication, horizontal-isolation and privilege-boundary security acceptance.
+- Dedicated `e2e/m10-platform-settings.acceptance.spec.ts`.
+- Dedicated `e2e/m10-security.acceptance.spec.ts`.
+- M10-scoped CI including migration validation, seed/geography validation, lint, typecheck, unit/API tests, security review, backup/restore, production build and both M10 acceptance suites.
+- Release-gate documentation in `docs/M10-RELEASE-GATE.md` and `docs/M10-CI-GATE.md`.
 
-**M10 status: NOT RELEASED. Do not mark complete from implementation alone.**
+### M10 validation
 
-## Planned release order
+The PR is open and is not merged. At the latest check, GitHub returned **no workflow run for head `f0ee03196e44c0cba77c72a1ad5fe9e42cd71170`**, so CI execution has not yet been evidenced.
+
+**M10 release gate: PENDING CI. Not released.**
+
+## 2026-09-13 — M11 PWA / Offline / App Experience — RELEASE CANDIDATE
+
+Branch `release/m11-pwa-offline`. Latest recorded implementation/docs head before M12: `28ce97d3998dd99dd5246b447867a96646ab63b9`.
+
+Implemented:
+
+- Installable web app manifest with EIASC metadata and 192/512 icons.
+- Service worker registration, activation, controller and root scope.
+- Safe runtime caching of previously visited navigation pages and Next static assets.
+- API requests excluded from service-worker caching.
+- Offline fallback UX with retry and previously visited-page support.
+- Push-event handling and notification-click routing.
+- Responsive/mobile-first acceptance coverage.
+- Dedicated `e2e/m11-pwa-offline.acceptance.spec.ts`.
+- M11-scoped CI definition covering migrations, seed/geography, lint, typecheck, unit/API, backup/restore, build and M11 E2E.
+
+### M11 gate checklist
+
+```text
+[done] Installable web app manifest
+[done] Service worker
+[done] Safe static-asset caching
+[done] Offline/fallback experience
+[done] Installability metadata/icons
+[done] Responsive/mobile-first gate coverage
+[done] Dedicated M11 acceptance suite
+[done] M11-scoped CI workflow definition
+[pending] Actual CI execution
+[pending] Final release approval/merge
+```
+
+CI execution was deliberately deferred while progressing through later milestone implementation. Therefore M11 is **not marked released**.
+
+## 2026-09-13 — M12 Production Hardening / UAT / Go-Live — SECURITY RELEASE CANDIDATE
+
+Branch `release/m12-production-hardening`. Based on M11 head `28ce97d3998dd99dd5246b447867a96646ab63b9`. M12 PR #18 targets `release/m11-pwa-offline`; head `0759abf8e3b263fb0ea1fa9d0bb6b7d0cd32e1d0`.
+
+### Security hardening implemented
+
+- API security headers: `X-Content-Type-Options`, `X-Frame-Options`, restrictive `Referrer-Policy`, `Permissions-Policy`, COOP/CORP, `Cache-Control: no-store`, and production HSTS.
+- Web security headers and production HSTS in Next.js configuration.
+- Production CORS fails closed when `WEB_ORIGIN` is missing.
+- Request-ID input validation/sanitization with safe replacement for invalid values.
+- Authentication endpoint throttling: 10 attempts/minute/IP/path with `429` and `Retry-After`.
+- Reverse-proxy client IP handling.
+- Existing high/critical dependency security review retained.
+- Backup/restore drill retained in the release gate.
+- Production smoke tooling retained.
+- Dedicated `e2e/m12-production-hardening.acceptance.spec.ts` for API/web headers, auth throttling and request-ID hardening.
+- M12-scoped CI definition covering migrations, seed/geography, lint, typecheck, unit/API tests, security review, backup/restore, build and M12 E2E.
+
+### M12 gate checklist
+
+```text
+[done] Production security headers
+[done] Production CORS fail-closed configuration
+[done] Authentication throttling gate
+[done] Request-ID input hardening
+[done] High/critical dependency audit gate
+[done] Backup/restore drill remains in CI gate
+[done] Production smoke tooling available
+[done] Dedicated M12 security acceptance suite
+[done] M12-scoped CI definition
+[pending] CI execution
+[pending] Full production deployment verification
+[pending] Accessibility acceptance/UAT
+[pending] Security review of deployed environment
+[pending] Rollback/recovery drill against production deployment
+[pending] Final go-live approval
+```
+
+**M12 status: SECURITY RELEASE CANDIDATE — NOT GO-LIVE.** Security hardening is implemented, but no milestone is released without the required CI and production/UAT evidence.
+
+## Current release position
 
 ```text
 M0 Foundation                       COMPLETE
@@ -105,10 +192,10 @@ M5 Digital Credentials & QR         COMPLETE
 M6 Institutional Membership         COMPLETE
 M7 Reporting & Dashboards           COMPLETE
 M8 Resource Allocation Engine       COMPLETE
-M9 Notifications / SMS / Afro SMS   ← RELEASE GATE BLOCKED
-M10 Platform Settings & Integrations
-M11 PWA / Offline / App Experience
-M12 Production Hardening / UAT / Go-Live
+M9 Notifications / SMS / Afro SMS   ← GATE BLOCKED
+M10 Platform Settings & Integrations← CI PENDING
+M11 PWA / Offline / App Experience  ← CI PENDING
+M12 Production Hardening / UAT      ← SECURITY RC / GO-LIVE PENDING
 ```
 
 ## Commit documentation rule
