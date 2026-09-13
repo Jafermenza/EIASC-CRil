@@ -38,11 +38,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }, [pathname]);
   const visibleSections = useMemo(() => sections.filter((section) => section.roles.some((role) => roles.includes(role))), [roles]);
   const canSeeUsers = roles.includes('SUPER_ADMIN');
+  const isSystemPath = pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings');
   const canAccessPath = roles.some((role) => ALL_ADMIN_ROLES.includes(role)) && (
     pathname === '/admin/dashboard' || pathname.startsWith('/admin/reports') ||
-    (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings')) ? roles.includes('SUPER_ADMIN') :
-    pathname.startsWith('/admin/registrations') || pathname.startsWith('/admin/institutions') || pathname.startsWith('/admin/licenses') ? roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'].includes(role)) :
-    pathname.startsWith('/admin/payments') ? roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'FINANCE_OFFICER', 'INSPECTOR'].includes(role)) : true
+    (isSystemPath ? roles.includes('SUPER_ADMIN') :
+      pathname.startsWith('/admin/registrations') || pathname.startsWith('/admin/institutions') || pathname.startsWith('/admin/licenses') ? roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'].includes(role)) :
+      pathname.startsWith('/admin/payments') ? roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'FINANCE_OFFICER', 'INSPECTOR'].includes(role)) : true)
   );
     async function signOut() {
       const refreshToken = localStorage.getItem('refreshToken');
