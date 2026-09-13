@@ -5,7 +5,6 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
 
 type Scope = { regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string };
-
 type DateRange = { from?: string; to?: string };
 
 @Injectable()
@@ -89,10 +88,12 @@ export class ReportingService {
     for (let offset = safeMonths - 1; offset >= 0; offset -= 1) {
       const start = new Date(); start.setUTCDate(1); start.setUTCHours(0, 0, 0, 0); start.setUTCMonth(start.getUTCMonth() - offset);
       const end = new Date(start); end.setUTCMonth(end.getUTCMonth() + 1);
-      const memberBase = effectiveScope.institutionId ? { member: { status: MemberStatus.ACTIVE }, institutionId: effectiveScope.institutionId, createdAt: { gte: start, lt: end } } : { ...memberWhere, createdAt: { gte: start, lt: end } };
       const credentialBase = { ...credentialWhere, issuedAt: { gte: start, lt: end } };
+      const membersQuery = effectiveScope.institutionId
+        ? this.prisma.memberInstitution.count({ where: { institutionId: effectiveScope.institutionId, member: { status: MemberStatus.ACTIVE }, createdAt: { gte: start, lt: end } } })
+        : this.prisma.member.count({ where: { ...memberWhere, createdAt: { gte: start, lt: end } } });
       const [members, institutions, applications, licenses, credentials, memberCredentials, institutionCredentials, licenseCredentials] = await Promise.all([
-        effectiveScope.institutionId ? this.prisma.memberInstitution.count({ where: memberBase }) : this.prisma.member.count({ where: memberBase }),
+        membersQuery,
         this.prisma.institution.count({ where: { ...institutionWhere, createdAt: { gte: start, lt: end } } }),
         this.prisma.institutionApplication.count({ where: { ...applicationWhere, createdAt: { gte: start, lt: end } } }),
         this.prisma.license.count({ where: { institution: institutionWhere, createdAt: { gte: start, lt: end } } }),
