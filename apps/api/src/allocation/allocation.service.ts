@@ -120,7 +120,6 @@ export class AllocationService {
             data: allocations.map((row) => ({
               institutionId: row.institutionId,
               eligibleMemberCount: row.memberCount,
-              memberCount: row.memberCount,
               baseAmount: Number((row.amount - equalizationPerInstitution).toFixed(2)),
               equalizationAmount: equalizationPerInstitution,
               totalAmount: row.amount,
