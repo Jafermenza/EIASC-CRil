@@ -6,32 +6,27 @@
 
 ## Progress policy
 
-Every implementation commit made against the master roadmap must be followed by a documentation update recording:
+Every roadmap implementation commit records date, milestone, SHA, database/backend/UI impact, tests/CI evidence, remaining gaps and next action. A milestone is not complete without repository and CI evidence.
 
-- date;
-- milestone/workstream;
-- commit SHA;
-- what changed;
-- database impact;
-- backend impact;
-- UI impact;
-- tests/CI evidence;
-- remaining gaps;
-- next action.
+## E2E milestone-scoping rule
 
-A milestone is not marked complete merely because code was committed. The status is updated only after the applicable database, backend, UI and workflow tests provide evidence.
+Playwright E2E is release-gate evidence only when it directly tests the milestone being released.
+
+1. Each release candidate must have a dedicated `e2e/m< milestone>-*.acceptance.spec.ts` suite.
+2. The suite must map directly to that milestone's roadmap acceptance criteria.
+3. Reuse seeded/reference data where possible; do not create unrelated workflows just to prepare fixtures.
+4. Completed-milestone tests do not block a later release unless explicitly declared a dependency.
+5. Future-milestone tests never block the current release.
+6. Legacy or cross-milestone suites must be split/renamed/excluded from the current release gate; this is scope correction, not bypassing a genuine current-milestone failure.
+7. CI must report the milestone-scoped E2E result as release evidence.
 
 ---
 
 ## 2026-09-13 — M3.5 Registration Configuration Integration
 
-### Commit sequence
+Commits: `69c275180be47dc14087de11ca22b0ee871ebcbb`, `e096a3a49b7bb752e635fe1ff5089e7ead0839b7`, `f6fff8a3a46af8235f6cbee8e8f7edcd22c6ab62`.
 
-| Commit | Work | Status |
-|---|---|---|
-| `69c275180be47dc14087de11ca22b0ee871ebcbb` | Connect registration forms to authoritative geography, institution types, fees, payment methods and banks; make Subcity/Town and District/Woreda conditional | Implemented |
-| `e096a3a49b7bb752e635fe1ff5089e7ead0839b7` | Allow institution applications without a configured district | Implemented |
-| `f6fff8a3a46af8235f6cbee8e8f7edcd22c6ab62` | Align institution registration persistence with optional district | Implemented |
+**Gate: PASSING in CI.** Registration uses authoritative PostgreSQL geography, institution types, fees, payment methods and banks; conditional geography is enforced server-side.
 
 ### Release-gate status
 
@@ -127,23 +122,32 @@ M5 must not be marked complete until CI proves the migration, typecheck, lint, A
 
 Run the M5 release-candidate CI. If CI fails, fix only the failing gate, record the remediation commit here, and rerun CI. If all gates pass, mark M5 complete and open the M6 Institutional Membership release stream.
 
----
+Dedicated suite: `e2e/m7-reporting.acceptance.spec.ts`.
 
-## Baseline before M3.5
+It verifies credential reporting metrics, twelve-month trends, regional breakdown, date filtering, authorized reporting UI and CSV export.
 
-Completed milestones carried forward from v2.0/v2.1:
+### M7 gate
 
 ```text
-M0 Foundation                       COMPLETE
-M1 Identity & Security              COMPLETE
-M2 Individual Registration           IMPLEMENTED
-M3 Institution Registry              IMPLEMENTED
-M4 Institutional Licensing           COMPLETE
+[ ] Credential/member/institution/license reporting
+[ ] Active/expired/revoked reporting
+[ ] Twelve-month trend
+[ ] Regional breakdown
+[ ] Period/date filtering
+[ ] Authorization/jurisdiction boundaries
+[ ] CSV export
+[ ] M7 acceptance E2E
+[ ] Typecheck
+[ ] Lint
+[ ] Unit/API tests
+[ ] Production build
+[ ] CI release gate
+[ ] Final M7 approval
 ```
 
 Previously completed work includes implementation work for later areas already present in the repository, but those areas remain subject to their current roadmap acceptance gates and are not retroactively marked production-complete without final evidence.
 
----
+Do not start M8 until M7 passes its release gate.
 
 ## Next planned release order
 
@@ -160,4 +164,4 @@ M12 Production Hardening / UAT / Go-Live
 
 ## Commit documentation rule
 
-**Do not batch unrelated milestone progress into an undocumented series.** After each substantive implementation commit, add or update this log with the exact SHA and evidence available at that point. If a commit fails CI, record the failure and remediation commit rather than marking the work complete.
+Do not batch unrelated milestone progress into an undocumented series. If CI fails, record the failure and remediation commit. Never mark a milestone complete from code alone.
