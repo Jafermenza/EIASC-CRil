@@ -74,12 +74,20 @@ export class AllocationService {
     if (eligibility.institutionIds?.length) institutionWhere.id = { in: eligibility.institutionIds };
     if (eligibility.institutionTypeIds?.length) institutionWhere.institutionTypeId = { in: eligibility.institutionTypeIds };
     const institutions = await this.prisma.institution.findMany({ where: institutionWhere, select: { id: true } });
-    const counts = await this.prisma.memberInstitution.groupBy({
-      by: ['institutionId'],
-      where: { status: 'ACTIVE', member: { status: 'ACTIVE' }, institution: { status: 'ACTIVE' } },
-      _count: { memberId: true },
-    });
-    const byInstitution = new Map(counts.map((row) => [row.institutionId, row._count.memberId]));
+    const institutionIds = institutions.map((institution) => institution.id);
+    const memberships = institutionIds.length
+      ? await this.prisma.memberInstitution.findMany({
+          where: {
+            institutionId: { in: institutionIds },
+            status: 'ACTIVE',
+            member: { status: 'ACTIVE' },
+            institution: { status: 'ACTIVE' },
+          },
+          select: { institutionId: true },
+        })
+      : [];
+    const byInstitution = new Map<string, number>();
+    for (const membership of memberships) byInstitution.set(membership.institutionId, (byInstitution.get(membership.institutionId) ?? 0) + 1);
     const eligible = institutions
       .map((institution) => ({ institutionId: institution.id, memberCount: byInstitution.get(institution.id) ?? 0 }))
       .filter((row) => row.memberCount >= (eligibility.minimumActiveMembers ?? 0));
