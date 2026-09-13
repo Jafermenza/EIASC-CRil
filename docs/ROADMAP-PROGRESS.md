@@ -51,49 +51,58 @@ M7 delivers credential/member/institution/license metrics, active/expired/revoke
 
 **M7 release gate: PASS. CI run `34751874380`, job `103709685859` passed migration validation, seed, geography validation, lint, typecheck, unit/API tests, backup/restore, production build and the M7 reporting acceptance suite. PR #14 merged to `main` as `e63460ef9ac17b1022de68d8c34e84fbeea5d367`.**
 
-## 2026-09-13 — M8 Resource Allocation Engine — RELEASE CANDIDATE
+## 2026-09-13 — M8 Resource Allocation Engine — COMPLETE
+
+Release branch: `release/m8-resource-allocation`. M8 delivers versioned allocation policies, configurable eligibility rules, transparent formula inputs, jurisdiction-aware preview/review/finalize workflow, historical results, audit events, authorized history/export and the dedicated `e2e/m8-resource-allocation.acceptance.spec.ts` suite. The CSV contract was corrected to emit the required unescaped header/data representation while preserving valid `text/csv` output.
+
+**M8 release gate: PASS and merged to `main` as merge commit `712158b649d3c2f125bde30044a821af141aa909`.**
+
+## 2026-09-13 — M9 Notifications & Services — RELEASE CANDIDATE
 
 ### Roadmap binding
 
-M8 follows the v2.1 roadmap and is limited to policy-driven theoretical resource allocation. Payment settlement is explicitly out of scope.
+M9 is limited to the v2.1 notification architecture: shared in-app/email/SMS delivery, configurable event controls and templates, AfroMessage provider adapter, operational test delivery and domain-event notification wiring. It does not introduce a second notification mechanism and does not expand into M10 platform settings/integrations beyond the notification settings page required by M9.
 
 ### Implemented scope
 
-- Versioned allocation policies with draft/approved lifecycle.
-- Configurable eligibility rules for institution IDs, institution types and minimum active members.
-- Policy-driven formula inputs: per-member multiplier, equalization amount and optional minimum/maximum institution bounds.
-- Eligibility calculated from active institutions, active memberships and active members.
-- Preview → under-review → finalized allocation-run workflow.
-- Historical policy version and calculation inputs persisted with each run.
-- Allocation result history retained per institution.
-- Critical policy approval and run finalization audit events.
-- Authorized allocation history and CSV export endpoints.
-- Admin allocation UI at `/admin/allocations`.
-- Dedicated milestone E2E: `e2e/m8-resource-allocation.acceptance.spec.ts`.
+- Shared `NotificationsService` remains the single notification mechanism.
+- Provider adapters for Resend email and AfroMessage SMS.
+- Provider readiness/status without exposing provider secrets.
+- In-app notification listing, unread filtering and read state.
+- Super Admin event enable/disable controls persisted in `PlatformSetting`.
+- Configurable notification templates with supported variables.
+- Test in-app, email and SMS delivery endpoints.
+- Domain audit-event dispatcher for registration, licensing, membership, credential publication and license-expiry events.
+- Source audit-event metadata prevents duplicate event dispatch.
+- Dedicated milestone E2E: `e2e/m9-notifications.acceptance.spec.ts`.
+- CI release gate changed from M8 E2E to the current M9-scoped suite; release branches are included in CI push triggers.
 
-### M8 gate
+### M9 gate
 
 ```text
-[ ] Configurable policy inputs
-[ ] Eligibility rules
-[ ] Policy-driven calculation
-[ ] Calculation transparency
-[ ] Jurisdiction-aware authorization
-[ ] Allocation history
-[ ] Audit trail
-[ ] Authorized export
-[ ] M8 acceptance E2E
+[ ] Provider adapter
+[ ] Afro SMS configuration/readiness
+[ ] Enable/disable
+[ ] Event toggles
+[ ] Templates
+[ ] Variables
+[ ] Test SMS
+[ ] Error/status visibility
+[ ] In-app notification tests
+[ ] Email notification tests
+[ ] SMS event tests
+[ ] End-to-end notification workflow
 [ ] Typecheck
 [ ] Lint
 [ ] Unit/API tests
 [ ] Production build
 [ ] CI release gate
-[ ] Final M8 approval
+[ ] Final M9 approval
 ```
 
-**Current status: M8 RELEASE CANDIDATE — CI VALIDATION PENDING.**
+**Current status: M9 RELEASE CANDIDATE — CI VALIDATION PENDING.**
 
-Do not start M9 until M8 passes its release gate.
+Do not start M10 until M9 passes its release gate.
 
 ## Planned release order
 
@@ -107,8 +116,8 @@ M4 Institutional Licensing          COMPLETE
 M5 Digital Credentials & QR         COMPLETE
 M6 Institutional Membership         COMPLETE
 M7 Reporting & Dashboards           COMPLETE
-M8 Resource Allocation Engine       ← CURRENT RELEASE CANDIDATE
-M9 Notifications / SMS / Afro SMS
+M8 Resource Allocation Engine       COMPLETE
+M9 Notifications / SMS / Afro SMS   ← CURRENT RELEASE CANDIDATE
 M10 Platform Settings & Integrations
 M11 PWA / Offline / App Experience
 M12 Production Hardening / UAT / Go-Live
