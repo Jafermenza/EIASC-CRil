@@ -56,3 +56,5 @@ jobs:
         run: npx playwright test e2e/m10-platform-settings.acceptance.spec.ts
       - name: Run M10 security acceptance suite
         run: npx playwright test e2e/m10-security.acceptance.spec.ts
+      - name: Run M11 PWA / offline acceptance suite
+        run: npx playwright test e2e/m11-pwa-offline.acceptance.spec.ts

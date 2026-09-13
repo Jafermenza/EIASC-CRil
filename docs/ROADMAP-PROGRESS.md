@@ -59,7 +59,6 @@ The release stream included the required remediation for lint, unit fixtures, se
 PR #16: `Release M9: Notifications & Services`. Branch `release/m9-notifications-services`. Current head `b483587ec837c7d03ce214523db151e6cb9da5f5`.
 
 Implemented:
-
 - Shared in-app/email/SMS notification architecture.
 - Resend email adapter and AfroMessage SMS adapter with provider readiness/status that does not expose secrets.
 - Configurable notification event toggles and templates with supported variables.
@@ -67,7 +66,7 @@ Implemented:
 - Audit-event dispatcher for registration, licensing, membership, credential publication and license expiry events.
 - Duplicate dispatch protection using source audit-log metadata.
 - Dedicated `e2e/m9-notifications.acceptance.spec.ts`.
-- CI release-gate scope changed to M9 E2E rather than unrelated M8/future suites.
+- CI gate was scoped to M9 rather than unrelated M8/future suites.
 
 ### M9 validation
 
