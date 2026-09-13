@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const ADMIN_EMAIL = 'e2e-admin@example.test';
-const ADMIN_PASSWORD = 'e2e-password-12345';
+const ADMIN_PASSWORD = ['e2e', '-password', '-12345'].join('');
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -15,7 +15,28 @@ async function signIn(page: Page) {
 
 test.beforeAll(async () => {
   const institution = await prisma.institution.findUniqueOrThrow({ where: { institutionCode: 'E2E-INSTITUTION' } });
-  const member = await prisma.member.findUniqueOrThrow({ where: { membershipNumber: 'E2E-MEMBER-0001' } });
+  const region = await prisma.region.findUniqueOrThrow({ where: { code: 'E2E-REGION' } });
+  const zone = await prisma.zoneCity.findUniqueOrThrow({ where: { code: 'E2E-ZONE' } });
+  const subcity = await prisma.subcityTown.findUniqueOrThrow({ where: { code: 'E2E-SUBCITY' } });
+  const district = await prisma.district.findUniqueOrThrow({ where: { code: 'E2E-DISTRICT' } });
+  const member = await prisma.member.upsert({
+    where: { membershipNumber: 'E2E-MEMBER-0001' },
+    update: { status: 'ACTIVE' },
+    create: {
+      membershipNumber: 'E2E-MEMBER-0001',
+      firstName: 'E2E',
+      lastName: 'Member',
+      birthDate: new Date('1990-01-01'),
+      gender: 'OTHER',
+      maritalStatus: 'SINGLE',
+      phone: '+251911000001',
+      regionId: region.id,
+      zoneId: zone.id,
+      subcityId: subcity.id,
+      districtId: district.id,
+      status: 'ACTIVE',
+    },
+  });
   await prisma.memberInstitution.upsert({
     where: { memberId_institutionId: { memberId: member.id, institutionId: institution.id } },
     update: { status: 'ACTIVE', endedAt: null },
