@@ -1,9 +1,12 @@
 import { expect, Page, test } from '@playwright/test';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, CredentialType, CredentialStatus } from '@prisma/client';
 
 const prisma = new PrismaClient();
 const ADMIN_EMAIL = 'e2e-admin@example.test';
 const ADMIN_PASSWORD = 'e2e-password-12345';
+const E2E_MEMBER_NUMBER = 'E2E-M7-MEMBER-0001';
+const E2E_CREDENTIAL_NUMBER = 'E2E-M7-CREDENTIAL-0001';
+const E2E_TOKEN_HASH = 'e2e-m7-reporting-token-hash-0001';
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -18,22 +21,44 @@ test.beforeAll(async () => {
   const zone = await prisma.zoneCity.findUniqueOrThrow({ where: { code: 'E2E-ZONE' } });
   const subcity = await prisma.subcityTown.findUniqueOrThrow({ where: { code: 'E2E-SUBCITY' } });
   const district = await prisma.district.findUniqueOrThrow({ where: { code: 'E2E-DISTRICT' } });
-  await prisma.member.upsert({
-    where: { membershipNumber: 'E2E-MEMBER-0001' },
-    update: { status: 'ACTIVE' },
+
+  // M7 owns its reporting fixture. Do not invoke M5 credential automation here.
+  // Keeping the member PENDING prevents the M5 ACTIVE-member trigger from running.
+  const member = await prisma.member.upsert({
+    where: { membershipNumber: E2E_MEMBER_NUMBER },
+    update: { status: 'PENDING' },
     create: {
-      membershipNumber: 'E2E-MEMBER-0001',
-      firstName: 'E2E',
-      lastName: 'Member',
+      membershipNumber: E2E_MEMBER_NUMBER,
+      firstName: 'M7',
+      lastName: 'Reporting Member',
       birthDate: new Date('1990-01-01'),
       gender: 'OTHER',
       maritalStatus: 'SINGLE',
-      phone: '+251911000001',
+      phone: '+251911000007',
       regionId: region.id,
       zoneId: zone.id,
       subcityId: subcity.id,
       districtId: district.id,
-      status: 'ACTIVE',
+      status: 'PENDING',
+    },
+  });
+
+  await prisma.credential.upsert({
+    where: { credentialNumber: E2E_CREDENTIAL_NUMBER },
+    update: {
+      status: CredentialStatus.ACTIVE,
+      memberId: member.id,
+      institutionId: null,
+      licenseId: null,
+      expiresAt: null,
+    },
+    create: {
+      credentialNumber: E2E_CREDENTIAL_NUMBER,
+      type: CredentialType.MEMBER,
+      status: CredentialStatus.ACTIVE,
+      tokenHash: E2E_TOKEN_HASH,
+      memberId: member.id,
+      issuedAt: new Date(),
     },
   });
 });
@@ -43,17 +68,10 @@ test.afterAll(async () => prisma.$disconnect());
 test('M7 reporting: dashboard metrics, date filtering, regional breakdown and CSV export', async ({ page, request }) => {
   await signIn(page);
   const institution = await prisma.institution.findUniqueOrThrow({ where: { institutionCode: 'E2E-INSTITUTION' } });
-  const member = await prisma.member.findUniqueOrThrow({ where: { membershipNumber: 'E2E-MEMBER-0001' } });
   const login = await request.post('http://127.0.0.1:4000/api/v1/auth/login', { data: { identifier: ADMIN_EMAIL, password: ADMIN_PASSWORD } });
   expect(login.ok()).toBeTruthy();
   const { accessToken } = await login.json() as { accessToken: string };
   const headers = { authorization: `Bearer ${accessToken}` };
-
-  const credential = await request.post('http://127.0.0.1:4000/api/v1/credentials', {
-    headers,
-    data: { type: 'MEMBER', subjectId: member.id },
-  });
-  expect([200, 201]).toContain(credential.status());
 
   const dashboard = await request.get('http://127.0.0.1:4000/api/v1/reports/dashboard', { headers });
   expect(dashboard.ok()).toBeTruthy();
