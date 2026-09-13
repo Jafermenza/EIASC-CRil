@@ -48,5 +48,5 @@ jobs:
       - run: npm run ops:backup-restore
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Run M7 reporting acceptance suite
-        run: npx playwright test e2e/m7-reporting.acceptance.spec.ts
+      - name: Run M8 resource allocation acceptance suite
+        run: npx playwright test e2e/m8-resource-allocation.acceptance.spec.ts
