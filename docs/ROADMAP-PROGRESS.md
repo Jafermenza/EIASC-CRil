@@ -33,52 +33,88 @@ A milestone is not marked complete merely because code was committed. The status
 | `e096a3a49b7bb752e635fe1ff5089e7ead0839b7` | Allow institution applications without a configured district | Implemented |
 | `f6fff8a3a46af8235f6cbee8e8f7edcd22c6ab62` | Align institution registration persistence with optional district | Implemented |
 
-### Database
-
-- Registration geography remains database-backed.
-- `InstitutionApplication.districtId` is persisted as nullable when no district is configured.
-- Geography hierarchy remains authoritative in PostgreSQL.
-- Institution types, fees and receiving-bank configuration remain database-backed.
-
-### Backend
-
-- Registration validates the selected geography hierarchy server-side.
-- Subcity/Town is required only when configured for the selected parent.
-- District/Woreda is required only when configured for the selected parent.
-- Cross-parent geography selections are rejected.
-- Institution applications may be submitted without a district when the selected geography has no configured district.
-
-### UI
-
-- Individual registration consumes the Locations API and payment configuration.
-- Institution registration consumes the Locations API and Institution Types API.
-- Registration uses configured fees/payment methods/banks rather than an arbitrary hard-coded payment default.
-- Geography selectors cascade from the selected parent.
-
-### Validation
-
-Full CI run associated with the registration release gate passed all of the following:
-
-- database migration validation;
-- seed;
-- geography import;
-- geography verification;
-- lint;
-- typecheck;
-- unit/API tests;
-- backup/restore drill;
-- production build;
-- Playwright E2E.
-
 ### Release-gate status
 
 **M3.5 implementation gate: PASSING in CI.**
 
-The conditional geography rule is now an explicit permanent acceptance requirement, not a temporary workaround.
+The conditional geography rule is now a permanent acceptance requirement, not a temporary workaround.
 
 ### Known follow-up
 
 The Prisma schema/client representation of the institution-application district field must remain reconciled with the nullable database migration before production migration workflows are finalized.
+
+---
+
+## 2026-09-13 — M5 Digital Credentials & QR — Release Candidate
+
+### Roadmap binding
+
+The v2.1 roadmap defines M5 as the next release after the M3.5 registration gate. This branch is the controlled M5 release-candidate stream. Existing M5 implementation was inspected before changes; completed functionality was preserved.
+
+### Existing implementation verified in repository
+
+- Member, institution and license credential types exist.
+- Credential numbers are generated automatically.
+- Public verification API accepts credential number or verification token.
+- Public verification UI renders the actual API result and a QR verification representation.
+- Credential publication/review, history and audit records exist.
+- Revocation and expiry state handling exist.
+- Credential design configuration supports global and regional configuration with server-side role/jurisdiction checks.
+
+### Release-candidate commits
+
+| Commit | Work | Status |
+|---|---|---|
+| `2fe5d92b1513358f50904eb6655c4ebe5c97db40` | Add M5 public verification acceptance coverage for valid, expired, revoked and invalid credentials | Implemented |
+| `e5700d5ec6865b2e5755039a454596771c505e39` | Make M5 verification fixtures unique and deterministic enough for CI | Implemented |
+| `0cdabbdd4c59a84668abd4f50b0df69f47a4a3c1` | Enforce configured credential validity at the database boundary, including regional configuration fallback to global configuration | Implemented |
+| `8e7a598dc52ae51d0d761df45555524bf5b1d889` | Assert newly generated credentials receive configured expiry and cover all public verification states | Implemented |
+
+### M5 database rule
+
+Credential expiry is now enforced at the PostgreSQL boundary rather than relying only on UI or a single issuance code path.
+
+For a newly inserted credential:
+
+```text
+regional configuration for subject region
+        ↓ if absent
+global/default configuration
+        ↓
+validityYears
+        ↓
+Credential.expiresAt
+```
+
+Existing credentials with a null expiry are backfilled by the migration using the same regional → default fallback.
+
+### M5 acceptance coverage added
+
+```text
+[✓] Automatic credential number exists
+[✓] Public verification endpoint exists
+[✓] Public verification UI exists
+[✓] QR verification representation exists
+[✓] Credential history/audit exists
+[✓] Regional/global credential configuration exists
+[✓] Valid credential verification covered
+[✓] Expired credential verification covered
+[✓] Revoked credential verification covered
+[✓] Invalid credential verification covered
+[✓] Configured validity produces Credential.expiresAt
+[ ] CI typecheck/lint/tests/build/E2E for this release candidate
+[ ] Final M5 release-gate approval
+```
+
+### Current M5 status
+
+**RELEASE CANDIDATE — CI VALIDATION PENDING.**
+
+M5 must not be marked complete until CI proves the migration, typecheck, lint, API/unit tests, production build and Playwright acceptance suite all pass.
+
+### Next action
+
+Run the M5 release-candidate CI. If CI fails, fix only the failing gate, record the remediation commit here, and rerun CI. If all gates pass, mark M5 complete and open the M6 Institutional Membership release stream.
 
 ---
 
@@ -94,30 +130,21 @@ M3 Institution Registry              IMPLEMENTED
 M4 Institutional Licensing           COMPLETE
 ```
 
-Previously completed work includes the M5/M6/M7/M8/M9 implementation work already present in the repository, but those areas remain subject to their current roadmap acceptance gates and are not retroactively marked production-complete without final evidence.
+Previously completed work includes implementation work for later areas already present in the repository, but those areas remain subject to their current roadmap acceptance gates and are not retroactively marked production-complete without final evidence.
 
 ---
 
-## Next planned commit stream
+## Next planned release order
 
 ```text
-M5 Digital Credentials & QR
-  1. Verify public credential API/proxy contract
-  2. Verify public verification UI
-  3. Complete credential design configuration
-  4. Complete regional credential configuration authorization
-  5. Complete lifecycle/expiry/revocation acceptance
-  6. Run CI
-  7. Update this log immediately after each implementation commit
-
-Then:
-M6 Membership
-M7 Reporting
-M8 Allocation
-M9 Notifications/SMS
-M10 Platform Settings/Integrations
-M11 PWA
-M12 Production Hardening/UAT/Go-Live
+M5 Digital Credentials & QR         ← CURRENT RELEASE CANDIDATE
+M6 Institutional Membership         ← NEXT after M5 gate passes
+M7 Reporting & Dashboards
+M8 Resource Allocation Engine
+M9 Notifications / SMS / Afro SMS
+M10 Platform Settings & Integrations
+M11 PWA / Offline / App Experience
+M12 Production Hardening / UAT / Go-Live
 ```
 
 ## Commit documentation rule
