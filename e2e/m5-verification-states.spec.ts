@@ -39,6 +39,7 @@ test('M5 public verification contract covers valid, expired, revoked and invalid
     const credentials = await Promise.all(
       members.map((member) => prisma.credential.findFirstOrThrow({ where: { memberId: member.id, type: 'MEMBER' } })),
     );
+    for (const credential of credentials) expect(credential.expiresAt).toBeTruthy();
 
     const valid = await request.get(`http://127.0.0.1:4000/api/v1/credentials/verify/${credentials[0].credentialNumber}`);
     expect(valid.ok()).toBeTruthy();
