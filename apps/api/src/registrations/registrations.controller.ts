@@ -1,4 +1,8 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { RoleCode } from '@prisma/client';
+import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { Roles } from '../auth/roles.decorator';
+import { RolesGuard } from '../auth/roles.guard';
 import { IndividualRegistrationInput } from './registration.types';
 import { RegistrationsService } from './registrations.service';
 
@@ -20,6 +24,50 @@ export class RegistrationsController {
       throw new BadRequestException('Registration payload is required');
     }
     return this.registrations.resubmitIndividual(trackingCode, body);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Get('admin/queue')
+  queue(@Req() req: AuthenticatedRequest, @Query('status') status?: string) {
+    return this.registrations.queue(req.user!, status);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Get('admin/:id')
+  detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.registrations.detail(req.user!, id);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/:id/review')
+  review(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.registrations.review(req.user!, id);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/:id/correction')
+  correction(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) {
+    if (!body?.reason?.trim()) throw new BadRequestException('reason is required');
+    return this.registrations.requestCorrection(req.user!, id, body.reason);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/:id/reject')
+  reject(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) {
+    if (!body?.reason?.trim()) throw new BadRequestException('reason is required');
+    return this.registrations.reject(req.user!, id, body.reason);
+  }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/:id/approve')
+  approve(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.registrations.approve(req.user!, id);
   }
 
   @Get(':trackingCode')

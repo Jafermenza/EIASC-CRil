@@ -22,6 +22,7 @@ export default function LoginPage() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(''); setBusy(true);
     try {
+      localStorage.removeItem('accessToken'); localStorage.removeItem('refreshToken'); localStorage.removeItem('authUser');
       const response = await fetch(`${API}/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ identifier: identifier.trim(), password }) });
       const data = await response.json() as LoginResponse & { message?: string };
       if (!response.ok || !data.accessToken || !data.refreshToken) throw new Error(data.message || 'The email/phone or password was not accepted.');

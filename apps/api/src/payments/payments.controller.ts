@@ -17,7 +17,7 @@ export class PaymentsController {
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER, RoleCode.INSPECTOR)
   @Get('admin/queue') queue(@Req() req: AuthenticatedRequest) { return this.payments.queue(req.user!); }
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER)
-  @Post('admin/verify') verify(@Req() req: AuthenticatedRequest, @Body() body: { id?: string; approve?: boolean; reason?: string }) { if (!body?.id || typeof body.approve !== 'boolean') throw new BadRequestException('id and approve are required'); return this.payments.verifyManual(body.id, req.user!.id, body.approve, body.reason); }
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER)
+  @Post('admin/verify') verify(@Req() req: AuthenticatedRequest, @Body() body: { id?: string; approve?: boolean; reason?: string }) { if (!body?.id || typeof body.approve !== 'boolean') throw new BadRequestException('id and approve are required'); return this.payments.verifyManual(body.id, req.user!, body.approve, body.reason); }
   @Post('validate') validate(@Body() body: { kind?: RegistrationKind; payment?: PaymentInput }) { if (!body?.kind || !body.payment) throw new BadRequestException('kind and payment are required'); return this.payments.validateForSubmission(body.kind, body.payment); }
 }
