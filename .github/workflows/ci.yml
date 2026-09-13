@@ -13,6 +13,7 @@ jobs:
       DATABASE_URL: postgresql://cril:cril@localhost:5432/cril?schema=public
       JWT_SECRET: ci-secret-that-is-at-least-32-characters-long
       JWT_ISSUER: eiasc-cril
+      WEB_ORIGIN: http://127.0.0.1:3000
       GEOGRAPHY_SOURCE_VERSION: 418739e33760bf79661f3914e2d8c9cf33248437
       REGISTRATION_INDIVIDUAL_FEE_ETB: 100
       REGISTRATION_INSTITUTION_FEE_ETB: 1000
@@ -45,8 +46,13 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - run: npm run security:review
       - run: npm run ops:backup-restore
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - name: Run M9 notification services acceptance suite
         run: npx playwright test e2e/m9-notifications.acceptance.spec.ts
+      - name: Run M10 platform settings acceptance suite
+        run: npx playwright test e2e/m10-platform-settings.acceptance.spec.ts
+      - name: Run M10 security acceptance suite
+        run: npx playwright test e2e/m10-security.acceptance.spec.ts
