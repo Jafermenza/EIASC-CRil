@@ -39,61 +39,58 @@ M5 acceptance covers automatic credential numbers, public verification, QR, expi
 
 Release commits: `447e4c9b4b40a49132501d6482a93a19769ecde4`, `da3657efc4c55ea3d240f998ee011ab731abd035`, `6c074efc1421d4d5acfa7653b20a5e068cdd9486`.
 
-M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → `SUSPENDED` → `ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after the fixture remediation.
+M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → `SUSPENDED` → `ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after fixture remediation.
 
 **M6 release gate: PASS. PR #13 merged to `main` as `1e724c73790c117e026afcf6a1a297ed8edde2ef`.**
 
 ## 2026-09-13 — M7 Reporting & Dashboards — COMPLETE
 
-Release commits: `4154474e179f56b51783c3e5abb8b2df55762ef5`, `04bb7eac2426fcd0c324bdc54fc5a27e70005d10`, `67e52899c8ca3d86fb0c08aae90e14c589fa55ab`, `5fb9651b870c06aa34e797fb7c2ca064d6d46e19`, `f5dd01069939b7bc0222e5a561e60c07b48f1813`, `53cde4f82f83fa6e17d55605409d98c3647c12b9`, `757865b61e6920e428f3f32ea0ab2d3c620a2acf`, `e5c1cb95d894230f1615b2c7d719cbc817d6a72f`.
+Release commits: `4154474e179f56b51783c3e5abb8b2df55762ef5`, `04bb7eac2426fcd0c324bdc54fc5a27e70005d10`, `67e52899c8ca3d86fb0c08aae90e14c589fa55ab`, `5fb9651b870c06aa34e797fb7c2ca064d6d46e19`, `f5dd01069939b7bc0222e5a561e60c07b48f1813`, `53cde4f82f83fa6e17d5560549d98c3647c12b9`, `757865b61e6920e428f3f32ea0ab2d3c620a2acf`, `e5c1cb95d894230f1615b2c7d719cbc817d6a72f`.
 
-M7 delivers credential/member/institution/license metrics, active/expired/revoked credential reporting, twelve-month trends, regional breakdown, date filtering, CSV export, authorization and the dedicated `e2e/m7-reporting.acceptance.spec.ts` suite. The suite was made self-contained with an isolated member fixture so milestone-scoped execution does not depend on M5/M6 E2E side effects.
+M7 delivers credential/member/institution/license metrics, active/expired/revoked credential reporting, twelve-month trends, regional breakdown, date filtering, CSV export, authorization and the dedicated `e2e/m7-reporting.acceptance.spec.ts` suite. The suite is self-contained with an isolated member fixture so milestone-scoped execution does not depend on M5/M6 E2E side effects.
 
 **M7 release gate: PASS. CI run `34751874380`, job `103709685859` passed migration validation, seed, geography validation, lint, typecheck, unit/API tests, backup/restore, production build and the M7 reporting acceptance suite. PR #14 merged to `main` as `e63460ef9ac17b1022de68d8c34e84fbeea5d367`.**
 
-## 2026-09-13 — M8 Resource Allocation Engine — RELEASE CANDIDATE
+## 2026-09-13 — M8 Resource Allocation Engine — COMPLETE
 
-### Roadmap binding
+Release branch `release/m8-resource-allocation`, PR #15. Head `31ad8c52cb6cddc0b937bb3e72405bb21b307e7c`; merge commit `712158b649d3c2f125bde30044a821af141aa909`.
 
-M8 follows the v2.1 roadmap and is limited to policy-driven theoretical resource allocation. Payment settlement is explicitly out of scope.
+M8 implements policy-driven theoretical resource allocation: versioned draft/approved policies, configurable eligibility rules, transparent formula inputs, preview → under-review → finalized lifecycle, persisted historical inputs/results, audit events, authorized history/export, admin UI at `/admin/allocations`, and dedicated `e2e/m8-resource-allocation.acceptance.spec.ts`. Payment settlement remains out of scope.
 
-### Implemented scope
+The release stream included the required remediation for lint, unit fixtures, self-contained M8 E2E provisioning, application-side allocation aggregation, and CSV export formatting.
 
-- Versioned allocation policies with draft/approved lifecycle.
-- Configurable eligibility rules for institution IDs, institution types and minimum active members.
-- Policy-driven formula inputs: per-member multiplier, equalization amount and optional minimum/maximum institution bounds.
-- Eligibility calculated from active institutions, active memberships and active members.
-- Preview → under-review → finalized allocation-run workflow.
-- Historical policy version and calculation inputs persisted with each run.
-- Allocation result history retained per institution.
-- Critical policy approval and run finalization audit events.
-- Authorized allocation history and CSV export endpoints.
-- Admin allocation UI at `/admin/allocations`.
-- Dedicated milestone E2E: `e2e/m8-resource-allocation.acceptance.spec.ts`.
+**M8 release gate: PASS / MERGED. PR #15 merged to `main` on 2026-09-13 as `712158b649d3c2f125bde30044a821af141aa909`.**
 
-### M8 gate
+## 2026-09-13 — M9 Notifications & Services — RELEASE CANDIDATE / GATE BLOCKED
 
-```text
-[ ] Configurable policy inputs
-[ ] Eligibility rules
-[ ] Policy-driven calculation
-[ ] Calculation transparency
-[ ] Jurisdiction-aware authorization
-[ ] Allocation history
-[ ] Audit trail
-[ ] Authorized export
-[ ] M8 acceptance E2E
-[ ] Typecheck
-[ ] Lint
-[ ] Unit/API tests
-[ ] Production build
-[ ] CI release gate
-[ ] Final M8 approval
-```
+PR #16: `Release M9: Notifications & Services`. Branch `release/m9-notifications-services`. Current head `b483587ec837c7d03ce214523db151e6cb9da5f5`.
 
-**Current status: M8 RELEASE CANDIDATE — CI VALIDATION PENDING.**
+Implemented on the M9 release branch:
 
-Do not start M9 until M8 passes its release gate.
+- Shared in-app/email/SMS notification architecture.
+- Resend email adapter and AfroMessage SMS adapter with provider readiness/status that does not expose secrets.
+- Configurable notification event toggles and templates with supported variables.
+- Test delivery endpoints for in-app, email and SMS.
+- Audit-event dispatcher for registration, licensing, membership, credential publication and license expiry events.
+- Duplicate dispatch protection using source audit-log metadata.
+- Dedicated `e2e/m9-notifications.acceptance.spec.ts`.
+- CI release-gate scope changed to M9 E2E rather than unrelated M8/future suites.
+
+### M9 validation evidence
+
+The latest CI run for M9 head is run `34757267536`, job `103729764519`. The job failed before executing validation steps: no runner steps were created. GitHub reported the account-level billing/spending-limit block, so this is **not evidence of a code/test failure** and M9 must not be marked passed or merged until a real runner executes the release-gate steps.
+
+**M9 release gate: BLOCKED by GitHub Actions billing/runner availability.**
+
+M10 is intentionally not marked released or gate-passed until M9 has a completed release gate. M10 work already present in `main` is treated as implementation/gap-closure work, not as M10 release-gate evidence.
+
+## M10 — PRE-GATE IMPLEMENTATION PRESENT; RELEASE GATE NOT STARTED
+
+Existing M10-related implementation on `main` includes structured operational/security work, dependency security review, backup/restore drill support, production smoke tooling and the dedicated `e2e/m10-security.acceptance.spec.ts` suite. These artifacts are not yet a release-gate result.
+
+The current `main` CI workflow still runs the M8 acceptance suite, so M10 release-gate CI must be explicitly scoped to M10 after M9 is released. The M10 gate must include the roadmap-required migration/seed/geography validation, lint, typecheck, unit/API tests, security review, backup/restore, build, and dedicated M10 acceptance evidence, with production smoke treated according to its live-environment prerequisites.
+
+**M10 status: NOT RELEASED. Do not mark complete from implementation alone.**
 
 ## Planned release order
 
@@ -107,8 +104,8 @@ M4 Institutional Licensing          COMPLETE
 M5 Digital Credentials & QR         COMPLETE
 M6 Institutional Membership         COMPLETE
 M7 Reporting & Dashboards           COMPLETE
-M8 Resource Allocation Engine       ← CURRENT RELEASE CANDIDATE
-M9 Notifications / SMS / Afro SMS
+M8 Resource Allocation Engine       COMPLETE
+M9 Notifications / SMS / Afro SMS   ← RELEASE GATE BLOCKED
 M10 Platform Settings & Integrations
 M11 PWA / Offline / App Experience
 M12 Production Hardening / UAT / Go-Live
