@@ -43,52 +43,57 @@ M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → 
 
 **M6 release gate: PASS. PR #13 merged to `main` as `1e724c73790c117e026afcf6a1a297ed8edde2ef`.**
 
-## 2026-09-13 — M7 Reporting & Dashboards — RELEASE CANDIDATE
+## 2026-09-13 — M7 Reporting & Dashboards — COMPLETE
+
+Release commits: `4154474e179f56b51783c3e5abb8b2df55762ef5`, `04bb7eac2426fcd0c324bdc54fc5a27e70005d10`, `67e52899c8ca3d86fb0c08aae90e14c589fa55ab`, `5fb9651b870c06aa34e797fb7c2ca064d6d46e19`, `f5dd01069939b7bc0222e5a561e60c07b48f1813`, `53cde4f82f83fa6e17d55605409d98c3647c12b9`, `757865b61e6920e428f3f32ea0ab2d3c620a2acf`, `e5c1cb95d894230f1615b2c7d719cbc817d6a72f`.
+
+M7 delivers credential/member/institution/license metrics, active/expired/revoked credential reporting, twelve-month trends, regional breakdown, date filtering, CSV export, authorization and the dedicated `e2e/m7-reporting.acceptance.spec.ts` suite. The suite was made self-contained with an isolated member fixture so milestone-scoped execution does not depend on M5/M6 E2E side effects.
+
+**M7 release gate: PASS. CI run `34751874380`, job `103709685859` passed migration validation, seed, geography validation, lint, typecheck, unit/API tests, backup/restore, production build and the M7 reporting acceptance suite. PR #14 merged to `main` as `e63460ef9ac17b1022de68d8c34e84fbeea5d367`.**
+
+## 2026-09-13 — M8 Resource Allocation Engine — RELEASE CANDIDATE
 
 ### Roadmap binding
 
-M7 is the next v2.1 release after M6. The release is scoped to trustworthy operational and governance reporting and does not start M8 allocation work.
+M8 follows the v2.1 roadmap and is limited to policy-driven theoretical resource allocation. Payment settlement is explicitly out of scope.
 
 ### Implemented scope
 
-- Server-side dashboard metrics for members, institutions, applications and licenses.
-- Credential issued totals split into member, institution and license credentials.
-- Active, expired and revoked credential reporting.
-- Twelve-month activity and credential issuance trends.
-- Regional breakdown for authorized reporting scope.
-- Period/date filtering on report metrics.
-- CSV export using the same server-side report data.
-- Authentication, role and jurisdiction authorization enforced by the API.
-- Existing `/admin/reports` UI expanded to expose the M7 reporting data.
+- Versioned allocation policies with draft/approved lifecycle.
+- Configurable eligibility rules for institution IDs, institution types and minimum active members.
+- Policy-driven formula inputs: per-member multiplier, equalization amount and optional minimum/maximum institution bounds.
+- Eligibility calculated from active institutions, active memberships and active members.
+- Preview → under-review → finalized allocation-run workflow.
+- Historical policy version and calculation inputs persisted with each run.
+- Allocation result history retained per institution.
+- Critical policy approval and run finalization audit events.
+- Authorized allocation history and CSV export endpoints.
+- Admin allocation UI at `/admin/allocations`.
+- Dedicated milestone E2E: `e2e/m8-resource-allocation.acceptance.spec.ts`.
 
-### M7 acceptance E2E
-
-Dedicated suite: `e2e/m7-reporting.acceptance.spec.ts`.
-
-It verifies credential reporting metrics, twelve-month trends, regional breakdown, date filtering, authorized reporting UI and CSV export.
-
-### M7 gate
+### M8 gate
 
 ```text
-[ ] Credential/member/institution/license reporting
-[ ] Active/expired/revoked reporting
-[ ] Twelve-month trend
-[ ] Regional breakdown
-[ ] Period/date filtering
-[ ] Authorization/jurisdiction boundaries
-[ ] CSV export
-[ ] M7 acceptance E2E
+[ ] Configurable policy inputs
+[ ] Eligibility rules
+[ ] Policy-driven calculation
+[ ] Calculation transparency
+[ ] Jurisdiction-aware authorization
+[ ] Allocation history
+[ ] Audit trail
+[ ] Authorized export
+[ ] M8 acceptance E2E
 [ ] Typecheck
 [ ] Lint
 [ ] Unit/API tests
 [ ] Production build
 [ ] CI release gate
-[ ] Final M7 approval
+[ ] Final M8 approval
 ```
 
-**Current status: M7 RELEASE CANDIDATE — CI VALIDATION PENDING.**
+**Current status: M8 RELEASE CANDIDATE — CI VALIDATION PENDING.**
 
-Do not start M8 until M7 passes its release gate.
+Do not start M9 until M8 passes its release gate.
 
 ## Planned release order
 
@@ -101,8 +106,8 @@ M3.5 Registration Configuration     PASSING
 M4 Institutional Licensing          COMPLETE
 M5 Digital Credentials & QR         COMPLETE
 M6 Institutional Membership         COMPLETE
-M7 Reporting & Dashboards           ← CURRENT RELEASE CANDIDATE
-M8 Resource Allocation Engine
+M7 Reporting & Dashboards           COMPLETE
+M8 Resource Allocation Engine       ← CURRENT RELEASE CANDIDATE
 M9 Notifications / SMS / Afro SMS
 M10 Platform Settings & Integrations
 M11 PWA / Offline / App Experience
