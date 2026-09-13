@@ -12,7 +12,7 @@ const sections = [
   { label: 'Finance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'FINANCE_OFFICER', 'INSPECTOR'], items: [{ label: 'Registration payments', href: '/admin/payments' }] },
   { label: 'Governance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Licensing', href: '/admin/licenses' }] },
   { label: 'Intelligence', roles: ALL_ADMIN_ROLES, items: [{ label: 'Reports & trends', href: '/admin/reports' }] },
-  { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Users & roles', href: '/admin/users' }, { label: 'Settings', href: '/admin/settings' }, { label: 'Institution types', href: '/admin/settings/institution-types' }] },
+  { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Users & roles', href: '/admin/users' }, { label: 'Settings', href: '/admin/settings/platform' }, { label: 'Institution types', href: '/admin/settings/institution-types' }] },
   { label: 'Operations', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'FINANCE_OFFICER'], items: [{ label: 'Notifications', href: '/notifications' }] },
 ];
 
@@ -33,8 +33,12 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       };
       void validate();
       const onPageShow = () => { void validate(); };
+      const onVisibilityChange = () => { if (document.visibilityState === 'visible') void validate(); };
+      const onPopState = () => { void validate(); };
       window.addEventListener('pageshow', onPageShow);
-      return () => { active = false; window.removeEventListener('pageshow', onPageShow); };
+      window.addEventListener('visibilitychange', onVisibilityChange);
+      window.addEventListener('popstate', onPopState);
+      return () => { active = false; window.removeEventListener('pageshow', onPageShow); window.removeEventListener('visibilitychange', onVisibilityChange); window.removeEventListener('popstate', onPopState); };
     }, [pathname]);
   const visibleSections = useMemo(() => sections.filter((section) => section.roles.some((role) => roles.includes(role))), [roles]);
   const canSeeUsers = roles.includes('SUPER_ADMIN');

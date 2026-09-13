@@ -16,7 +16,8 @@ function getAllowedOrigins(): string[] {
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bodyParser: true });
   app.setGlobalPrefix('api/v1');
-  app.getHttpAdapter().getInstance().set('trust proxy', 1);
+  const proxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
+  app.getHttpAdapter().getInstance().set('trust proxy', Number.isInteger(proxyHops) && proxyHops >= 0 ? proxyHops : 1);
   app.use(securityMiddleware);
   app.useGlobalFilters(new HttpExceptionFilter());
   const origins = getAllowedOrigins();
