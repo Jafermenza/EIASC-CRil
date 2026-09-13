@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 export default function ServiceWorkerRegister() {
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
-    navigator.serviceWorker.register('/sw.js').catch((error) => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then((registration) => registration.update()).catch((error) => {
       console.error('EIASC CRil service worker registration failed', error);
     });
   }, []);

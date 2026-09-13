@@ -4,7 +4,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
 
 type CredentialConfigurationRow = Record<string, unknown>;
-const ADMIN_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN];
+const ADMIN_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN];
 const DEFAULTS: CredentialConfigurationRow = {
   certificateTitle: 'ETHIOPIAN ISLAMIC AFFAIRS SUPREME COUNCIL', certificateSubtitle: 'OPERATIONAL CERTIFICATE', memberCardTitle: 'Islamic Community Membership', issuingAuthority: 'Ethiopian Islamic Affairs Supreme Council', validityYears: 1,
   authorizedSigner: null, authorizedTitle: null, signatureImageUrl: null, sealImageUrl: null, institutionLabel: 'Institution', locationLabel: 'Location', membershipLabel: 'Membership Number', certificateNumberLabel: 'Certificate Number', issueDateLabel: 'Issue Date', expiryDateLabel: 'Expiry Date', validForLabel: 'Valid for',
@@ -14,7 +14,7 @@ const DEFAULTS: CredentialConfigurationRow = {
 @Injectable()
 export class CredentialConfigurationService {
   constructor(private readonly prisma: PrismaService) {}
-  private admin(user: AuthenticatedUser) { if (!user.roles.some((r) => ADMIN_ROLES.includes(r))) throw new ForbiddenException('Credential configuration requires Super Admin, National Admin, or Regional Admin'); if (user.roles.includes(RoleCode.REGIONAL_ADMIN) && !user.jurisdictionId) throw new ForbiddenException('Regional administrator has no region scope'); }
+  private admin(user: AuthenticatedUser) { if (!user.roles.some((r) => ADMIN_ROLES.includes(r))) throw new ForbiddenException('Credential configuration requires Super Admin access'); }
   private regionId(user: AuthenticatedUser) { return user.roles.includes(RoleCode.REGIONAL_ADMIN) ? (user.jurisdictionId ?? null) : null; }
   private text(value: unknown, field: string, max = 300) { if (value === undefined) return undefined; if (value === null) return null; if (typeof value !== 'string') throw new BadRequestException(`${field} must be a string`); const v = value.trim(); if (v.length > max) throw new BadRequestException(`${field} is too long`); if (/<\/?[a-z][\s\S]*>/i.test(v)) throw new BadRequestException('HTML is not allowed'); return v || null; }
   private async row(key: string) { const rows = await this.prisma.$queryRaw<CredentialConfigurationRow[]>`SELECT * FROM "CredentialConfiguration" WHERE "key"=${key} LIMIT 1`; return rows[0] ?? null; }
