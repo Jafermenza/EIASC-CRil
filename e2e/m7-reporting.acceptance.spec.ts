@@ -13,6 +13,31 @@ async function signIn(page: Page) {
   await expect(page).toHaveURL(/\/admin\/dashboard$/);
 }
 
+test.beforeAll(async () => {
+  const region = await prisma.region.findUniqueOrThrow({ where: { code: 'E2E-REGION' } });
+  const zone = await prisma.zoneCity.findUniqueOrThrow({ where: { code: 'E2E-ZONE' } });
+  const subcity = await prisma.subcityTown.findUniqueOrThrow({ where: { code: 'E2E-SUBCITY' } });
+  const district = await prisma.district.findUniqueOrThrow({ where: { code: 'E2E-DISTRICT' } });
+  await prisma.member.upsert({
+    where: { membershipNumber: 'E2E-MEMBER-0001' },
+    update: { status: 'ACTIVE' },
+    create: {
+      membershipNumber: 'E2E-MEMBER-0001',
+      firstName: 'E2E',
+      lastName: 'Member',
+      birthDate: new Date('1990-01-01'),
+      gender: 'OTHER',
+      maritalStatus: 'SINGLE',
+      phone: '+251911000001',
+      regionId: region.id,
+      zoneId: zone.id,
+      subcityId: subcity.id,
+      districtId: district.id,
+      status: 'ACTIVE',
+    },
+  });
+});
+
 test.afterAll(async () => prisma.$disconnect());
 
 test('M7 reporting: dashboard metrics, date filtering, regional breakdown and CSV export', async ({ page, request }) => {
