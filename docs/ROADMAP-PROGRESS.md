@@ -21,6 +21,29 @@ Playwright E2E is release-gate evidence only when it directly tests the mileston
 
 ---
 
+## 2026-09-13 — Roadmap v2.1 reconciliation on `main`
+
+Compared with the current `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.1.md` on `main`, the roadmap's sections 2, 10, 11, 21 and 27 still describe the pre-integration work order. The repository evidence recorded below supersedes those stale status labels:
+
+- M3.5 registration configuration integration passed its CI gate.
+- M5 through M8 passed their milestone-scoped release gates; M6 and M7 were merged to `main`, and M8 was merged to `main`.
+- M9 is implemented but remains blocked pending an actual CI runner execution.
+- M10 has a revised release candidate but no evidenced CI run for its current head.
+- M11 has an implementation candidate but its actual CI execution and merge remain pending.
+- M12 has a security release candidate but still requires CI, production verification and UAT/go-live evidence.
+
+Current `main` CI runs `34764744913` and `34764744789` passed, but they validate the current documentation-upload commit and are not milestone-scoped M9 release evidence.
+
+**Next action from the progress record:** obtain a real M9 CI runner result and record the outcome before approving or advancing the later release gates. No milestone is promoted based on implementation code alone.
+
+---
+
+## 2026-09-13 — M3.5 Registration Configuration Integration
+
+Commits: `69c275180be47dc14087de11ca22b0ee871ebcbb`, `e096a3a49b7bb752e635fe1ff5089e7ead0839b7`, `f6fff8a3a46af8235f6cbee8e8f7edcd22c6ab62`.
+
+**Gate: PASSING in CI.** Registration uses authoritative PostgreSQL geography, institution types, fees, payment methods and banks; conditional geography is enforced server-side.
+
 ## 2026-09-13 — M5 Digital Credentials & QR — COMPLETE
 
 Release commits: `2fe5d92b1513358f50904eb6655c4ebe5c97db40`, `e5700d5ec6865b2e5755039a454596771c505e39`, `0cdabbdd4c59a84668abd4f50b0df69f47a4a3c1`, `8e7a598dc52ae51d0d761df45555524bf5b1d889`, `0d309345c974fd25fae7b7d11444cbe16b9ae2bb`.
