@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from 'react';
 
-type Policy = { id: string; name: string; version: string; status: string };
 type Run = { id: string; period: string; fundingPool: string | number; totalAllocated: string | number; status: string; policy: { name: string; version: string } };
 
 export default function AllocationsPage() {
-  const [policies, setPolicies] = useState<Policy[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
   const [name, setName] = useState('M8 allocation policy');
   const [version, setVersion] = useState('2026.1');
