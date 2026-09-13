@@ -35,47 +35,60 @@ M5 acceptance covers automatic credential numbers, public verification, QR, expi
 
 **M5 release gate: PASS.**
 
-## 2026-09-13 — M6 Institutional Membership — RELEASE CANDIDATE
+## 2026-09-13 — M6 Institutional Membership — COMPLETE
+
+Release commits: `447e4c9b4b40a49132501d6482a93a19769ecde4`, `da3657efc4c55ea3d240f998ee011ab731abd035`, `6c074efc1421d4d5acfa7653b20a5e068cdd9486`.
+
+M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → `SUSPENDED` → `ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after the fixture remediation.
+
+**M6 release gate: PASS. PR #13 merged to `main` as `1e724c73790c117e026afcf6a1a297ed8edde2ef`.**
+
+## 2026-09-13 — M7 Reporting & Dashboards — RELEASE CANDIDATE
 
 ### Roadmap binding
 
-M6 is the next v2.1 release after M5. Existing implementation is preserved and the release is scoped to institutional membership only.
+M7 is the next v2.1 release after M6. The release is scoped to trustworthy operational and governance reporting and does not start M8 allocation work.
 
 ### Implemented scope
 
-- `MemberInstitution` connects members and institutions.
-- Membership request starts as `PENDING`.
-- Approval changes membership to `ACTIVE`.
-- Lifecycle supports `PENDING`, `ACTIVE`, `SUSPENDED`, `ENDED`.
-- Authorized institutional listing is available.
-- Server-side role and institution/jurisdiction authorization is enforced.
-- Lifecycle changes create audit records.
-- `ENDED` persists `endedAt` and cannot be reactivated.
+- Server-side dashboard metrics for members, institutions, applications and licenses.
+- Credential issued totals split into member, institution and license credentials.
+- Active, expired and revoked credential reporting.
+- Twelve-month activity and credential issuance trends.
+- Regional breakdown for authorized reporting scope.
+- Period/date filtering on report metrics.
+- CSV export using the same server-side report data.
+- Authentication, role and jurisdiction authorization enforced by the API.
+- Existing `/admin/reports` UI expanded to expose the M7 reporting data.
 
-### M6 acceptance E2E
+### M7 acceptance E2E
 
-Dedicated suite: `e2e/m6-membership.acceptance.spec.ts`.
+Dedicated suite: `e2e/m7-reporting.acceptance.spec.ts`.
 
-It verifies request → `PENDING` → `ACTIVE`, institutional UI display, `SUSPENDED`, `ENDED`, persisted `endedAt`, and audit entries for each lifecycle transition.
+It verifies credential reporting metrics, twelve-month trends, regional breakdown, date filtering, authorized reporting UI and CSV export.
 
-### M6 gate
+### M7 gate
 
 ```text
-[ ] Database lifecycle behavior
-[ ] API authorization/workflow
-[ ] Institutional UI
-[ ] M6 acceptance E2E
+[ ] Credential/member/institution/license reporting
+[ ] Active/expired/revoked reporting
+[ ] Twelve-month trend
+[ ] Regional breakdown
+[ ] Period/date filtering
+[ ] Authorization/jurisdiction boundaries
+[ ] CSV export
+[ ] M7 acceptance E2E
 [ ] Typecheck
 [ ] Lint
 [ ] Unit/API tests
 [ ] Production build
 [ ] CI release gate
-[ ] Final M6 approval
+[ ] Final M7 approval
 ```
 
-**Current status: M6 RELEASE CANDIDATE — CI VALIDATION PENDING.**
+**Current status: M7 RELEASE CANDIDATE — CI VALIDATION PENDING.**
 
-Do not start M7 until M6 passes its release gate.
+Do not start M8 until M7 passes its release gate.
 
 ## Planned release order
 
@@ -87,8 +100,8 @@ M3 Institution Registry             IMPLEMENTED
 M3.5 Registration Configuration     PASSING
 M4 Institutional Licensing          COMPLETE
 M5 Digital Credentials & QR         COMPLETE
-M6 Institutional Membership         ← CURRENT RELEASE CANDIDATE
-M7 Reporting & Dashboards
+M6 Institutional Membership         COMPLETE
+M7 Reporting & Dashboards           ← CURRENT RELEASE CANDIDATE
 M8 Resource Allocation Engine
 M9 Notifications / SMS / Afro SMS
 M10 Platform Settings & Integrations
