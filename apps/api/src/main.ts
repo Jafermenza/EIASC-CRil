@@ -5,12 +5,22 @@ import { AppModule } from './app.module';
 import { securityMiddleware } from './security/security.middleware';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 
+function getAllowedOrigins(): string[] {
+  const configured = process.env.WEB_ORIGIN?.split(',').map((value) => value.trim()).filter(Boolean) ?? [];
+  if (process.env.NODE_ENV === 'production' && configured.length === 0) {
+    throw new Error('WEB_ORIGIN must be configured in production. Refusing to start with permissive CORS.');
+  }
+  return configured;
+}
+
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { bodyParser: true });
   app.setGlobalPrefix('api/v1');
+  app.set('trust proxy', 1);
   app.use(securityMiddleware);
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.enableCors({ origin: process.env.WEB_ORIGIN?.split(',').map((value) => value.trim()) ?? true });
+  const origins = getAllowedOrigins();
+  app.enableCors({ origin: origins.length > 0 ? origins : true, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] });
   await app.listen(Number(process.env.API_PORT ?? 4000), '0.0.0.0');
 }
 
