@@ -5,7 +5,7 @@ export interface LocationHierarchyInput {
   regionId: string;
   zoneId: string;
   subcityId?: string;
-  districtId: string;
+  districtId?: string;
 }
 
 @Injectable()
@@ -57,20 +57,19 @@ export class LocationsService {
   }
 
   /**
-   * Validates a geographic path server-side. Ethiopia's authoritative source
-   * currently publishes Region -> Zone/City -> Woreda, so subcityId is optional.
-   * If a sub-city/town exists, it must belong to the selected zone and the
-   * district must belong to that sub-city. Otherwise the district must belong
-   * directly to the selected zone.
+   * Validates a geographic path server-side.
+   * Region and Zone/City are required. Sub-city/Town and District/Woreda
+   * are optional only when that level is not configured for the selected parent.
+   * When a configured child is supplied, it must belong to the selected parent.
    */
   async validateHierarchy(input: LocationHierarchyInput): Promise<void> {
     const regionId = input.regionId.trim();
     const zoneId = input.zoneId.trim();
-    const districtId = input.districtId.trim();
     const subcityId = input.subcityId?.trim() || undefined;
+    const districtId = input.districtId?.trim() || undefined;
 
-    if (!regionId || !zoneId || !districtId) {
-      throw new BadRequestException('Region, zone/city and district/woreda are required');
+    if (!regionId || !zoneId) {
+      throw new BadRequestException('Region and zone/city are required');
     }
 
     const zone = await this.prisma.zoneCity.findUnique({
@@ -81,25 +80,45 @@ export class LocationsService {
       throw new BadRequestException('Location hierarchy is invalid');
     }
 
-    const district = await this.prisma.district.findUnique({
-      where: { id: districtId },
-      select: { id: true, zoneId: true, subcityId: true },
+    const subcities = await this.prisma.subcityTown.findMany({
+      where: { zoneId },
+      select: { id: true },
     });
-    if (!district) throw new BadRequestException('Location hierarchy is invalid');
+    const hasConfiguredSubcities = subcities.length > 0;
 
     if (subcityId) {
       const subcity = await this.prisma.subcityTown.findUnique({
         where: { id: subcityId },
         select: { id: true, zoneId: true },
       });
-      if (!subcity || subcity.zoneId !== zoneId || district.subcityId !== subcityId) {
+      if (!subcity || subcity.zoneId !== zoneId) {
         throw new BadRequestException('Location hierarchy is invalid');
       }
-      return;
+    } else if (hasConfiguredSubcities) {
+      throw new BadRequestException('Sub-city/town is required for the selected zone/city');
     }
 
-    if (district.zoneId !== zoneId) {
-      throw new BadRequestException('Location hierarchy is invalid');
+    if (districtId) {
+      const district = await this.prisma.district.findUnique({
+        where: { id: districtId },
+        select: { id: true, zoneId: true, subcityId: true },
+      });
+      if (!district) throw new BadRequestException('Location hierarchy is invalid');
+
+      if (subcityId) {
+        if (district.subcityId !== subcityId) {
+          throw new BadRequestException('Location hierarchy is invalid');
+        }
+      } else if (district.zoneId !== zoneId) {
+        throw new BadRequestException('Location hierarchy is invalid');
+      }
+    } else {
+      const configuredDistricts = await this.prisma.district.count({
+        where: subcityId ? { subcityId } : { zoneId },
+      });
+      if (configuredDistricts > 0) {
+        throw new BadRequestException('District/woreda is required for the selected location');
+      }
     }
   }
 }
