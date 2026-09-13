@@ -21,6 +21,23 @@ Playwright E2E is release-gate evidence only when it directly tests the mileston
 
 ---
 
+## 2026-09-13 — Roadmap v2.1 reconciliation on `main`
+
+Compared with the current `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.1.md` on `main`, the roadmap's sections 2, 10, 11, 21 and 27 still describe the pre-integration work order. The repository evidence recorded below supersedes those stale status labels:
+
+- M3.5 registration configuration integration passed its CI gate.
+- M5 through M8 passed their milestone-scoped release gates; M6 and M7 were merged to `main`, and M8 was merged to `main`.
+- M9 is implemented but remains blocked pending an actual CI runner execution.
+- M10 has a revised release candidate but no evidenced CI run for its current head.
+- M11 has an implementation candidate but its actual CI execution and merge remain pending.
+- M12 has a security release candidate but still requires CI, production verification and UAT/go-live evidence.
+
+Current `main` CI runs `34764744913` and `34764744789` passed, but they validate the current documentation-upload commit and are not milestone-scoped M9 release evidence.
+
+**Next action from the progress record:** obtain a real M9 CI runner result and record the outcome before approving or advancing the later release gates. No milestone is promoted based on implementation code alone.
+
+---
+
 ## 2026-09-13 — M3.5 Registration Configuration Integration
 
 Commits: `69c275180be47dc14087de11ca22b0ee871ebcbb`, `e096a3a49b7bb752e635fe1ff5089e7ead0839b7`, `f6fff8a3a46af8235f6cbee8e8f7edcd22c6ab62`.
@@ -39,12 +56,11 @@ M5 acceptance covers automatic credential numbers, public verification, QR, expi
 
 Release commits: `447e4c9b4b40a49132501d6482a93a19769ecde4`, `da3657efc4c55ea3d240f998ee011ab731abd035`, `6c074efc1421d4d5acfa7653b20a5e068cdd9486`.
 
-M6 preserves the institutional membership lifecycle: `PENDING` → `ACTIVE` → `SUSPENDED` → `ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after the fixture remediation.
+M6 preserves the institutional membership lifecycle `PENDING → ACTIVE → SUSPENDED → ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after fixture remediation.
 
 **M6 release gate: PASS. PR #13 merged to `main` as `1e724c73790c117e026afcf6a1a297ed8edde2ef`.**
 
 ## 2026-09-13 — M7 Reporting & Dashboards — COMPLETE
-
 Release commits: `4154474e179f56b51783c3e5abb8b2df55762ef5`, `04bb7eac2426fcd0c324bdc54fc5a27e70005d10`, `67e52899c8ca3d86fb0c08aae90e14c589fa55ab`, `5fb9651b870c06aa34e797fb7c2ca064d6d46e19`, `f5dd01069939b7bc0222e5a561e60c07b48f1813`, `53cde4f82f83fa6e17d5560549d98c3647c12b9`, `757865b61e6920e428f3f32ea0ab2d3c620a2acf`, `e5c1cb95d894230f1615b2c7d719cbc817d6a72f`.
 
 M7 delivers credential/member/institution/license metrics, active/expired/revoked credential reporting, twelve-month trends, regional breakdown, date filtering, CSV export, authorization and the dedicated `e2e/m7-reporting.acceptance.spec.ts` suite. The suite is self-contained with an isolated member fixture so milestone-scoped execution does not depend on M5/M6 E2E side effects.
@@ -66,7 +82,6 @@ The release stream included the required remediation for lint, unit fixtures, se
 PR #16: `Release M9: Notifications & Services`. Branch `release/m9-notifications-services`. Current head `b483587ec837c7d03ce214523db151e6cb9da5f5`.
 
 Implemented:
-
 - Shared in-app/email/SMS notification architecture.
 - Resend email adapter and AfroMessage SMS adapter with provider readiness/status that does not expose secrets.
 - Configurable notification event toggles and templates with supported variables.
@@ -74,7 +89,7 @@ Implemented:
 - Audit-event dispatcher for registration, licensing, membership, credential publication and license expiry events.
 - Duplicate dispatch protection using source audit-log metadata.
 - Dedicated `e2e/m9-notifications.acceptance.spec.ts`.
-- CI release-gate scope changed to M9 E2E rather than unrelated M8/future suites.
+- CI gate was scoped to M9 rather than unrelated M8/future suites.
 
 ### M9 validation
 
@@ -111,7 +126,6 @@ The PR is open and is not merged. At the latest check, GitHub returned **no work
 Branch `release/m11-pwa-offline`. Latest recorded implementation/docs head before M12: `28ce97d3998dd99dd5246b447867a96646ab63b9`.
 
 Implemented:
-
 - Installable web app manifest with EIASC metadata and 192/512 icons.
 - Service worker registration, activation, controller and root scope.
 - Safe runtime caching of previously visited navigation pages and Next static assets.
@@ -156,6 +170,60 @@ Branch `release/m12-production-hardening`. Based on M11 head `28ce97d3998dd99dd5
 - Production smoke tooling retained.
 - Dedicated `e2e/m12-production-hardening.acceptance.spec.ts` for API/web headers, auth throttling and request-ID hardening.
 - M12-scoped CI definition covering migrations, seed/geography, lint, typecheck, unit/API tests, security review, backup/restore, build and M12 E2E.
+## 2026-09-13 — M12 Production Hardening & Go-Live — SECURITY RELEASE CANDIDATE
+
+M12 is being treated as a hard release gate. No production approval is implied by implementation alone. The roadmap explicitly requires automated/manual evidence before production, including security testing, backup/restore, production deployment testing, accessibility and UAT. fileciteturn553file0L8-L34
+
+### Implemented hardening
+
+- API security headers: `nosniff`, frame denial, strict referrer policy, restrictive permissions policy, cross-origin isolation headers and production HSTS.
+- Web security headers applied globally, including production HSTS.
+- Production API CORS now fails closed when `WEB_ORIGIN` is absent instead of starting permissively.
+- Request IDs are accepted only when bounded to a safe character/length pattern; invalid values are replaced with a generated UUID.
+- Authentication endpoints retain a bounded rate limit with `Retry-After` response handling.
+- API responses from the security middleware are marked `no-store` to reduce accidental caching of authenticated/error responses.
+- Express proxy trust is explicitly configured for the deployment reverse-proxy topology so authentication throttling can use the originating client address.
+- Existing dependency audit gate remains mandatory through `npm run security:review`, blocking high/critical dependency vulnerabilities.
+- Existing production smoke test and backup/restore drill remain part of the operational gate.
+
+### M12 release-gate evidence added
+
+- Dedicated `e2e/m12-production-hardening.acceptance.spec.ts` covering API security headers, authentication throttling, request-ID sanitization and web security headers.
+- CI is scoped to M12 acceptance while retaining migration validation, seed/geography validation, lint, typecheck, unit/API tests, dependency security review, backup/restore and production build.
+- Branch: `release/m12-production-hardening`.
+
+### M12 checklist status
+
+```text
+[done] Production security headers
+[done] Production CORS fail-closed configuration
+[done] Authentication throttling gate
+[done] Request-ID input hardening
+[done] High/critical dependency audit gate
+[done] Backup/restore drill remains in CI gate
+[done] Production smoke tooling available
+[done] Dedicated M12 security acceptance suite
+[done] M12-scoped CI definition
+[pending] CI execution
+[pending] Full production deployment verification
+[pending] Accessibility acceptance/UAT
+[pending] Security review of deployed environment
+[pending] Rollback/recovery drill against production deployment
+[pending] Final go-live approval
+```
+
+**M12 status: SECURITY RELEASE CANDIDATE — hardening implemented, but NOT PASS / NOT GO-LIVE until CI, deployed-environment verification, UAT/accessibility, security review and recovery evidence are completed.**
+
+## Final M9/M10/M11/M12 truth record
+
+| Milestone | Implementation | Release-gate evidence | Release status |
+|---|---|---|---|
+| M9 Notifications & Services | Implemented | CI deferred/not executed to completion | **NOT PASS** |
+| M10 Platform Settings & Integrations | Implementation/gap-closure present | CI deferred/not executed to completion | **NOT PASS** |
+| M11 PWA / Offline / App Experience | Implemented + dedicated acceptance/CI gate prepared | CI deferred/not executed | **NOT PASS** |
+| M12 Production Hardening & Go-Live | Security hardening + dedicated gate implemented | CI/deployed-UAT/recovery evidence pending | **NOT PASS** |
+
+This record intentionally distinguishes **code implemented** from **milestone passed**. No milestone is marked complete without the required evidence.
 
 ### M12 gate checklist
 
