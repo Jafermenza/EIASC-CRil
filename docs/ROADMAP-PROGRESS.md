@@ -61,12 +61,11 @@ The release stream included the required remediation for lint, unit fixtures, se
 
 **M8 release gate: PASS / MERGED. PR #15 merged to `main` on 2026-09-13 as `712158b649d3c2f125bde30044a821af141aa909`.**
 
-## 2026-09-13 — M9 Notifications & Services — RELEASE CANDIDATE / GATE BLOCKED
+## 2026-09-13 — M9 Notifications & Services — IMPLEMENTED / GATE DEFERRED
 
-PR #16: `Release M9: Notifications & Services`. Branch `release/m9-notifications-services`. Current head `b483587ec837c7d03ce214523db151e6cb9da5f5`.
+PR #16: `Release M9: Notifications & Services`. Branch `release/m9-notifications-services`. Current recorded head `b483587ec837c7d03ce214523db151e6cb9da5f5`.
 
-Implemented on the M9 release branch:
-
+Implemented:
 - Shared in-app/email/SMS notification architecture.
 - Resend email adapter and AfroMessage SMS adapter with provider readiness/status that does not expose secrets.
 - Configurable notification event toggles and templates with supported variables.
@@ -74,23 +73,75 @@ Implemented on the M9 release branch:
 - Audit-event dispatcher for registration, licensing, membership, credential publication and license expiry events.
 - Duplicate dispatch protection using source audit-log metadata.
 - Dedicated `e2e/m9-notifications.acceptance.spec.ts`.
-- CI release-gate scope changed to M9 E2E rather than unrelated M8/future suites.
+- CI gate was scoped to M9 rather than unrelated M8/future suites.
 
-### M9 validation evidence
+The release-gate CI job was previously blocked before executing any validation steps by the GitHub Actions account billing/spending-limit condition. A rerun was queued as job `103732193278`, but CI execution is deliberately deferred by release decision. Therefore repository implementation is recorded, but **M9 is not release-gate PASS**.
 
-The latest CI run for M9 head is run `34757267536`, job `103729764519`. The job failed before executing validation steps: no runner steps were created. GitHub reported the account-level billing/spending-limit block, so this is **not evidence of a code/test failure** and M9 must not be marked passed or merged until a real runner executes the release-gate steps.
+**M9 status: IMPLEMENTED; CI RELEASE GATE DEFERRED.**
 
-**M9 release gate: BLOCKED by GitHub Actions billing/runner availability.**
+## 2026-09-13 — M10 Platform Settings & Integrations — IMPLEMENTATION PRESENT / GATE DEFERRED
 
-M10 is intentionally not marked released or gate-passed until M9 has a completed release gate. M10 work already present in `main` is treated as implementation/gap-closure work, not as M10 release-gate evidence.
+M10 implementation/gap-closure work already present on `main` includes:
+- structured operational/request logging with request ID, status and duration while avoiding secrets;
+- dependency security review gate via `scripts/security-review.mjs`;
+- backup/restore drill support;
+- production smoke tooling targeting public web, login and API health;
+- dedicated `e2e/m10-security.acceptance.spec.ts` with authentication, horizontal-isolation and privilege-boundary checks;
+- production settings/geography/live-email documentation and prior M10 remediation commits.
 
-## M10 — PRE-GATE IMPLEMENTATION PRESENT; RELEASE GATE NOT STARTED
+The current main CI workflow had still been running the M8 acceptance suite at the time of this record, so no M10-specific CI result exists yet. Per the release decision, CI is deliberately deferred rather than represented as a pass.
 
-Existing M10-related implementation on `main` includes structured operational/security work, dependency security review, backup/restore drill support, production smoke tooling and the dedicated `e2e/m10-security.acceptance.spec.ts` suite. These artifacts are not yet a release-gate result.
+**M10 status: IMPLEMENTATION PRESENT; CI RELEASE GATE DEFERRED. NOT RELEASED.**
 
-The current `main` CI workflow still runs the M8 acceptance suite, so M10 release-gate CI must be explicitly scoped to M10 after M9 is released. The M10 gate must include the roadmap-required migration/seed/geography validation, lint, typecheck, unit/API tests, security review, backup/restore, build, and dedicated M10 acceptance evidence, with production smoke treated according to its live-environment prerequisites.
+## 2026-09-13 — M11 PWA / Offline / App Experience — RELEASE CANDIDATE
 
-**M10 status: NOT RELEASED. Do not mark complete from implementation alone.**
+M11 was matched to the existing PWA implementation rather than rewritten unnecessarily.
+
+Verified repository implementation:
+- Next.js web manifest with install metadata, `standalone` display mode, portrait orientation and 192px/512px icons.
+- Client-side service-worker registration from the root layout.
+- Service worker activation/control and root scope.
+- Offline navigation fallback at `/offline`.
+- Runtime caching of previously visited navigation pages and Next.js static assets.
+- API requests are deliberately excluded from service-worker caching, protecting live/authenticated API data from stale responses.
+- Push-event handling and notification click routing are present for future Web Push delivery.
+- Existing offline UX explains that previously visited pages may remain available and provides a retry action.
+
+Added M11 release-gate evidence:
+- `e2e/m11-pwa-offline.acceptance.spec.ts` covering manifest metadata/installability, service-worker registration/control, offline fallback and 390px mobile-width no-horizontal-overflow behavior.
+- CI workflow on the M11 release branch is scoped to the M11 acceptance suite while retaining migration, seed/geography, lint, typecheck, unit/API, backup/restore and production build gates.
+- Branch: `release/m11-pwa-offline`.
+- PR #17: `Release M11: PWA / Offline / App Experience`.
+- Current head: `90c8749810e8b7f4e7444a226c40f6df6ba7bb01`.
+
+### M11 roadmap checklist status
+
+```text
+[done] Installable web app manifest
+[done] Service worker
+[done] Safe static-asset caching
+[done] Offline/fallback experience
+[done] Installability metadata/icons
+[done] Responsive/mobile-first gate coverage
+[done] Dedicated M11 acceptance suite
+[done] M11-scoped CI workflow definition
+[pending] Actual CI execution
+[pending] Final release approval/merge
+```
+
+**M11 status: RELEASE CANDIDATE — implementation/evidence prepared; CI deliberately deferred. Not release-gate PASS until CI executes.**
+
+## Final M9/M10/M11 truth record
+
+The repository currently supports the following accurate interpretation:
+
+| Milestone | Implementation | Release-gate CI | Release status |
+|---|---|---|---|
+| M9 Notifications & Services | Implemented | Deferred/not executed to completion | **NOT PASS** |
+| M10 Platform Settings & Integrations | Implementation/gap-closure present | Deferred/not executed to completion | **NOT PASS** |
+| M11 PWA / Offline / App Experience | Implemented + dedicated acceptance/CI gate prepared | Deferred/not executed | **NOT PASS** |
+
+This record intentionally distinguishes **code implemented** from **milestone passed**. No M9, M10 or M11 milestone is marked complete without the required CI/release evidence.
 
 ## Planned release order
 
@@ -105,9 +156,9 @@ M5 Digital Credentials & QR         COMPLETE
 M6 Institutional Membership         COMPLETE
 M7 Reporting & Dashboards           COMPLETE
 M8 Resource Allocation Engine       COMPLETE
-M9 Notifications / SMS / Afro SMS   ← RELEASE GATE BLOCKED
-M10 Platform Settings & Integrations
-M11 PWA / Offline / App Experience
+M9 Notifications / SMS / Afro SMS   IMPLEMENTED — CI DEFERRED
+M10 Platform Settings & Integrations IMPLEMENTATION PRESENT — CI DEFERRED
+M11 PWA / Offline / App Experience  RELEASE CANDIDATE — CI DEFERRED
 M12 Production Hardening / UAT / Go-Live
 ```
 
