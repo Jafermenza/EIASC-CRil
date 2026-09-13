@@ -112,7 +112,6 @@ Added M11 release-gate evidence:
 - CI workflow on the M11 release branch is scoped to the M11 acceptance suite while retaining migration, seed/geography, lint, typecheck, unit/API, backup/restore and production build gates.
 - Branch: `release/m11-pwa-offline`.
 - PR #17: `Release M11: PWA / Offline / App Experience`.
-- Current head: `90c8749810e8b7f4e7444a226c40f6df6ba7bb01`.
 
 ### M11 roadmap checklist status
 
@@ -131,17 +130,60 @@ Added M11 release-gate evidence:
 
 **M11 status: RELEASE CANDIDATE — implementation/evidence prepared; CI deliberately deferred. Not release-gate PASS until CI executes.**
 
-## Final M9/M10/M11 truth record
+## 2026-09-13 — M12 Production Hardening & Go-Live — SECURITY RELEASE CANDIDATE
 
-The repository currently supports the following accurate interpretation:
+M12 is being treated as a hard release gate. No production approval is implied by implementation alone. The roadmap explicitly requires automated/manual evidence before production, including security testing, backup/restore, production deployment testing, accessibility and UAT. fileciteturn553file0L8-L34
 
-| Milestone | Implementation | Release-gate CI | Release status |
+### Implemented hardening
+
+- API security headers: `nosniff`, frame denial, strict referrer policy, restrictive permissions policy, cross-origin isolation headers and production HSTS.
+- Web security headers applied globally, including production HSTS.
+- Production API CORS now fails closed when `WEB_ORIGIN` is absent instead of starting permissively.
+- Request IDs are accepted only when bounded to a safe character/length pattern; invalid values are replaced with a generated UUID.
+- Authentication endpoints retain a bounded rate limit with `Retry-After` response handling.
+- API responses from the security middleware are marked `no-store` to reduce accidental caching of authenticated/error responses.
+- Express proxy trust is explicitly configured for the deployment reverse-proxy topology so authentication throttling can use the originating client address.
+- Existing dependency audit gate remains mandatory through `npm run security:review`, blocking high/critical dependency vulnerabilities.
+- Existing production smoke test and backup/restore drill remain part of the operational gate.
+
+### M12 release-gate evidence added
+
+- Dedicated `e2e/m12-production-hardening.acceptance.spec.ts` covering API security headers, authentication throttling, request-ID sanitization and web security headers.
+- CI is scoped to M12 acceptance while retaining migration validation, seed/geography validation, lint, typecheck, unit/API tests, dependency security review, backup/restore and production build.
+- Branch: `release/m12-production-hardening`.
+
+### M12 checklist status
+
+```text
+[done] Production security headers
+[done] Production CORS fail-closed configuration
+[done] Authentication throttling gate
+[done] Request-ID input hardening
+[done] High/critical dependency audit gate
+[done] Backup/restore drill remains in CI gate
+[done] Production smoke tooling available
+[done] Dedicated M12 security acceptance suite
+[done] M12-scoped CI definition
+[pending] CI execution
+[pending] Full production deployment verification
+[pending] Accessibility acceptance/UAT
+[pending] Security review of deployed environment
+[pending] Rollback/recovery drill against production deployment
+[pending] Final go-live approval
+```
+
+**M12 status: SECURITY RELEASE CANDIDATE — hardening implemented, but NOT PASS / NOT GO-LIVE until CI, deployed-environment verification, UAT/accessibility, security review and recovery evidence are completed.**
+
+## Final M9/M10/M11/M12 truth record
+
+| Milestone | Implementation | Release-gate evidence | Release status |
 |---|---|---|---|
-| M9 Notifications & Services | Implemented | Deferred/not executed to completion | **NOT PASS** |
-| M10 Platform Settings & Integrations | Implementation/gap-closure present | Deferred/not executed to completion | **NOT PASS** |
-| M11 PWA / Offline / App Experience | Implemented + dedicated acceptance/CI gate prepared | Deferred/not executed | **NOT PASS** |
+| M9 Notifications & Services | Implemented | CI deferred/not executed to completion | **NOT PASS** |
+| M10 Platform Settings & Integrations | Implementation/gap-closure present | CI deferred/not executed to completion | **NOT PASS** |
+| M11 PWA / Offline / App Experience | Implemented + dedicated acceptance/CI gate prepared | CI deferred/not executed | **NOT PASS** |
+| M12 Production Hardening & Go-Live | Security hardening + dedicated gate implemented | CI/deployed-UAT/recovery evidence pending | **NOT PASS** |
 
-This record intentionally distinguishes **code implemented** from **milestone passed**. No M9, M10 or M11 milestone is marked complete without the required CI/release evidence.
+This record intentionally distinguishes **code implemented** from **milestone passed**. No milestone is marked complete without the required evidence.
 
 ## Planned release order
 
@@ -159,7 +201,7 @@ M8 Resource Allocation Engine       COMPLETE
 M9 Notifications / SMS / Afro SMS   IMPLEMENTED — CI DEFERRED
 M10 Platform Settings & Integrations IMPLEMENTATION PRESENT — CI DEFERRED
 M11 PWA / Offline / App Experience  RELEASE CANDIDATE — CI DEFERRED
-M12 Production Hardening / UAT / Go-Live
+M12 Production Hardening / UAT / Go-Live SECURITY RELEASE CANDIDATE
 ```
 
 ## Commit documentation rule
