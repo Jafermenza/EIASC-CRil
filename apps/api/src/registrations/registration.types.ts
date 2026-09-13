@@ -5,7 +5,7 @@ export type IndividualRegistrationStatus = (typeof INDIVIDUAL_REGISTRATION_STATU
 
 export interface IndividualRegistrationInput {
   firstName: string; middleName?: string; lastName: string; birthDate: string; gender: string; maritalStatus: string; phone: string;
-  educationLevel?: string; employmentStatus?: string; regionId: string; zoneId: string; subcityId?: string; districtId: string;
+  educationLevel?: string; employmentStatus?: string; regionId: string; zoneId: string; subcityId?: string; districtId?: string;
   currentAddress?: string; nationalIdentity?: string; institutionId?: string; familyRelationship?: string; familyMemberName?: string;
   familyMemberPhone?: string; declarationAccepted: boolean; payment: PaymentInput;
 }
