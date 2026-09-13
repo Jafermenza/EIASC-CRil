@@ -178,9 +178,10 @@ export class AllocationService {
         String(result.totalAmount),
       ]),
     ];
+    const csvValue = (value: string) => /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
     return {
       filename: `allocation-${run.period}-${run.policyVersion}.csv`,
-      csv: rows.map((row) => row.map((value) => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n'),
+      csv: rows.map((row) => row.map(csvValue).join(',')).join('\n'),
     };
   }
 
