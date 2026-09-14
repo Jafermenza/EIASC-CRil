@@ -17,7 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [PrismaModule, NotificationsModule],
-  controllers: [CredentialsController, PublicCredentialsController, CredentialConfigurationController, CredentialReportController],
+  controllers: [CredentialConfigurationController, CredentialsController, PublicCredentialsController, CredentialReportController],
   providers: [CredentialsService, CredentialConfigurationService, CredentialReviewService, CredentialReportService, CredentialLifecycleService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
   exports: [CredentialsService, CredentialConfigurationService, CredentialReviewService, CredentialReportService],
 })

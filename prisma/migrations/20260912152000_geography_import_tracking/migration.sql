@@ -2,9 +2,12 @@
 -- historical baseline and migration chain. Keep it as a forward migration rather
 -- than polluting the foundational baseline with later application concerns.
 
-CREATE TYPE "GeographyImportStatus" AS ENUM ('RUNNING', 'SUCCESS', 'FAILED');
+DO $$ BEGIN
+  CREATE TYPE "GeographyImportStatus" AS ENUM ('RUNNING', 'SUCCESS', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE "GeographyImport" (
+CREATE TABLE IF NOT EXISTS "GeographyImport" (
     "id" UUID NOT NULL,
     "source" TEXT NOT NULL,
     "sourceVersion" TEXT NOT NULL,
@@ -27,7 +30,7 @@ CREATE TABLE "GeographyImport" (
       FOREIGN KEY ("importedByUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE
 );
 
-CREATE INDEX "GeographyImport_source_sourceVersion_idx"
+CREATE INDEX IF NOT EXISTS "GeographyImport_source_sourceVersion_idx"
   ON "GeographyImport"("source", "sourceVersion");
-CREATE INDEX "GeographyImport_status_startedAt_idx"
+CREATE INDEX IF NOT EXISTS "GeographyImport_status_startedAt_idx"
   ON "GeographyImport"("status", "startedAt");

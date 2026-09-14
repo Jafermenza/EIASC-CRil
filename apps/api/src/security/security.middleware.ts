@@ -9,6 +9,7 @@ const REQUEST_ID_PATTERN = /^[A-Za-z0-9._:-]{8,128}$/;
 export function securityMiddleware(req: Request, res: Response, next: NextFunction) {
   const suppliedRequestId = req.header('x-request-id')?.trim();
   const requestId = suppliedRequestId && REQUEST_ID_PATTERN.test(suppliedRequestId) ? suppliedRequestId : randomUUID();
+  req.headers['x-request-id'] = requestId;
 
   res.setHeader('X-Request-ID', requestId);
   res.setHeader('X-Content-Type-Options', 'nosniff');

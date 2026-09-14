@@ -19,6 +19,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
       const since = new Date(Date.now() - 10 * 60 * 1000);
       const events = await this.prisma.auditLog.findMany({ where: { action: { in: [...EVENT_ACTIONS] }, createdAt: { gte: since } }, orderBy: { createdAt: 'asc' }, take: 100 });
       for (const event of events) {
+        if (!event.entityId) continue;
         const sourceAuditLogId = event.id;
         if (!event.entityId) continue;
         const existing = await this.prisma.notification.findFirst({ where: { metadata: { path: ['sourceAuditLogId'], equals: sourceAuditLogId } }, select: { id: true } });

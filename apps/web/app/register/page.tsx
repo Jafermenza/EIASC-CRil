@@ -16,6 +16,7 @@ export default function RegisterPage() {
       <section className="capability-grid registration-choice-grid" aria-label="Registration types">
         {choices.map((choice) => <Link className="capability-card registration-choice" href={choice.href} key={choice.href}><span>{choice.icon}</span><h2>{choice.title}</h2><p>{choice.text}</p><strong>Continue <span aria-hidden="true">→</span></strong></Link>)}
       </section>
+      <section className="workflow-panel" style={{ marginTop: 20 }}><p className="eyebrow">DIRECT ACCESS</p><h2>Choose your application</h2><div className="action-row"><Link className="button button-primary" href="/register/individual">Individual member registration</Link><Link className="button button-secondary" href="/register/institution">Institution registration</Link></div></section>
       <section className="workflow-panel" style={{ marginTop: 20 }}>
         <p className="eyebrow">GUIDED PROCESS</p>
         <h2>Simple, step-by-step registration</h2>

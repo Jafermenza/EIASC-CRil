@@ -8,15 +8,19 @@ const securityHeaders = [
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=()' },
   { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
   { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
-  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
 ];
+if (process.env.NODE_ENV === 'production') securityHeaders.push({ key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' });
 
 const nextConfig = {
   output: 'standalone',
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      { source: '/admin/:path*', headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }] },
+      { source: '/institution/:path*', headers: [{ key: 'Cache-Control', value: 'no-store, max-age=0' }] },
+    ];
   },
   async rewrites() {
     return [{ source: '/api/v1/:path*', destination: `${apiInternalUrl}/api/v1/:path*` }];

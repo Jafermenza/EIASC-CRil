@@ -1,7 +1,13 @@
-CREATE TYPE "RegistrationPaymentMethod" AS ENUM ('TELEBIRR', 'CHAPA', 'BANK_TRANSFER');
-CREATE TYPE "RegistrationPaymentStatus" AS ENUM ('INITIATED', 'PENDING', 'PAID', 'REJECTED', 'FAILED');
+DO $$ BEGIN
+  CREATE TYPE "RegistrationPaymentMethod" AS ENUM ('TELEBIRR', 'CHAPA', 'BANK_TRANSFER');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE TYPE "RegistrationPaymentStatus" AS ENUM ('INITIATED', 'PENDING', 'PAID', 'REJECTED', 'FAILED');
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
-CREATE TABLE "RegistrationPayment" (
+CREATE TABLE IF NOT EXISTS "RegistrationPayment" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "registrationId" UUID,
   "institutionApplicationId" UUID,
@@ -27,9 +33,9 @@ CREATE TABLE "RegistrationPayment" (
   CONSTRAINT "RegistrationPayment_one_application_check" CHECK ((CASE WHEN "registrationId" IS NOT NULL THEN 1 ELSE 0 END) + (CASE WHEN "institutionApplicationId" IS NOT NULL THEN 1 ELSE 0 END) <= 1)
 );
 
-CREATE UNIQUE INDEX "RegistrationPayment_referenceNumber_key" ON "RegistrationPayment"("referenceNumber");
-CREATE UNIQUE INDEX "RegistrationPayment_intentToken_key" ON "RegistrationPayment"("intentToken");
-CREATE INDEX "RegistrationPayment_status_method_idx" ON "RegistrationPayment"("status", "method");
-CREATE INDEX "RegistrationPayment_registrationId_idx" ON "RegistrationPayment"("registrationId");
-CREATE INDEX "RegistrationPayment_institutionApplicationId_idx" ON "RegistrationPayment"("institutionApplicationId");
-CREATE INDEX "RegistrationPayment_submittedAt_idx" ON "RegistrationPayment"("submittedAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "RegistrationPayment_referenceNumber_key" ON "RegistrationPayment"("referenceNumber");
+CREATE UNIQUE INDEX IF NOT EXISTS "RegistrationPayment_intentToken_key" ON "RegistrationPayment"("intentToken");
+CREATE INDEX IF NOT EXISTS "RegistrationPayment_status_method_idx" ON "RegistrationPayment"("status", "method");
+CREATE INDEX IF NOT EXISTS "RegistrationPayment_registrationId_idx" ON "RegistrationPayment"("registrationId");
+CREATE INDEX IF NOT EXISTS "RegistrationPayment_institutionApplicationId_idx" ON "RegistrationPayment"("institutionApplicationId");
+CREATE INDEX IF NOT EXISTS "RegistrationPayment_submittedAt_idx" ON "RegistrationPayment"("submittedAt");

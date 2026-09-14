@@ -12,7 +12,7 @@ export default function PublicChrome({ children }: { children: React.ReactNode }
   const { locale, setLocale, t } = useI18n();
   const hidden = pathname.startsWith('/admin') || pathname.startsWith('/institution') || pathname === '/login';
   if (hidden) return children;
-  const links = [[t('home'), '/'], [t('services'), '/services'], [t('register'), '/register'], [t('track'), '/track'], [t('verify'), '/verify'], [t('about'), '/about']] as const;
+  const links = [[t('home'), '/'], [t('services'), '/services'], ['Individual registration', '/register/individual'], ['Institution registration', '/register/institution'], [t('track'), '/track'], [t('verify'), '/verify'], [t('about'), '/about']] as const;
   return <>
     <header className="site-header">
       <div className="site-header-inner">
