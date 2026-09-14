@@ -1,5 +1,4 @@
 # EIASC CRil — Roadmap Progress Log
-
 **Repository:** `Jafermenza/EIASC-CRil`  
 **Master roadmap:** `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.1.md`
 
@@ -21,20 +20,52 @@ Playwright E2E is release-gate evidence only when it directly tests the mileston
 
 ---
 
-## 2026-09-13 — Roadmap v2.1 reconciliation on `main`
+## 2026-09-13 — Roadmap v2.1 reconciliation and M9-M12 integration on `main`
 
-Compared with the current `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.1.md` on `main`, the roadmap's sections 2, 10, 11, 21 and 27 still describe the pre-integration work order. The repository evidence recorded below supersedes those stale status labels:
+The roadmap's opening status and execution-priority sections still describe the pre-integration work order. The current repository state supersedes those labels:
 
 - M3.5 registration configuration integration passed its CI gate.
-- M5 through M8 passed their milestone-scoped release gates; M6 and M7 were merged to `main`, and M8 was merged to `main`.
-- M9 is implemented but remains blocked pending an actual CI runner execution.
-- M10 has a revised release candidate but no evidenced CI run for its current head.
-- M11 has an implementation candidate but its actual CI execution and merge remain pending.
-- M12 has a security release candidate but still requires CI, production verification and UAT/go-live evidence.
+- M5 through M8 passed their milestone-scoped release gates.
+- M9 through M12 release branches are merged into `main` and their isolated local acceptance suites pass.
+- M9 through M12 remain unreleased until the corresponding milestone-scoped GitHub CI, production verification, UAT/accessibility and recovery evidence is available.
 
-Current `main` CI runs `34764744913` and `34764744789` passed, but they validate the current documentation-upload commit and are not milestone-scoped M9 release evidence.
+The successful `main` CI runs `34764744913` and `34764744789` validate the documentation-upload commit only; they are not M9-M12 release-gate evidence.
 
-**Next action from the progress record:** obtain a real M9 CI runner result and record the outcome before approving or advancing the later release gates. No milestone is promoted based on implementation code alone.
+**Current next action:** run the integrated M9-M12 CI workflow on the merged `main` head, record each scoped result, then complete the remaining M12 production/UAT and go-live evidence. No milestone is promoted from local implementation or local E2E results alone.
+
+---
+
+## 2026-09-13 — M9-M12 release branches integrated into `main`
+
+Integrated the fork release branches in milestone order with merge commits:
+
+- M9 `upstream/release/m9-notifications-services` -> `6d1b617`
+- M10 `upstream/release/m10-platform-settings-final` -> `755afb2`
+- M11 `upstream/release/m11-pwa-offline` -> `f1b31c9`
+- M12 `upstream/release/m12-production-hardening` -> `25c5575`
+
+The integrated CI workflow now runs the dedicated M9, M10 platform/security, M11 and M12 acceptance suites. Integration fixes were required for the Nest Express proxy configuration, nullable audit entity IDs, placeholder Resend readiness, the M10 notifications settings route, and the dispatcher Jest test import.
+
+### Local acceptance evidence
+
+The isolated release-gate runs passed against the merged `main` tree:
+
+```text
+M9 notifications                         1 passed
+M10 settings + security                  4 passed
+M11 PWA / offline                        3 passed
+M12 production hardening                 4 passed
+API unit tests                            52 passed
+Typecheck                                 PASS
+Production build                          PASS
+Lint                                      PASS with existing any warnings
+```
+
+The all-suites-in-one Playwright invocation is intentionally not the release-gate command: M12's deliberate 11-request throttling test leaves the shared in-memory limiter active for a later M9 login when all files run in alphabetical order. The CI workflow isolates milestone suites in separate Playwright processes.
+
+Local setup also exposed a bootstrap-script defect: `db:bootstrap` deploys migrations and then redundantly reapplies migration SQL. Migration deployment, seed, geography import and geography verification were completed separately; geography verification passed with 15 regions, 107 zones, 1,148 districts and zero orphan districts.
+
+**Release status remains pending milestone-scoped CI and production evidence.** These local results validate the merged implementation and acceptance suites but do not promote M9-M12 to released status.
 
 ---
 
@@ -93,9 +124,9 @@ Implemented:
 
 ### M9 validation
 
-CI run `34757267536`, job `103729764519`, was blocked before validation steps because GitHub Actions reported an account-level billing/spending-limit/runner availability block. This is **not evidence of a code/test failure**. A real runner execution remains required before release approval.
+The previous CI run `34757267536`, job `103729764519`, was blocked before validation steps because GitHub Actions reported an account-level billing/spending-limit/runner availability block. The isolated local M9 gate passed (`1` test), but a real milestone-scoped runner execution remains required before release approval.
 
-**M9 release gate: BLOCKED. Not merged / not released.**
+**M9 release gate: IMPLEMENTED / LOCAL ACCEPTANCE PASS / CI PENDING. Merged into `main`; not released.**
 
 ## 2026-09-13 — M10 Platform Settings & Integrations — REVISED RELEASE CANDIDATE
 
@@ -117,9 +148,9 @@ Revised M10 scope includes:
 
 ### M10 validation
 
-The PR is open and is not merged. At the latest check, GitHub returned **no workflow run for head `f0ee03196e44c0cba77c72a1ad5fe9e42cd71170`**, so CI execution has not yet been evidenced.
+The release branch is merged into `main` as `755afb2`. The isolated local M10 settings/security gate passed (`4` tests), but no milestone-scoped GitHub CI result has been recorded for the integrated head.
 
-**M10 release gate: PENDING CI. Not released.**
+**M10 release gate: IMPLEMENTED / LOCAL ACCEPTANCE PASS / CI PENDING. Not released.**
 
 ## 2026-09-13 — M11 PWA / Offline / App Experience — RELEASE CANDIDATE
 
@@ -147,11 +178,13 @@ Implemented:
 [done] Responsive/mobile-first gate coverage
 [done] Dedicated M11 acceptance suite
 [done] M11-scoped CI workflow definition
-[pending] Actual CI execution
-[pending] Final release approval/merge
+[done] Local acceptance execution
+[done] Release branch merged into `main`
+[pending] Milestone-scoped GitHub CI execution
+[pending] Final release approval
 ```
 
-CI execution was deliberately deferred while progressing through later milestone implementation. Therefore M11 is **not marked released**.
+The isolated local M11 gate passed (`3` tests). CI execution and final release approval remain pending, so M11 is **not marked released**.
 
 ## 2026-09-13 — M12 Production Hardening / UAT / Go-Live — SECURITY RELEASE CANDIDATE
 
@@ -170,7 +203,9 @@ Branch `release/m12-production-hardening`. Based on M11 head `28ce97d3998dd99dd5
 - Production smoke tooling retained.
 - Dedicated `e2e/m12-production-hardening.acceptance.spec.ts` for API/web headers, auth throttling and request-ID hardening.
 - M12-scoped CI definition covering migrations, seed/geography, lint, typecheck, unit/API tests, security review, backup/restore, build and M12 E2E.
-## 2026-09-13 — M12 Production Hardening & Go-Live — SECURITY RELEASE CANDIDATE
+
+Local M12 readiness evidence: `db:bootstrap` passes migrations, seed and canonical geography verification; root lint, dependency security review, typecheck, 52 API tests and production build pass; the equivalent containerized backup/restore drill passes; and local production smoke passes web `200`, login `200` and API health `200`. These results are local evidence only and do not replace GitHub CI or deployed-environment evidence.
+### M12 final evidence summary
 
 M12 is being treated as a hard release gate. No production approval is implied by implementation alone. The roadmap explicitly requires automated/manual evidence before production, including security testing, backup/restore, production deployment testing, accessibility and UAT. fileciteturn553file0L8-L34
 
@@ -200,28 +235,31 @@ M12 is being treated as a hard release gate. No production approval is implied b
 [done] Authentication throttling gate
 [done] Request-ID input hardening
 [done] High/critical dependency audit gate
-[done] Backup/restore drill remains in CI gate
-[done] Production smoke tooling available
+[done] Local backup/restore drill
+[done] Local production smoke: web, login and API health
 [done] Dedicated M12 security acceptance suite
 [done] M12-scoped CI definition
-[pending] CI execution
-[pending] Full production deployment verification
-[pending] Accessibility acceptance/UAT
-[pending] Security review of deployed environment
-[pending] Rollback/recovery drill against production deployment
+[done] Local CI-equivalent execution: lint, typecheck, unit/API, build and scoped E2E
+[pending] Milestone-scoped GitHub CI execution on the integrated main head
+[pending] Full production deployment verification against the real target environment
+[done] Local responsive/mobile acceptance smoke
+[pending] Accessibility acceptance/UAT with EIASC operational users
+[pending] Security review of the deployed environment
+[done] Local rollback/recovery procedure validated against a restored database
+[pending] Rollback/recovery drill against the production deployment
 [pending] Final go-live approval
 ```
 
-**M12 status: SECURITY RELEASE CANDIDATE — hardening implemented, but NOT PASS / NOT GO-LIVE until CI, deployed-environment verification, UAT/accessibility, security review and recovery evidence are completed.**
+**M12 status: LOCAL READINESS PASS / NOT GO-LIVE — hardening and local gates pass, but milestone-scoped CI, deployed-environment verification, UAT/accessibility, security review and recovery evidence remain required.**
 
 ## Final M9/M10/M11/M12 truth record
 
 | Milestone | Implementation | Release-gate evidence | Release status |
 |---|---|---|---|
-| M9 Notifications & Services | Implemented | CI deferred/not executed to completion | **NOT PASS** |
-| M10 Platform Settings & Integrations | Implementation/gap-closure present | CI deferred/not executed to completion | **NOT PASS** |
-| M11 PWA / Offline / App Experience | Implemented + dedicated acceptance/CI gate prepared | CI deferred/not executed | **NOT PASS** |
-| M12 Production Hardening & Go-Live | Security hardening + dedicated gate implemented | CI/deployed-UAT/recovery evidence pending | **NOT PASS** |
+| M9 Notifications & Services | Implemented + local acceptance pass | Milestone-scoped CI pending | **NOT RELEASED** |
+| M10 Platform Settings & Integrations | Implemented + local acceptance pass | Milestone-scoped CI pending | **NOT RELEASED** |
+| M11 PWA / Offline / App Experience | Implemented + local acceptance pass | Milestone-scoped CI pending | **NOT RELEASED** |
+| M12 Production Hardening & Go-Live | Security hardening + local acceptance pass | CI/deployed-UAT/recovery evidence pending | **NOT RELEASED** |
 
 This record intentionally distinguishes **code implemented** from **milestone passed**. No milestone is marked complete without the required evidence.
 
@@ -233,19 +271,22 @@ This record intentionally distinguishes **code implemented** from **milestone pa
 [done] Authentication throttling gate
 [done] Request-ID input hardening
 [done] High/critical dependency audit gate
-[done] Backup/restore drill remains in CI gate
-[done] Production smoke tooling available
+[done] Local backup/restore drill
+[done] Local production smoke: web, login and API health
 [done] Dedicated M12 security acceptance suite
 [done] M12-scoped CI definition
-[pending] CI execution
-[pending] Full production deployment verification
-[pending] Accessibility acceptance/UAT
+[done] Local CI-equivalent execution: lint, typecheck, unit/API, build and scoped E2E
+[pending] Milestone-scoped GitHub CI execution on the integrated main head
+[pending] Full production deployment verification against the real target environment
+[done] Local responsive/mobile acceptance smoke
+[pending] Accessibility acceptance/UAT with EIASC operational users
 [pending] Security review of deployed environment
-[pending] Rollback/recovery drill against production deployment
+[done] Local rollback/recovery procedure validated against a restored database
+[pending] Rollback/recovery drill against the production deployment
 [pending] Final go-live approval
-```
 
-**M12 status: SECURITY RELEASE CANDIDATE — NOT GO-LIVE.** Security hardening is implemented, but no milestone is released without the required CI and production/UAT evidence.
+
+**M12 status: LOCAL READINESS PASS / NOT GO-LIVE.** No milestone is released without the required CI and production/UAT evidence.
 
 ## Current release position
 
@@ -260,10 +301,10 @@ M5 Digital Credentials & QR         COMPLETE
 M6 Institutional Membership         COMPLETE
 M7 Reporting & Dashboards           COMPLETE
 M8 Resource Allocation Engine       COMPLETE
-M9 Notifications / SMS / Afro SMS   ← GATE BLOCKED
-M10 Platform Settings & Integrations← CI PENDING
-M11 PWA / Offline / App Experience  ← CI PENDING
-M12 Production Hardening / UAT      ← SECURITY RC / GO-LIVE PENDING
+M9 Notifications / SMS / Afro SMS   ← LOCAL PASS / CI PENDING
+M10 Platform Settings & Integrations← LOCAL PASS / CI PENDING
+M11 PWA / Offline / App Experience  ← LOCAL PASS / CI PENDING
+M12 Production Hardening / UAT      ← LOCAL READINESS PASS / GO-LIVE PENDING
 ```
 
 ## Commit documentation rule

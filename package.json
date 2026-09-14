@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace @eiasc/web\" \"npm run dev --workspace @eiasc/api\"",
     "build": "npm run build --workspace @eiasc/api && npm run build --workspace @eiasc/web",
-    "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
+    "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\" --ignore-pattern apps/web/next-env.d.ts",
     "typecheck": "npm run typecheck --workspace @eiasc/api && npm run typecheck --workspace @eiasc/web",
     "test": "npm run test --workspace @eiasc/api",
     "db:generate": "prisma generate",
@@ -19,7 +19,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:import-geography": "tsx scripts/import-geography.ts",
     "db:verify-geography": "tsx scripts/verify-geography.ts",
-    "db:bootstrap": "npm run db:deploy && npm run db:apply-registration-payments && npm run db:seed && npm run db:import-geography && npm run db:verify-geography",
+    "db:bootstrap": "npm run db:deploy && npm run db:seed && npm run db:import-geography && npm run db:verify-geography",
     "test:e2e": "playwright test",
     "security:review": "node scripts/security-review.mjs",
     "ops:smoke": "node scripts/production-smoke.mjs",

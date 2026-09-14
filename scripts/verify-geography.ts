@@ -1,13 +1,15 @@
+import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
 async function main() {
+  const canonical = { code: { not: { startsWith: 'E2E-' } } };
   const [regions, zones, districts, orphanDistricts] = await Promise.all([
-    prisma.region.count(),
-    prisma.zoneCity.count(),
-    prisma.district.count(),
-    prisma.district.count({ where: { zoneId: null, subcityId: null } }),
+    prisma.region.count({ where: canonical }),
+    prisma.zoneCity.count({ where: canonical }),
+    prisma.district.count({ where: canonical }),
+    prisma.district.count({ where: { ...canonical, zoneId: null, subcityId: null } }),
   ]);
 
   const expected = { regions: 15, zones: 107, districts: 1148 };
