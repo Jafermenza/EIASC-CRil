@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { extractErrorMessage, isValidEmail, isValidPhone } from "../../../lib/validation";
+import { useToast } from "../../../components/ui/toast-provider";
 
 type Location = { id: string; code?: string; name: string };
 type Bank = {
@@ -21,6 +23,7 @@ const API = "/api/v1";
 const inputClass = { width: "100%", boxSizing: "border-box" as const };
 
 export default function IndividualRegistrationPage() {
+  const { push } = useToast();
   const [step, setStep] = useState(1);
   const [regions, setRegions] = useState<Location[]>([]);
   const [zones, setZones] = useState<Location[]>([]);
@@ -39,6 +42,7 @@ export default function IndividualRegistrationPage() {
     gender: "",
     maritalStatus: "",
     phone: "",
+    email: "",
     educationLevel: "",
     employmentStatus: "",
     regionId: "",
@@ -63,6 +67,10 @@ export default function IndividualRegistrationPage() {
   const selectedBank = fees?.banks.find((bank) => bank.id === form.bankId);
   const subcityRequired = subcities.length > 0;
   const districtRequired = districts.length > 0;
+  function reportError(message: string) {
+    setError(message);
+    push({ type: "error", title: "Registration needs attention", message });
+  }
 
   useEffect(() => {
     Promise.all([
@@ -171,8 +179,17 @@ export default function IndividualRegistrationPage() {
       form.birthDate &&
       form.gender &&
       form.maritalStatus &&
-      form.phone,
+      form.phone && isValidPhone(form.phone) &&
+      form.email && isValidEmail(form.email),
     );
+  }
+  function validationReason() {
+    if (!form.firstName || !form.lastName || !form.birthDate || !form.gender || !form.maritalStatus) return "Complete all required personal information before continuing.";
+    if (!isValidPhone(form.phone)) return "Enter a valid phone number, for example +251911234567.";
+    if (!isValidEmail(form.email)) return "Enter a valid email address.";
+    if (!stepTwoValid()) return "Select your region, zone, and any required sub-city or district before continuing.";
+    if (!paymentValid()) return form.paymentMethod === "BANK_TRANSFER" && !form.bankId ? "Select the bank used for the transfer." : "Choose a payment method, enter the transaction reference, and accept the declaration before submitting.";
+    return "";
   }
   function stepTwoValid() {
     return Boolean(
@@ -206,12 +223,10 @@ export default function IndividualRegistrationPage() {
       });
       const data = await response.json();
       if (!response.ok)
-        throw new Error(data.message ?? "Unable to start Chapa payment.");
+        throw new Error(extractErrorMessage(data, "Unable to start Chapa payment."));
       window.location.assign(data.checkoutUrl);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Unable to start Chapa payment.",
-      );
+      reportError(e instanceof Error ? e.message : "Unable to start Chapa payment.");
     } finally {
       setPaying(false);
     }
@@ -219,15 +234,17 @@ export default function IndividualRegistrationPage() {
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!stepOneValid()) {
+      reportError(validationReason());
       setStep(1);
       return;
     }
     if (!stepTwoValid()) {
+      reportError(validationReason());
       setStep(2);
       return;
     }
     if (!paymentValid()) {
-      setError(
+      reportError(
         form.paymentMethod === "BANK_TRANSFER" && !form.bankId
           ? "Select the bank used for the transfer."
           : "Complete payment and enter the transaction reference before submitting.",
@@ -259,16 +276,12 @@ export default function IndividualRegistrationPage() {
       const data = await response.json();
       if (!response.ok)
         throw new Error(
-          Array.isArray(data.message)
-            ? data.message.join(", ")
-            : (data.message ?? "Registration could not be submitted."),
+          extractErrorMessage(data, "Registration could not be submitted."),
         );
       setResult(data);
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Registration could not be submitted.",
-      );
+      reportError(e instanceof Error ? e.message : "Registration could not be submitted.");
     } finally {
       setLoading(false);
     }
@@ -453,6 +466,17 @@ export default function IndividualRegistrationPage() {
             <p>
               <input
                 style={inputClass}
+                required
+                type="email"
+                placeholder="Email address"
+                value={form.email}
+                onChange={(e) => set("email", e.target.value)}
+              />
+              <small>A unique, valid email is required and will be used for account sign-in and notifications.</small>
+            </p>
+            <p>
+              <input
+                style={inputClass}
                 placeholder="National identity identifier"
                 value={form.nationalIdentity}
                 onChange={(e) => set("nationalIdentity", e.target.value)}
@@ -462,8 +486,7 @@ export default function IndividualRegistrationPage() {
               <button
                 type="button"
                 className="button button-primary"
-                disabled={!stepOneValid()}
-                onClick={() => setStep(2)}
+                onClick={() => { if (!stepOneValid()) { reportError(validationReason()); return; } setError(""); setStep(2); }}
               >
                 Continue to location
               </button>
@@ -595,8 +618,7 @@ export default function IndividualRegistrationPage() {
               <button
                 type="button"
                 className="button button-primary"
-                disabled={!stepTwoValid()}
-                onClick={() => setStep(3)}
+                onClick={() => { if (!stepTwoValid()) { reportError(validationReason()); return; } setError(""); setStep(3); }}
               >
                 Continue to payment
               </button>

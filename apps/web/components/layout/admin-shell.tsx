@@ -9,6 +9,7 @@ const ALL_ADMIN_ROLES = ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZON
 const sections = [
   { label: 'Overview', roles: ALL_ADMIN_ROLES, items: [{ label: 'Dashboard', href: '/admin/dashboard' }] },
   { label: 'Registration', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Individual registrations', href: '/admin/registrations' }, { label: 'Institution applications', href: '/admin/institutions' }] },
+  { label: 'Directory', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Approved members', href: '/admin/directory/members' }, { label: 'Approved institutions', href: '/admin/directory/institutions' }] },
   { label: 'Finance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'FINANCE_OFFICER', 'INSPECTOR'], items: [{ label: 'Registration payments', href: '/admin/payments' }] },
   { label: 'Governance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'], items: [{ label: 'Licensing', href: '/admin/licenses' }] },
   { label: 'Intelligence', roles: ALL_ADMIN_ROLES, items: [{ label: 'Reports & trends', href: '/admin/reports' }] },
@@ -26,8 +27,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         if (!token) { window.location.replace('/login'); return; }
         try {
           const response = await fetch('/api/v1/auth/me', { headers: { authorization: `Bearer ${token}` }, cache: 'no-store' });
-          const user = await response.json() as { roles?: string[] };
-          if (!response.ok || !user.roles?.length) throw new Error('Session expired');
+          const json = await response.json();
+          const user = ((json && typeof json === 'object' && 'data' in json && json.data) ? json.data : json) as { roles?: string[] };
+          if (!response.ok || !user?.roles?.length) throw new Error('Session expired');
           if (active) { setRoles(user.roles); localStorage.setItem('authUser', JSON.stringify(user)); setChecking(false); }
         } catch { localStorage.removeItem('accessToken'); localStorage.removeItem('refreshToken'); localStorage.removeItem('authUser'); window.location.replace('/login'); }
       };

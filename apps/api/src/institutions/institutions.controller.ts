@@ -54,6 +54,9 @@ export class InstitutionsController {
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Get('institutions/:id') get(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.getInstitution(req.user!, id); }
   @UseGuards(AuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
+  @Get('institutions/:id/admin-user') adminUser(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.adminUser(req.user!, id); }
+  @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Patch('institutions/:id') update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: InstitutionProfileUpdateInput) { return this.institutions.updateInstitution(req.user!, id, body); }
   @UseGuards(AuthGuard, RolesGuard)

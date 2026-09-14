@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useToast } from "../../../components/ui/toast-provider";
+import { extractErrorMessage, isValidEmail, isValidPhone } from "../../../lib/validation";
 
 type Location = { id: string; name: string };
 type Type = { id: string; code: string; name: string; description?: string };
@@ -23,6 +25,7 @@ const API = "/api/v1";
 const inputStyle = { width: "100%", boxSizing: "border-box" as const };
 
 export default function InstitutionRegistrationPage() {
+  const { push } = useToast();
   const [step, setStep] = useState(1);
   const [regions, setRegions] = useState<Location[]>([]);
   const [zones, setZones] = useState<Location[]>([]);
@@ -76,6 +79,10 @@ export default function InstitutionRegistrationPage() {
   const selectedBank = fees?.banks.find((bank) => bank.id === form.bankId);
   const subcityRequired = subcities.length > 0;
   const districtRequired = districts.length > 0;
+  function reportError(message: string) {
+    setError(message);
+    push({ type: "error", title: "Registration needs attention", message });
+  }
   useEffect(() => {
     Promise.all([
       fetch(`${API}/locations/regions`),
@@ -187,8 +194,8 @@ export default function InstitutionRegistrationPage() {
       form.institutionName &&
       form.institutionTypeId &&
       form.establishmentDate &&
-      form.phone &&
-      form.email,
+      isValidPhone(form.phone) &&
+      isValidEmail(form.email),
     );
   const step2Valid = () =>
     Boolean(
@@ -207,6 +214,14 @@ export default function InstitutionRegistrationPage() {
       form.paymentReference &&
       (form.paymentMethod !== "BANK_TRANSFER" || form.bankId),
     );
+  const validationReason = () => {
+    if (!form.institutionName || !form.institutionTypeId || !form.establishmentDate) return "Complete the institution name, type, and establishment date.";
+    if (!isValidPhone(form.phone)) return "Enter a valid institution phone number, for example +251911234567.";
+    if (!isValidEmail(form.email)) return "Enter a valid institution email address.";
+    if (!step2Valid()) return "Complete the location and responsible-person details, including region, zone, address, leader name, role, and phone.";
+    if (!paymentValid()) return form.paymentMethod === "BANK_TRANSFER" && !form.bankId ? "Select the bank used for the transfer." : "Choose a payment method and enter the transaction reference before submitting.";
+    return "";
+  };
   async function startChapa() {
     setError("");
     setPaying(true);
@@ -223,12 +238,10 @@ export default function InstitutionRegistrationPage() {
       });
       const data = await r.json();
       if (!r.ok)
-        throw new Error(data.message ?? "Unable to start Chapa payment.");
+        throw new Error(extractErrorMessage(data, "Unable to start Chapa payment."));
       window.location.assign(data.checkoutUrl);
     } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Unable to start Chapa payment.",
-      );
+      reportError(e instanceof Error ? e.message : "Unable to start Chapa payment.");
     } finally {
       setPaying(false);
     }
@@ -236,15 +249,17 @@ export default function InstitutionRegistrationPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!step1Valid()) {
+      reportError(validationReason());
       setStep(1);
       return;
     }
     if (!step2Valid()) {
+      reportError(validationReason());
       setStep(2);
       return;
     }
     if (!paymentValid()) {
-      setError(
+      reportError(
         form.paymentMethod === "BANK_TRANSFER" && !form.bankId
           ? "Select the bank used for the transfer."
           : "Complete payment and enter the transaction reference before submitting.",
@@ -312,18 +327,11 @@ export default function InstitutionRegistrationPage() {
       const data = await r.json();
       if (!r.ok)
         throw new Error(
-          Array.isArray(data.message)
-            ? data.message.join(", ")
-            : data.message ||
-                "The institution application could not be submitted.",
+          extractErrorMessage(data, "The institution application could not be submitted."),
         );
       setResult(data.trackingCode);
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "The application service could not complete submission.",
-      );
+      reportError(err instanceof Error ? err.message : "The application service could not complete submission.");
     } finally {
       setLoading(false);
     }
@@ -519,8 +527,7 @@ export default function InstitutionRegistrationPage() {
             <button
               type="button"
               className="button button-primary"
-              disabled={!step1Valid()}
-              onClick={() => setStep(2)}
+              onClick={() => { if (!step1Valid()) { reportError(validationReason()); return; } setError(""); setStep(2); }}
             >
               Continue to location
             </button>

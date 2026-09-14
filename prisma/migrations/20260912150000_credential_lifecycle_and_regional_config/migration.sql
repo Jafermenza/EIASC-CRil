@@ -8,9 +8,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS "CredentialConfiguration_regionId_key"
   ON "CredentialConfiguration"("regionId")
   WHERE "regionId" IS NOT NULL;
 
-ALTER TABLE "CredentialConfiguration"
-  ADD CONSTRAINT "CredentialConfiguration_regionId_fkey"
-  FOREIGN KEY ("regionId") REFERENCES "Region"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CredentialConfiguration"
+    ADD CONSTRAINT "CredentialConfiguration_regionId_fkey"
+    FOREIGN KEY ("regionId") REFERENCES "Region"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 ALTER TABLE "Credential"
   ADD COLUMN IF NOT EXISTS "revocationReason" TEXT,
