@@ -60,7 +60,7 @@ const header = ['region_code','region_name','zone_code','zone_city_name','distri
 const csvLines = [header.join(',')];
 for (const row of rows) csvLines.push([row.regionCode,row.regionName,row.zoneCode,row.zoneName,row.districtCode,row.districtName,row.placeType].map(csv).join(','));
 const attribution = `Data from Open Admin Data (CC-BY-4.0). Source: ${SOURCE}; commit: ${SOURCE_COMMIT}; URL: ${SOURCE_URL}`;
-await writeFile(CSV_PATH, `# ${attribution}\n${csvLines.join('\n')}\n`, 'utf8');
+await writeFile(CSV_PATH, `${csvLines.join('\n')}\n`, 'utf8');
 
 const regionRows = [...new Map(rows.map(r => [r.regionCode, r])).values()];
 const zoneRows = [...new Map(rows.map(r => [r.zoneCode, r])).values()];
