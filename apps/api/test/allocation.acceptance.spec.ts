@@ -5,9 +5,9 @@ import { AllocationPolicyStatus, RoleCode } from '@prisma/client';
 describe('Allocation policy formula acceptance', () => {
   it('uses the approved policy formula and preserves an explicit equalization amount', async () => {
     const prisma = {
-      allocationPolicy: { findUnique: jest.fn().mockResolvedValue({ id: 'p1', version: '2026.1', status: AllocationPolicyStatus.APPROVED, formulaDefinition: { perMemberMultiplier: 0.5, equalizationPerInstitution: 10 } }) },
+      allocationPolicy: { findUnique: jest.fn().mockResolvedValue({ id: 'p1', version: '2026.1', status: AllocationPolicyStatus.APPROVED, eligibilityRules: {}, formulaDefinition: { perMemberMultiplier: 0.5, equalizationPerInstitution: 10 } }) },
       institution: { findMany: jest.fn().mockResolvedValue([{ id: 'i1' }, { id: 'i2' }]) },
-      memberInstitution: { groupBy: jest.fn().mockResolvedValue([{ institutionId: 'i1', _count: { memberId: 1 } }]) },
+      memberInstitution: { findMany: jest.fn().mockResolvedValue([{ institutionId: 'i1' }]) },
       allocationRun: { create: jest.fn().mockResolvedValue({ id: 'r1' }), findUnique: jest.fn().mockResolvedValue({ id: 'r1', policyVersion: '2026.1', totalAllocated: 1020 }) },
       auditLog: { create: jest.fn() },
     } as any;

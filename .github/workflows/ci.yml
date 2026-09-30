@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ['main', 'develop', 'feature/**', 'fix/**']
+    branches: ['main', 'develop', 'feature/**', 'fix/**', 'release/**']
   pull_request:
     branches: ['main']
 
@@ -50,7 +50,13 @@ jobs:
       - run: npm run ops:backup-restore
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - name: Run M9 notification services acceptance suite
+        run: npx playwright test e2e/m9-notifications.acceptance.spec.ts
       - name: Run M10 platform settings acceptance suite
         run: npx playwright test e2e/m10-platform-settings.acceptance.spec.ts
       - name: Run M10 security acceptance suite
         run: npx playwright test e2e/m10-security.acceptance.spec.ts
+      - name: Run M11 PWA / offline acceptance suite
+        run: npx playwright test e2e/m11-pwa-offline.acceptance.spec.ts
+      - name: Run M12 production hardening acceptance suite
+        run: npx playwright test e2e/m12-production-hardening.acceptance.spec.ts

@@ -15,7 +15,7 @@ describe('RegistrationsService', () => {
 
   const input = {
     firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: '1990-01-01', gender: 'Female', maritalStatus: 'Single',
-    phone: '+251900000000', educationLevel: 'Degree', employmentStatus: 'Employed', regionId: 'r', zoneId: 'z',
+    phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed', regionId: 'r', zoneId: 'z',
     subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', declarationAccepted: true,
     payment: { method: 'BANK_TRANSFER' as const, referenceNumber: 'BANK-12345' },
   };
@@ -29,7 +29,7 @@ describe('RegistrationsService', () => {
     prisma.registration.create.mockResolvedValue({
       id: 'registration-1', trackingCode: 'EIASC-2026-ABC123', status: 'SUBMITTED', declarationAccepted: true,
       firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: new Date('1990-01-01'), gender: 'Female',
-      maritalStatus: 'Single', phone: '+251900000000', educationLevel: 'Degree', employmentStatus: 'Employed',
+      maritalStatus: 'Single', phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed',
       regionId: 'r', zoneId: 'z', subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', nationalIdentity: null,
       institutionId: null, familyRelationship: null, familyMemberName: null, familyMemberPhone: null,
       correctionReason: null, rejectionReason: null, decisionAt: null, submittedAt: new Date('2026-09-10'),
@@ -93,7 +93,7 @@ describe('RegistrationsService', () => {
     prisma.registration.update.mockResolvedValue({
       id: 'registration-1', trackingCode: 'EIASC-2026-ABC123', status: 'RESUBMITTED', declarationAccepted: true,
       firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: new Date('1990-01-01'), gender: 'Female',
-      maritalStatus: 'Single', phone: '+251900000000', educationLevel: 'Degree', employmentStatus: 'Employed',
+      maritalStatus: 'Single', phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed',
       regionId: 'r', zoneId: 'z', subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', nationalIdentity: null,
       institutionId: null, familyRelationship: null, familyMemberName: null, familyMemberPhone: null,
       correctionReason: null, rejectionReason: null, decisionAt: null, submittedAt: new Date(), createdAt: new Date(), updatedAt: new Date(),

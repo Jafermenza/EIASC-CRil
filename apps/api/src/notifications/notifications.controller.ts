@@ -14,6 +14,10 @@ export class NotificationsController {
   list(@Req() req: AuthenticatedRequest, @Query('unreadOnly') unreadOnly?: string) { return this.notifications.list(req.user!, unreadOnly === 'true'); }
   @Patch(':id/read')
   read(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.notifications.markRead(req.user!, id); }
+  @Post('test-in-app')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.INSTITUTION_ADMIN)
+  testInApp(@Req() req: AuthenticatedRequest, @Body() body: { type?: string; message?: string }) { return this.notifications.testInApp(req.user!, body); }
   @Post('test-email')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.INSTITUTION_ADMIN)
@@ -29,5 +33,5 @@ export class NotificationsController {
   @Put('settings/admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN)
-  updateSettings(@Req() req: AuthenticatedRequest, @Body() body: { smsEnabled?: boolean; templates?: Record<string, string> }) { return this.notifications.updateAdminSettings(req.user!.roles, body); }
+  updateSettings(@Req() req: AuthenticatedRequest, @Body() body: { smsEnabled?: boolean; eventToggles?: Record<string, boolean>; templates?: Record<string, string> }) { return this.notifications.updateAdminSettings(req.user!.roles, body); }
 }

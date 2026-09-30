@@ -34,6 +34,11 @@ export class UsersController {
     return this.users.remove(this.actor(request), id, reason, requestId);
   }
 
+  @Post(':id/reset-credentials')
+  resetCredentials(@Req() request: AuthenticatedRequest, @Param('id') id: string, @Headers('x-request-id') requestId?: string) {
+    return this.users.resetCredentials(this.actor(request), id, requestId);
+  }
+
   private actor(request: AuthenticatedRequest) {
     if (!request.user) throw new BadRequestException('Authenticated user is unavailable');
     return request.user;

@@ -11,10 +11,10 @@ export class CredentialConfigurationController {
   constructor(private readonly configuration: CredentialConfigurationService) {}
   @Get()
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN)
+  @Roles(RoleCode.SUPER_ADMIN)
   get(@Req() req: AuthenticatedRequest) { return this.configuration.getForUser(req.user!); }
   @Put()
   @UseGuards(AuthGuard, RolesGuard)
-  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN)
+  @Roles(RoleCode.SUPER_ADMIN)
   update(@Req() req: AuthenticatedRequest, @Body() body: Record<string, unknown>) { return this.configuration.update(req.user!, body); }
 }

@@ -5,6 +5,8 @@ import { AuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { LocationsModule } from '../locations/locations.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { CredentialProvisioningService } from '../auth/credential-provisioning.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 import { InstitutionDocumentsController } from './institution-documents.controller';
 import { InstitutionDocumentsService } from './institution-documents.service';
@@ -15,7 +17,7 @@ import { InstitutionsService } from './institutions.service';
 @Module({
   imports: [LocationsModule, PaymentsModule],
   controllers: [InstitutionsController, InstitutionDocumentsController, InstitutionTypesAdminController],
-  providers: [InstitutionsService, InstitutionDocumentsService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
+  providers: [InstitutionsService, InstitutionDocumentsService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard, CredentialProvisioningService, NotificationsService],
   exports: [InstitutionsService],
 })
 export class InstitutionsModule {}
