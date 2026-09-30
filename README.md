@@ -9,29 +9,109 @@ The repository follows the authoritative `PRD.md` and is being implemented seque
 - `apps/web` — Next.js frontend
 - `apps/api` — NestJS API
 - `prisma` — PostgreSQL/Prisma data foundation
-- `docker-compose.yml` — local PostgreSQL for development
+- `docker-compose.yml` — optional local PostgreSQL convenience service
 
 ## Requirements
 
 - Node.js 20+
 - npm 10+
-- PostgreSQL 16+ (or the included Docker service)
+- PostgreSQL 16+ accessible through `DATABASE_URL`
 
-## Local setup
+## Local setup without Docker
+
+Docker is **not required**. The application uses PostgreSQL through `DATABASE_URL`, so it works with:
+
+- a PostgreSQL 16+ server installed on your machine;
+- a managed PostgreSQL provider; or
+- the optional `docker compose` service.
+
+### 1. Prepare PostgreSQL
+
+Create a database and a login role with access to it. On Ubuntu/Debian, after installing PostgreSQL 16+, this can be done with:
+
+```bash
+sudo -u postgres createuser --pwprompt cril
+sudo -u postgres createdb --owner=cril cril
+```
+
+For an existing or managed database, use its host, port, database name, user, and password instead. The account needs permission to create and alter the application tables during migrations.
+
+### 2. Configure the application
 
 ```bash
 cp .env.example .env
+```
+
+Update at least these values in `.env`:
+
+```dotenv
+DATABASE_URL="postgresql://cril:YOUR_DATABASE_PASSWORD@127.0.0.1:5432/cril?schema=public"
+JWT_SECRET="replace-with-a-unique-random-secret-of-at-least-32-characters"
+```
+
+Use `localhost` or the managed provider hostname as appropriate. URL-encode special characters in the database password. `.env` is ignored by Git and must never be committed.
+
+### 3. Install, initialize, and run
+
+```bash
 npm install
 npm run db:generate
-docker compose up -d postgres
 npm run db:migrate
 npm run db:seed
-npm run db:bootstrap
+npm run db:import-geography
+npm run db:export-geography
+npm run db:verify-geography
 npm run dev
 ```
 
 Frontend: `http://localhost:3000`
 API health: `http://localhost:4000/api/v1/health`
+
+### Optional Docker database
+
+If you prefer Docker for PostgreSQL, start only the database service before the initialization commands above:
+
+```bash
+docker compose up -d postgres
+```
+
+The default `.env.example` connection string matches this service. Docker is not needed after you point `DATABASE_URL` at another reachable PostgreSQL server.
+
+## Production build and run
+
+Production requires a managed or self-hosted PostgreSQL 16+ database; do not run the development Docker database as the production datastore.
+
+1. Copy `.env.example` to a secure environment configuration and set production values. At minimum, set `NODE_ENV=production`, `DATABASE_URL`, a unique `JWT_SECRET` of at least 32 characters, `WEB_ORIGIN`, `API_PUBLIC_URL`, `WEB_PUBLIC_URL`, `NEXT_PUBLIC_API_URL`, and `API_INTERNAL_URL`. Set `WEB_ORIGIN` to the public web URL; the API refuses to start in production without it.
+2. Install the locked dependencies and generate Prisma Client:
+
+   ```bash
+   npm ci
+   npm run db:generate
+   ```
+
+3. Apply versioned database migrations, then populate required reference data on a new database:
+
+   ```bash
+   npm run db:deploy
+   npm run db:seed
+   npm run db:import-geography
+   npm run db:export-geography
+   npm run db:verify-geography
+   ```
+
+4. Create the production artifacts:
+
+   ```bash
+   npm run build
+   ```
+
+5. Start both applications from the build output:
+
+   ```bash
+   npm run start:prod
+   ```
+
+`start:prod` is appropriate for a single-host deployment. In managed production, run `npm run start:api` and `npm run start:web` as separately supervised services, expose them behind HTTPS, and provide environment variables through the platform secret store rather than a committed file.
 
 ## Ethiopia geographic reference data
 

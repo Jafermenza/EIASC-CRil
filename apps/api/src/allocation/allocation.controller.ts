@@ -12,7 +12,6 @@ export class AllocationController {
   constructor(private readonly allocation: AllocationService) {}
 
   @Post('policies')
-  createPolicy(@Req() req: AuthenticatedRequest, @Body() body: { name: string; version: string; effectiveFrom: string; eligibilityRules: object; formulaDefinition: object }) { return this.allocation.createPolicy(req.user!, body); }
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.FINANCE_OFFICER)
   createPolicy(@Req() req: AuthenticatedRequest, @Body() body: { name?: string; version?: string; effectiveFrom?: string; eligibilityRules?: object; formulaDefinition?: object }) {
     return this.allocation.createPolicy(req.user!, {
