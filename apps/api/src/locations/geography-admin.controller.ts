@@ -1,6 +1,7 @@
 import { BadRequestException, Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
-import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { AuthGuard } from '../auth/auth.guard';
+import type { AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
 import { GeographyAdminService } from './geography-admin.service';

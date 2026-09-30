@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { jest } from '@jest/globals';
 import { LicensingController } from '../src/licensing/licensing.controller';
 import { LicensingService } from '../src/licensing/licensing.service';
 import { AuthGuard } from '../src/auth/auth.guard';

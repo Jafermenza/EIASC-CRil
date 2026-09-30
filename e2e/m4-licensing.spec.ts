@@ -6,6 +6,11 @@ test('completes the database-backed M4 licensing journey and public verification
   await page.getByLabel('Email address or phone number').fill('e2e-admin@example.test');
   await page.getByLabel('Password').fill('e2e-password-12345');
   await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL(/\/admin\/dashboard$/);
+
+  // The canonical post-auth landing page is the admin dashboard. M4 licensing
+  // is then reached through the normal administration navigation.
+  await page.goto('/admin/licenses');
   await expect(page).toHaveURL(/\/admin\/licenses$/);
 
   await page.getByLabel('Approved institution ID').fill(await institutionId(page));

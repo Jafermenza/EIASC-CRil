@@ -1,5 +1,6 @@
 import { BadRequestException, Body, Controller, Get, Headers, Post, Req, UseGuards } from '@nestjs/common';
-import { AuthGuard, AuthenticatedRequest } from './auth.guard';
+import { AuthGuard } from './auth.guard';
+import type { AuthenticatedRequest } from './auth.guard';
 import { AuthService } from './auth.service';
 
 interface CredentialsBody { identifier?: string; password?: string }

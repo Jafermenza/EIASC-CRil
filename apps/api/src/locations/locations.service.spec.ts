@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { LocationsService } from './locations.service';
 
 describe('LocationsService', () => {
@@ -5,7 +6,7 @@ describe('LocationsService', () => {
     region: { findMany: jest.fn() },
     zoneCity: { findMany: jest.fn(), findUnique: jest.fn() },
     subcityTown: { findMany: jest.fn(), findUnique: jest.fn() },
-    district: { findMany: jest.fn(), findUnique: jest.fn() },
+    district: { findMany: jest.fn(), findUnique: jest.fn(), count: jest.fn() },
   };
   const service = new LocationsService(prisma as never);
 
@@ -49,11 +50,38 @@ describe('LocationsService', () => {
 
   it('validates the complete region-to-district chain through a subcity', async () => {
     prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.subcityTown.findMany.mockResolvedValue([{ id: 'subcity-1' }]);
     prisma.district.findUnique.mockResolvedValue({ id: 'district-1', zoneId: null, subcityId: 'subcity-1' });
     prisma.subcityTown.findUnique.mockResolvedValue({ id: 'subcity-1', zoneId: 'zone-1' });
     await expect(
       service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1', subcityId: 'subcity-1', districtId: 'district-1' }),
     ).resolves.toBeUndefined();
+  });
+
+  it('allows missing subcity and district when neither level is configured', async () => {
+    prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.subcityTown.findMany.mockResolvedValue([]);
+    prisma.district.count.mockResolvedValue(0);
+    await expect(
+      service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1' }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('requires a configured subcity when the selected zone has subcities', async () => {
+    prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.subcityTown.findMany.mockResolvedValue([{ id: 'subcity-1' }]);
+    await expect(
+      service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1' }),
+    ).rejects.toThrow('Sub-city/town is required for the selected zone/city');
+  });
+
+  it('requires a configured district when the selected parent has districts', async () => {
+    prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.subcityTown.findMany.mockResolvedValue([]);
+    prisma.district.count.mockResolvedValue(2);
+    await expect(
+      service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1' }),
+    ).rejects.toThrow('District/woreda is required for the selected location');
   });
 
   it('rejects a cross-parent hierarchy', async () => {
@@ -65,6 +93,7 @@ describe('LocationsService', () => {
 
   it('validates a district directly under a zone', async () => {
     prisma.zoneCity.findUnique.mockResolvedValue({ id: 'zone-1', regionId: 'region-1' });
+    prisma.subcityTown.findMany.mockResolvedValue([]);
     prisma.district.findUnique.mockResolvedValue({ id: 'district-1', zoneId: 'zone-1', subcityId: null });
     await expect(
       service.validateHierarchy({ regionId: 'region-1', zoneId: 'zone-1', districtId: 'district-1' }),

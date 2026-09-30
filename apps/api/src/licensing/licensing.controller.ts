@@ -1,9 +1,10 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
-import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
+import { AuthGuard } from '../auth/auth.guard';
+import type { AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { CreateLicenseInput, LicenseListQuery, LicenseReasonInput, RenewLicenseInput } from './license.types';
+import type { CreateLicenseInput, LicenseListQuery, LicenseReasonInput, RenewLicenseInput } from './license.types';
 import { LicensingService } from './licensing.service';
 
 const VIEW_ROLES = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR, RoleCode.INSTITUTION_ADMIN];

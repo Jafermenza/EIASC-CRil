@@ -1,27 +1,861 @@
-'use client';
+"use client";
 
-import { FormEvent, useEffect, useState } from 'react';
+import Link from "next/link";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useToast } from "../../../components/ui/toast-provider";
+import { extractErrorMessage, isValidEmail, isValidPhone } from "../../../lib/validation";
 
 type Location = { id: string; name: string };
 type Type = { id: string; code: string; name: string; description?: string };
-const API = '/api/v1';
+type Bank = {
+  id: string;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  branch?: string;
+};
+type Fees = {
+  currency: string;
+  institution: number;
+  methods: string[];
+  telebirr?: { accountName: string; accountNumber: string };
+  banks: Bank[];
+};
+const API = "/api/v1";
+const inputStyle = { width: "100%", boxSizing: "border-box" as const };
 
 export default function InstitutionRegistrationPage() {
-  const [regions, setRegions] = useState<Location[]>([]); const [zones, setZones] = useState<Location[]>([]); const [subcities, setSubcities] = useState<Location[]>([]); const [districts, setDistricts] = useState<Location[]>([]); const [types, setTypes] = useState<Type[]>([]);
-  const [error, setError] = useState(''); const [result, setResult] = useState(''); const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState({ institutionName:'', institutionTypeId:'', establishmentDate:'', phone:'', email:'', alternativeName:'', website:'', secondaryPhone:'', regionId:'', zoneId:'', subcityId:'', districtId:'', address:'', mission:'', description:'', services:'', communityActivities:'', applicantName:'', applicantPhone:'', applicantEmail:'', leaderName:'', leaderRole:'', leaderPhone:'', leaderEmail:'', imamCount:'0', teacherCount:'0', administrativeStaffCount:'0', otherStaffCount:'0', studentCount:'0', educationTeacherCount:'0', educationLevels:'' });
+  const { push } = useToast();
+  const [step, setStep] = useState(1);
+  const [regions, setRegions] = useState<Location[]>([]);
+  const [zones, setZones] = useState<Location[]>([]);
+  const [subcities, setSubcities] = useState<Location[]>([]);
+  const [districts, setDistricts] = useState<Location[]>([]);
+  const [types, setTypes] = useState<Type[]>([]);
+  const [fees, setFees] = useState<Fees | null>(null);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [form, setForm] = useState({
+    institutionName: "",
+    institutionTypeId: "",
+    establishmentDate: "",
+    phone: "",
+    email: "",
+    alternativeName: "",
+    website: "",
+    secondaryPhone: "",
+    regionId: "",
+    zoneId: "",
+    subcityId: "",
+    districtId: "",
+    address: "",
+    mission: "",
+    description: "",
+    services: "",
+    communityActivities: "",
+    applicantName: "",
+    applicantPhone: "",
+    applicantEmail: "",
+    leaderName: "",
+    leaderRole: "",
+    leaderPhone: "",
+    leaderEmail: "",
+    imamCount: "0",
+    teacherCount: "0",
+    administrativeStaffCount: "0",
+    otherStaffCount: "0",
+    studentCount: "0",
+    educationTeacherCount: "0",
+    educationLevels: "",
+    paymentMethod: "",
+    bankId: "",
+    paymentReference: "",
+    receiptUrl: "",
+  });
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  useEffect(() => { fetch(`${API}/locations/regions`).then(r=>r.json()).then(setRegions).catch(()=>setError('Unable to load regions.')); fetch(`${API}/institution-types`).then(r=>r.json()).then(setTypes).catch(()=>setError('Unable to load institution types.')); }, []);
-  useEffect(() => { setZones([]); setSubcities([]); setDistricts([]); setForm(f=>({...f,zoneId:'',subcityId:'',districtId:''})); if(form.regionId) fetch(`${API}/locations/zones?regionId=${encodeURIComponent(form.regionId)}`).then(r=>r.json()).then(setZones); }, [form.regionId]);
-  useEffect(() => { setSubcities([]); setDistricts([]); setForm(f=>({...f,subcityId:'',districtId:''})); if(form.zoneId) fetch(`${API}/locations/subcities?zoneId=${encodeURIComponent(form.zoneId)}`).then(r=>r.json()).then(setSubcities); }, [form.zoneId]);
-  useEffect(() => { setDistricts([]); setForm(f=>({...f,districtId:''})); if(form.subcityId) fetch(`${API}/locations/districts?parentId=${encodeURIComponent(form.subcityId)}`).then(r=>r.json()).then(setDistricts); }, [form.subcityId]);
-  async function submit(e: FormEvent) { e.preventDefault(); setLoading(true); setError(''); setResult(''); try { const payload:any = { institutionName:form.institutionName,institutionTypeId:form.institutionTypeId,establishmentDate:form.establishmentDate,phone:form.phone,email:form.email,alternativeName:form.alternativeName,website:form.website,secondaryPhone:form.secondaryPhone,regionId:form.regionId,zoneId:form.zoneId,subcityId:form.subcityId,districtId:form.districtId,address:form.address,mission:form.mission,description:form.description,services:form.services,communityActivities:form.communityActivities,applicantName:form.applicantName,applicantPhone:form.applicantPhone,applicantEmail:form.applicantEmail,leaders:[{fullName:form.leaderName,role:form.leaderRole,phone:form.leaderPhone,email:form.leaderEmail}],staff:{imamCount:Number(form.imamCount),teacherCount:Number(form.teacherCount),administrativeStaffCount:Number(form.administrativeStaffCount),otherStaffCount:Number(form.otherStaffCount)},education:{studentCount:Number(form.studentCount),teacherCount:Number(form.educationTeacherCount),educationLevels:form.educationLevels.split(',').map(x=>x.trim()).filter(Boolean)}}; Object.keys(payload).forEach(k=>{if(payload[k]==='')delete payload[k]}); const r=await fetch(`${API}/registrations/institution`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)}); const data=await r.json(); if(!r.ok) throw new Error(Array.isArray(data.message)?data.message.join(', '):data.message||'Application failed'); setResult(data.trackingCode); } catch(err){setError(err instanceof Error?err.message:'Application failed');} finally{setLoading(false);} }
-  if(result) return <main className="shell hero"><p className="eyebrow">EIASC · INSTITUTION</p><h1>Institution application submitted</h1><p className="lead">Keep this tracking code safe.</p><article className="grid"><div><h2>{result}</h2><p>Status: <strong>SUBMITTED</strong></p><a className="button" href={`/track/institution?code=${encodeURIComponent(result)}`}>Track application</a></div></article></main>;
-  return <main className="shell" style={{maxWidth:1000}}><div className="hero"><p className="eyebrow">EIASC · INSTITUTION REGISTRATION</p><h1>Register an Islamic institution</h1><p className="lead">Submit accurate institutional information for EIASC review.</p></div>{error&&<article className="grid"><div><strong>Unable to submit</strong><p>{error}</p></div></article>}<form onSubmit={submit} className="grid">
-    <section><h2>Basic information</h2><p><input required placeholder="Institution name" value={form.institutionName} onChange={e=>set('institutionName',e.target.value)}/></p><p><select required value={form.institutionTypeId} onChange={e=>set('institutionTypeId',e.target.value)}><option value="">Institution type</option>{types.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></p><p><input required type="date" value={form.establishmentDate} onChange={e=>set('establishmentDate',e.target.value)}/></p><p><input required placeholder="Phone" value={form.phone} onChange={e=>set('phone',e.target.value)}/></p><p><input required type="email" placeholder="Email" value={form.email} onChange={e=>set('email',e.target.value)}/></p><p><input placeholder="Alternative name" value={form.alternativeName} onChange={e=>set('alternativeName',e.target.value)}/></p><p><input placeholder="Website (https://...)" value={form.website} onChange={e=>set('website',e.target.value)}/></p></section>
-    <section><h2>Location</h2><p><select required value={form.regionId} onChange={e=>set('regionId',e.target.value)}><option value="">Region</option>{regions.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></p><p><select required value={form.zoneId} disabled={!zones.length} onChange={e=>set('zoneId',e.target.value)}><option value="">Zone / City</option>{zones.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></p><p><select required value={form.subcityId} disabled={!subcities.length} onChange={e=>set('subcityId',e.target.value)}><option value="">Sub-city / Town</option>{subcities.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></p><p><select required value={form.districtId} disabled={!districts.length} onChange={e=>set('districtId',e.target.value)}><option value="">District / Woreda</option>{districts.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></p><p><textarea required placeholder="Full address" value={form.address} onChange={e=>set('address',e.target.value)}/></p></section>
-    <section><h2>Leadership</h2><p><input required placeholder="Responsible person's full name" value={form.leaderName} onChange={e=>set('leaderName',e.target.value)}/></p><p><input required placeholder="Role (e.g. Imam, Director)" value={form.leaderRole} onChange={e=>set('leaderRole',e.target.value)}/></p><p><input required placeholder="Leader phone" value={form.leaderPhone} onChange={e=>set('leaderPhone',e.target.value)}/></p><p><input type="email" placeholder="Leader email" value={form.leaderEmail} onChange={e=>set('leaderEmail',e.target.value)}/></p></section>
-    <section><h2>Staff & education summary</h2><p><input type="number" min="0" placeholder="Imam count" value={form.imamCount} onChange={e=>set('imamCount',e.target.value)}/></p><p><input type="number" min="0" placeholder="Teacher count" value={form.teacherCount} onChange={e=>set('teacherCount',e.target.value)}/></p><p><input type="number" min="0" placeholder="Administrative staff" value={form.administrativeStaffCount} onChange={e=>set('administrativeStaffCount',e.target.value)}/></p><p><input type="number" min="0" placeholder="Students" value={form.studentCount} onChange={e=>set('studentCount',e.target.value)}/></p><p><input placeholder="Education levels, comma separated (QURAN, HIFZ...)" value={form.educationLevels} onChange={e=>set('educationLevels',e.target.value)}/></p></section>
-    <section><h2>Description & applicant</h2><p><textarea placeholder="Mission" value={form.mission} onChange={e=>set('mission',e.target.value)}/></p><p><textarea placeholder="Description" value={form.description} onChange={e=>set('description',e.target.value)}/></p><p><textarea placeholder="Services / community activities" value={form.services} onChange={e=>set('services',e.target.value)}/></p><p><input placeholder="Applicant name" value={form.applicantName} onChange={e=>set('applicantName',e.target.value)}/></p><p><input placeholder="Applicant phone (used for tracking verification)" value={form.applicantPhone} onChange={e=>set('applicantPhone',e.target.value)}/></p><p><input type="email" placeholder="Applicant email" value={form.applicantEmail} onChange={e=>set('applicantEmail',e.target.value)}/></p><button className="button" disabled={loading}>{loading?'Submitting…':'Submit institution application'}</button></section>
-  </form></main>;
+  const progress = useMemo(() => Math.round((step / 3) * 100), [step]);
+  const selectedBank = fees?.banks.find((bank) => bank.id === form.bankId);
+  const subcityRequired = subcities.length > 0;
+  const districtRequired = districts.length > 0;
+  function reportError(message: string) {
+    setError(message);
+    push({ type: "error", title: "Registration needs attention", message });
+  }
+  useEffect(() => {
+    Promise.all([
+      fetch(`${API}/locations/regions`),
+      fetch(`${API}/institution-types`),
+      fetch(`${API}/payments/fees`),
+    ])
+      .then(async ([a, b, c]) => {
+        if (!a.ok || !b.ok || !c.ok)
+          throw new Error("Required registration data could not be loaded.");
+        const regionData = await a.json();
+        const typeData = await b.json();
+        const feeData = await c.json();
+        if (!typeData.length)
+          throw new Error("No active institution types are configured.");
+        if (!feeData.methods?.length)
+          throw new Error(
+            "No registration payment method is currently configured.",
+          );
+        setRegions(regionData);
+        setTypes(typeData);
+        setFees(feeData);
+        setForm((f) => ({
+          ...f,
+          paymentMethod:
+            f.paymentMethod && feeData.methods.includes(f.paymentMethod)
+              ? f.paymentMethod
+              : feeData.methods[0],
+        }));
+      })
+      .catch((e) =>
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Required registration data could not be loaded.",
+        ),
+      );
+  }, []);
+  useEffect(() => {
+    setZones([]);
+    setSubcities([]);
+    setDistricts([]);
+    setForm((f) => ({ ...f, zoneId: "", subcityId: "", districtId: "" }));
+    if (form.regionId)
+      fetch(
+        `${API}/locations/zones?regionId=${encodeURIComponent(form.regionId)}`,
+      )
+        .then(async (r) => {
+          if (!r.ok) throw new Error("Unable to load zones.");
+          return r.json();
+        })
+        .then(setZones)
+        .catch((e) =>
+          setError(e instanceof Error ? e.message : "Unable to load zones."),
+        );
+  }, [form.regionId]);
+  useEffect(() => {
+    setSubcities([]);
+    setDistricts([]);
+    setForm((f) => ({ ...f, subcityId: "", districtId: "" }));
+    if (!form.zoneId) return;
+    fetch(
+      `${API}/locations/subcities?zoneId=${encodeURIComponent(form.zoneId)}`,
+    )
+      .then(async (r) => {
+        const data = await r.json();
+        if (!r.ok) throw new Error("Unable to load sub-cities.");
+        setSubcities(data);
+        if (!data.length) {
+          const d = await fetch(
+            `${API}/locations/districts?zoneId=${encodeURIComponent(form.zoneId)}`,
+          ).then(async (x) => {
+            if (!x.ok) throw new Error("Unable to load districts.");
+            return x.json();
+          });
+          setDistricts(d);
+        }
+      })
+      .catch((e) =>
+        setError(
+          e instanceof Error ? e.message : "Unable to load location data.",
+        ),
+      );
+  }, [form.zoneId]);
+  useEffect(() => {
+    if (!form.subcityId) return;
+    setDistricts([]);
+    fetch(
+      `${API}/locations/districts?parentId=${encodeURIComponent(form.subcityId)}`,
+    )
+      .then(async (r) => {
+        if (!r.ok) throw new Error("Unable to load districts.");
+        return r.json();
+      })
+      .then(setDistricts)
+      .catch((e) =>
+        setError(e instanceof Error ? e.message : "Unable to load districts."),
+      );
+  }, [form.subcityId]);
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("payment_ref");
+    if (ref) {
+      set("paymentMethod", "CHAPA");
+      set("paymentReference", ref);
+      setStep(3);
+    }
+  }, []);
+  const step1Valid = () =>
+    Boolean(
+      form.institutionName &&
+      form.institutionTypeId &&
+      form.establishmentDate &&
+      isValidPhone(form.phone) &&
+      isValidEmail(form.email),
+    );
+  const step2Valid = () =>
+    Boolean(
+      form.regionId &&
+      form.zoneId &&
+      (!subcityRequired || form.subcityId) &&
+      (!districtRequired || form.districtId) &&
+      form.address &&
+      form.leaderName &&
+      form.leaderRole &&
+      form.leaderPhone,
+    );
+  const paymentValid = () =>
+    Boolean(
+      form.paymentMethod &&
+      form.paymentReference &&
+      (form.paymentMethod !== "BANK_TRANSFER" || form.bankId),
+    );
+  const validationReason = () => {
+    if (!form.institutionName || !form.institutionTypeId || !form.establishmentDate) return "Complete the institution name, type, and establishment date.";
+    if (!isValidPhone(form.phone)) return "Enter a valid institution phone number, for example +251911234567.";
+    if (!isValidEmail(form.email)) return "Enter a valid institution email address.";
+    if (!step2Valid()) return "Complete the location and responsible-person details, including region, zone, address, leader name, role, and phone.";
+    if (!paymentValid()) return form.paymentMethod === "BANK_TRANSFER" && !form.bankId ? "Select the bank used for the transfer." : "Choose a payment method and enter the transaction reference before submitting.";
+    return "";
+  };
+  async function startChapa() {
+    setError("");
+    setPaying(true);
+    try {
+      const r = await fetch(`${API}/payments/chapa/initialize`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          kind: "INSTITUTION",
+          name: form.institutionName,
+          email: form.email,
+          phone: form.phone,
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok)
+        throw new Error(extractErrorMessage(data, "Unable to start Chapa payment."));
+      window.location.assign(data.checkoutUrl);
+    } catch (e) {
+      reportError(e instanceof Error ? e.message : "Unable to start Chapa payment.");
+    } finally {
+      setPaying(false);
+    }
+  }
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!step1Valid()) {
+      reportError(validationReason());
+      setStep(1);
+      return;
+    }
+    if (!step2Valid()) {
+      reportError(validationReason());
+      setStep(2);
+      return;
+    }
+    if (!paymentValid()) {
+      reportError(
+        form.paymentMethod === "BANK_TRANSFER" && !form.bankId
+          ? "Select the bank used for the transfer."
+          : "Complete payment and enter the transaction reference before submitting.",
+      );
+      setStep(3);
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const payload: any = {
+        institutionName: form.institutionName,
+        institutionTypeId: form.institutionTypeId,
+        establishmentDate: form.establishmentDate,
+        phone: form.phone,
+        email: form.email,
+        alternativeName: form.alternativeName,
+        website: form.website,
+        secondaryPhone: form.secondaryPhone,
+        regionId: form.regionId,
+        zoneId: form.zoneId,
+        subcityId: form.subcityId || undefined,
+        districtId: form.districtId || undefined,
+        address: form.address,
+        mission: form.mission,
+        description: form.description,
+        services: form.services,
+        communityActivities: form.communityActivities,
+        applicantName: form.applicantName,
+        applicantPhone: form.applicantPhone,
+        applicantEmail: form.applicantEmail,
+        leaders: [
+          {
+            fullName: form.leaderName,
+            role: form.leaderRole,
+            phone: form.leaderPhone,
+            email: form.leaderEmail,
+          },
+        ],
+        staff: {
+          imamCount: Number(form.imamCount),
+          teacherCount: Number(form.teacherCount),
+          administrativeStaffCount: Number(form.administrativeStaffCount),
+          otherStaffCount: Number(form.otherStaffCount),
+        },
+        education: {
+          studentCount: Number(form.studentCount),
+          teacherCount: Number(form.educationTeacherCount),
+          educationLevels: form.educationLevels
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean),
+        },
+        payment: {
+          method: form.paymentMethod,
+          referenceNumber: form.paymentReference,
+          receiptUrl: form.receiptUrl || undefined,
+        },
+      };
+      const r = await fetch(`${API}/registrations/institution`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (!r.ok)
+        throw new Error(
+          extractErrorMessage(data, "The institution application could not be submitted."),
+        );
+      setResult(data.trackingCode);
+    } catch (err) {
+      reportError(err instanceof Error ? err.message : "The application service could not complete submission.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  if (result)
+    return (
+      <main className="shell hero">
+        <p className="eyebrow">EIASC · INSTITUTION</p>
+        <h1>Institution application submitted</h1>
+        <p className="lead">
+          Your application and payment reference have been recorded.
+        </p>
+        <section className="workflow-panel">
+          <p className="eyebrow">TRACKING CODE</p>
+          <h2>{result}</h2>
+          <p>
+            Status: <strong>SUBMITTED</strong>
+          </p>
+          <div className="action-row">
+            <Link
+              className="button button-primary"
+              href={`/track?code=${encodeURIComponent(result)}`}
+            >
+              Track application
+            </Link>
+            <Link className="button button-secondary" href="/">
+              Return home
+            </Link>
+          </div>
+        </section>
+      </main>
+    );
+  return (
+    <main className="shell" style={{ maxWidth: 1000 }}>
+      <div className="hero">
+        <p className="eyebrow">EIASC · INSTITUTION REGISTRATION</p>
+        <h1>Register an Islamic institution</h1>
+        <p className="lead">
+          Complete the application in three sequential steps. Payment is
+          required before submission.
+        </p>
+      </div>
+      <section className="workflow-panel">
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <strong>Step {step} of 3</strong>
+          <span>{progress}% complete</span>
+        </div>
+        <div
+          style={{
+            height: 8,
+            background: "rgba(0,0,0,.1)",
+            borderRadius: 99,
+            overflow: "hidden",
+            margin: "10px 0 16px",
+          }}
+        >
+          <div
+            style={{
+              width: `${progress}%`,
+              height: "100%",
+              background: "currentColor",
+              transition: "width .2s",
+            }}
+          />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3,1fr)",
+            gap: 8,
+          }}
+        >
+          {[
+            "Institution basics",
+            "Location & responsible person",
+            "Payment & submission",
+          ].map((x, i) => (
+            <button
+              key={x}
+              type="button"
+              onClick={() => i + 1 < step && setStep(i + 1)}
+              style={{
+                border: 0,
+                background: "transparent",
+                textAlign: "left",
+                opacity: i + 1 === step ? 1 : 0.65,
+                cursor: i + 1 < step ? "pointer" : "default",
+              }}
+            >
+              <strong>{String(i + 1).padStart(2, "0")}</strong>
+              <br />
+              {x}
+            </button>
+          ))}
+        </div>
+      </section>
+      {error && (
+        <section className="error-reason" role="alert">
+          <strong>Registration needs attention</strong>
+          <span>{error}</span>
+        </section>
+      )}
+      <form onSubmit={submit} className="grid">
+        {step === 1 && (
+          <section>
+            <p className="eyebrow">01 · BASIC INFORMATION</p>
+            <h2>Institution information</h2>
+            <p>
+              <label>
+                Institution name
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.institutionName}
+                  onChange={(e) => set("institutionName", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Institution type
+                <select
+                  style={inputStyle}
+                  required
+                  value={form.institutionTypeId}
+                  onChange={(e) => set("institutionTypeId", e.target.value)}
+                >
+                  <option value="">Select institution type</option>
+                  {types.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </p>
+            <p>
+              <label>
+                Establishment date
+                <input
+                  style={inputStyle}
+                  required
+                  type="date"
+                  value={form.establishmentDate}
+                  onChange={(e) => set("establishmentDate", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Phone
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Email
+                <input
+                  style={inputStyle}
+                  required
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => set("email", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Alternative name
+                <input
+                  style={inputStyle}
+                  value={form.alternativeName}
+                  onChange={(e) => set("alternativeName", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Website
+                <input
+                  style={inputStyle}
+                  value={form.website}
+                  onChange={(e) => set("website", e.target.value)}
+                  placeholder="https://example.org"
+                />
+              </label>
+            </p>
+            <button
+              type="button"
+              className="button button-primary"
+              onClick={() => { if (!step1Valid()) { reportError(validationReason()); return; } setError(""); setStep(2); }}
+            >
+              Continue to location
+            </button>
+          </section>
+        )}
+        {step === 2 && (
+          <section>
+            <p className="eyebrow">02 · LOCATION & RESPONSIBLE PERSON</p>
+            <h2>Location and leadership</h2>
+            <p>
+              <label>
+                Region
+                <select
+                  style={inputStyle}
+                  required
+                  value={form.regionId}
+                  onChange={(e) => set("regionId", e.target.value)}
+                >
+                  <option value="">Select region</option>
+                  {regions.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </p>
+            <p>
+              <label>
+                Zone / City
+                <select
+                  style={inputStyle}
+                  required
+                  value={form.zoneId}
+                  disabled={!zones.length}
+                  onChange={(e) => set("zoneId", e.target.value)}
+                >
+                  <option value="">Select zone / city</option>
+                  {zones.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </p>
+            {subcities.length > 0 && (
+              <p>
+                <label>
+                  Sub-city / Town {subcityRequired ? "" : "(optional)"}
+                  <select
+                    style={inputStyle}
+                    required={subcityRequired}
+                    value={form.subcityId}
+                    onChange={(e) => set("subcityId", e.target.value)}
+                  >
+                    <option value="">
+                      {subcityRequired
+                        ? "Select sub-city / town"
+                        : "Not configured — optional"}
+                    </option>
+                    {subcities.map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </p>
+            )}
+            <p>
+              <label>
+                District / Woreda {districtRequired ? "" : "(optional)"}
+                <select
+                  style={inputStyle}
+                  required={districtRequired}
+                  value={form.districtId}
+                  disabled={!districts.length}
+                  onChange={(e) => set("districtId", e.target.value)}
+                >
+                  <option value="">
+                    {districtRequired
+                      ? "Select district / woreda"
+                      : "Not configured — optional"}
+                  </option>
+                  {districts.map((x) => (
+                    <option key={x.id} value={x.id}>
+                      {x.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </p>
+            <p>
+              <label>
+                Full address
+                <textarea
+                  style={inputStyle}
+                  required
+                  value={form.address}
+                  onChange={(e) => set("address", e.target.value)}
+                />
+              </label>
+            </p>
+            <h3>Responsible person</h3>
+            <p>
+              <label>
+                Full name
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.leaderName}
+                  onChange={(e) => set("leaderName", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Role
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.leaderRole}
+                  onChange={(e) => set("leaderRole", e.target.value)}
+                  placeholder="Imam, Director, Administrator…"
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Phone
+                <input
+                  style={inputStyle}
+                  required
+                  value={form.leaderPhone}
+                  onChange={(e) => set("leaderPhone", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Email
+                <input
+                  style={inputStyle}
+                  type="email"
+                  value={form.leaderEmail}
+                  onChange={(e) => set("leaderEmail", e.target.value)}
+                />
+              </label>
+            </p>
+            <div className="action-row">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setStep(1)}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                disabled={!step2Valid()}
+                onClick={() => setStep(3)}
+              >
+                Continue to payment
+              </button>
+            </div>
+          </section>
+        )}
+        {step === 3 && (
+          <section>
+            <p className="eyebrow">03 · PAYMENT & SUBMISSION</p>
+            <h2>Pay the registration fee</h2>
+            <div className="workflow-panel">
+              <strong>
+                {fees
+                  ? `${fees.institution.toFixed(2)} ${fees.currency}`
+                  : "Registration fee"}
+              </strong>
+              <p>
+                Payment is mandatory before the institution application can be
+                submitted.
+              </p>
+            </div>
+            <label>
+              Payment method
+              <select
+                style={inputStyle}
+                required
+                name="paymentMethod"
+                value={form.paymentMethod}
+                onChange={(e) => {
+                  set("paymentMethod", e.target.value);
+                  set("bankId", "");
+                }}
+              >
+                <option value="">Select a payment method</option>
+                {(fees?.methods ?? []).map((method) => (
+                  <option key={method} value={method}>
+                    {method === "BANK_TRANSFER" ? "Bank transfer" : method}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {form.paymentMethod === "TELEBIRR" && (
+              <div className="workflow-panel">
+                <p>
+                  Send to{" "}
+                  <strong>
+                    {fees?.telebirr?.accountName ||
+                      "configured Telebirr account"}
+                  </strong>
+                  {fees?.telebirr?.accountNumber && (
+                    <>
+                      {" "}
+                      · <strong>{fees.telebirr.accountNumber}</strong>
+                    </>
+                  )}
+                  .
+                </p>
+                <p>
+                  <input
+                    style={inputStyle}
+                    required
+                    placeholder="Telebirr transaction reference"
+                    value={form.paymentReference}
+                    onChange={(e) => set("paymentReference", e.target.value)}
+                  />
+                </p>
+              </div>
+            )}
+            {form.paymentMethod === "BANK_TRANSFER" && (
+              <div className="workflow-panel">
+                <label>
+                  Select bank
+                  <select
+                    style={inputStyle}
+                    required
+                    value={form.bankId}
+                    onChange={(e) => set("bankId", e.target.value)}
+                  >
+                    <option value="">Select receiving bank</option>
+                    {(fees?.banks ?? []).map((bank) => (
+                      <option key={bank.id} value={bank.id}>
+                        {bank.bankName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {selectedBank && (
+                  <div style={{ marginTop: 12 }}>
+                    <p>
+                      <strong>{selectedBank.bankName}</strong>
+                    </p>
+                    <p>
+                      Account name: <strong>{selectedBank.accountName}</strong>
+                      <br />
+                      Account number:{" "}
+                      <strong>{selectedBank.accountNumber}</strong>
+                      {selectedBank.branch && (
+                        <>
+                          <br />
+                          Branch: <strong>{selectedBank.branch}</strong>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                )}
+                <p>
+                  <input
+                    style={inputStyle}
+                    required
+                    placeholder="Bank transaction reference number"
+                    value={form.paymentReference}
+                    onChange={(e) => set("paymentReference", e.target.value)}
+                  />
+                </p>
+                <p className="lead" style={{ fontSize: 14 }}>
+                  The transaction reference number is required for bank-transfer
+                  verification.
+                </p>
+              </div>
+            )}
+            {form.paymentMethod === "CHAPA" && (
+              <div>
+                <button
+                  type="button"
+                  className="button button-primary"
+                  disabled={paying || !form.phone}
+                  onClick={startChapa}
+                >
+                  {paying ? "Opening secure checkout…" : "Pay with Chapa"}
+                </button>
+                <p className="lead" style={{ fontSize: 14 }}>
+                  After payment, you return here with the Chapa reference.
+                </p>
+              </div>
+            )}
+            <p>
+              {form.paymentMethod !== "CHAPA" && (
+                <input
+                  style={inputStyle}
+                  placeholder="Receipt URL (optional)"
+                  value={form.receiptUrl}
+                  onChange={(e) => set("receiptUrl", e.target.value)}
+                />
+              )}
+            </p>
+            <div className="action-row">
+              <button
+                type="button"
+                className="button button-secondary"
+                onClick={() => setStep(2)}
+              >
+                Back
+              </button>
+              <button
+                className="button button-primary"
+                disabled={loading || !paymentValid()}
+              >
+                {loading
+                  ? "Submitting application…"
+                  : "Submit institution application"}
+              </button>
+            </div>
+          </section>
+        )}
+      </form>
+    </main>
+  );
 }
