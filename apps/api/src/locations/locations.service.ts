@@ -1,6 +1,30 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
+import { GeographyImportStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
+export interface LocationHierarchyInput { regionId:string; zoneId:string; subcityId?:string; districtId:string }
+type Name={en?:string;local?:string}; type Woreda={id:string;name?:Name}; type Zone={id:string;name?:Name;woreda?:Woreda[]}; type Region={id:string;name?:Name;zone?:Zone[]}; type Payload={_attribution?:string;data?:Region[]};
+const SOURCE_URL=process.env.GEOGRAPHY_SOURCE_URL??'https://raw.githubusercontent.com/Jafermenza/ethiopia-administrative-divisions/418739e33760bf79661f3914e2d8c9cf33248437/data/hierarchy.json';
+const display=(name?:Name,fallback?:string)=>name?.en?.trim()||name?.local?.trim()||fallback||'';
+
+@Injectable()
+export class LocationsService implements OnModuleInit {
+ constructor(private readonly prisma:PrismaService){}
+ async onModuleInit(){await this.ensureGeographySeeded();}
+ async ensureGeographySeeded(){
+  const [regions,zones]=await Promise.all([this.prisma.region.count(),this.prisma.zoneCity.count()]);
+  if(regions>0&&zones>0)return {ready:true,seeded:false,regions,zones};
+  const response=await fetch(SOURCE_URL); if(!response.ok) throw new Error(`Geography bootstrap source returned HTTP ${response.status}`);
+  const payload=await response.json() as Payload; if(!Array.isArray(payload.data)||!payload.data.length) throw new Error('Geography bootstrap source contains no data');
+  const run=await this.prisma.geographyImport.create({data:{source:'Ethiopia administrative divisions',sourceVersion:process.env.GEOGRAPHY_SOURCE_VERSION??'418739e33760bf79661f3914e2d8c9cf33248437',sourceUrl:SOURCE_URL,status:GeographyImportStatus.RUNNING}});
+  let regionCount=0,zoneCount=0,districtCount=0;
+  try{await this.prisma.$transaction(async tx=>{for(const region of payload.data!){if(!region.id)throw new Error('Geography source contains a region without an id');const savedRegion=await tx.region.upsert({where:{code:region.id},update:{name:display(region.name,region.id)},create:{code:region.id,name:display(region.name,region.id)}});regionCount++;for(const zone of region.zone??[]){if(!zone.id)throw new Error(`Geography source contains an invalid zone under ${region.id}`);const savedZone=await tx.zoneCity.upsert({where:{code:zone.id},update:{name:display(zone.name,zone.id),regionId:savedRegion.id},create:{code:zone.id,name:display(zone.name,zone.id),regionId:savedRegion.id}});zoneCount++;for(const woreda of zone.woreda??[]){if(!woreda.id)throw new Error(`Geography source contains an invalid woreda under ${zone.id}`);await tx.district.upsert({where:{code:woreda.id},update:{name:display(woreda.name,woreda.id),zoneId:savedZone.id,subcityId:null},create:{code:woreda.id,name:display(woreda.name,woreda.id),zoneId:savedZone.id}});districtCount++;}}}},{timeout:120000});await this.prisma.geographyImport.update({where:{id:run.id},data:{status:GeographyImportStatus.SUCCESS,completedAt:new Date(),regionCount,zoneCount,districtCount,createdCount:regionCount+zoneCount+districtCount}});return{ready:true,seeded:true,regions:regionCount,zones:zoneCount,districts:districtCount};}catch(error){await this.prisma.geographyImport.update({where:{id:run.id},data:{status:GeographyImportStatus.FAILED,completedAt:new Date(),regionCount,zoneCount,districtCount,errorCount:1,errors:{message:error instanceof Error?error.message:String(error)}}});throw error;}}
+ private validateParentId(parentId?:string){if(parentId===undefined)return undefined;const value=parentId.trim();if(!value)throw new BadRequestException('parentId must not be empty');return value;}
+ async getRegions(){return this.prisma.region.findMany({orderBy:{name:'asc'},select:{id:true,code:true,name:true}})}
+ async getZones(regionId?:string){const parentId=this.validateParentId(regionId);return this.prisma.zoneCity.findMany({where:parentId?{regionId:parentId}:undefined,orderBy:{name:'asc'},select:{id:true,code:true,name:true,regionId:true}})}
+ async getSubcities(zoneId?:string){const parentId=this.validateParentId(zoneId);return this.prisma.subcityTown.findMany({where:parentId?{zoneId:parentId}:undefined,orderBy:{name:'asc'},select:{id:true,code:true,name:true,zoneId:true}})}
+ async getDistricts(subcityId?:string,zoneId?:string){const subcity=this.validateParentId(subcityId);const zone=this.validateParentId(zoneId);if(subcity&&zone)throw new BadRequestException('Provide either subcityId or zoneId, not both');return this.prisma.district.findMany({where:subcity?{subcityId:subcity}:zone?{zoneId:zone}:undefined,orderBy:{name:'asc'},select:{id:true,code:true,name:true,subcityId:true,zoneId:true}})}
+ async validateHierarchy(input:LocationHierarchyInput):Promise<void>{const regionId=input.regionId.trim(),zoneId=input.zoneId.trim(),districtId=input.districtId.trim(),subcityId=input.subcityId?.trim()||undefined;if(!regionId||!zoneId||!districtId)throw new BadRequestException('Region, zone/city and district/woreda are required');const zone=await this.prisma.zoneCity.findUnique({where:{id:zoneId},select:{id:true,regionId:true}});if(!zone||zone.regionId!==regionId)throw new BadRequestException('Location hierarchy is invalid');const district=await this.prisma.district.findUnique({where:{id:districtId},select:{id:true,zoneId:true,subcityId:true}});if(!district)throw new BadRequestException('Location hierarchy is invalid');if(subcityId){const subcity=await this.prisma.subcityTown.findUnique({where:{id:subcityId},select:{id:true,zoneId:true}});if(!subcity||subcity.zoneId!==zoneId||district.subcityId!==subcityId)throw new BadRequestException('Location hierarchy is invalid');return;}if(district.zoneId!==zoneId)throw new BadRequestException('Location hierarchy is invalid');}
 export interface LocationHierarchyInput {
   regionId: string;
   zoneId: string;
