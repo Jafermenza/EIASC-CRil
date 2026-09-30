@@ -5,10 +5,13 @@ import { PrismaModule } from '../prisma.module';
 import { AuthService } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthGuard } from '../auth/auth.guard';
+import { AuthorizationService } from '../auth/authorization.service';
+import { PrismaService } from '../prisma.service';
 
 @Module({
   imports: [PrismaModule],
   controllers: [AllocationController],
+  providers: [AllocationService, PrismaService, AuthService, AuthGuard, AuthorizationService],
   providers: [AllocationService, AuthService, AuthorizationService, AuthGuard],
 })
 export class AllocationModule {}

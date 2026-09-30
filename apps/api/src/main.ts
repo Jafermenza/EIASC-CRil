@@ -3,6 +3,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { securityMiddleware } from './security/security.middleware';
+import { requestLoggingMiddleware } from './security/request-logging.middleware';
 import { HttpExceptionFilter } from './common/http-exception.filter';
 
 function getAllowedOrigins(): string[] {
@@ -19,6 +20,7 @@ async function bootstrap() {
   const proxyHops = Number(process.env.TRUST_PROXY_HOPS ?? 1);
   app.getHttpAdapter().getInstance().set('trust proxy', Number.isInteger(proxyHops) && proxyHops >= 0 ? proxyHops : 1);
   app.use(securityMiddleware);
+  app.use(requestLoggingMiddleware);
   app.useGlobalFilters(new HttpExceptionFilter());
   const origins = getAllowedOrigins();
   app.enableCors({ origin: origins.length > 0 ? origins : true, methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'] });
