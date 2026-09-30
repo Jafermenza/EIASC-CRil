@@ -5,9 +5,9 @@ export type IndividualRegistrationStatus = (typeof INDIVIDUAL_REGISTRATION_STATU
 
 export interface IndividualRegistrationInput {
   firstName: string; middleName?: string; lastName: string; birthDate: string; gender: string; maritalStatus: string; phone: string; email: string;
-  educationLevel?: string; employmentStatus?: string; regionId: string; zoneId: string; subcityId?: string; districtId?: string;
+  educationLevel?: string; fieldOfStudy?: string; employmentStatus?: string; careerRole?: string; regionId: string; zoneId: string; subcityId?: string; districtId?: string;
   currentAddress?: string; nationalIdentity?: string; institutionId?: string; familyRelationship?: string; familyMemberName?: string;
-  familyMemberPhone?: string; declarationAccepted: boolean; payment: PaymentInput;
+  familyMemberPhone?: string; declarationAccepted: boolean; payment?: PaymentInput;
 }
 export interface IndividualRegistrationRecord extends Omit<IndividualRegistrationInput, 'payment'> { id: string; trackingCode: string; status: IndividualRegistrationStatus; age: number; submittedAt: Date | null; createdAt: Date; updatedAt: Date; payment?: PaymentInput; }
 export interface ApplicationTrackingResult { type: RegistrationTypeValue; trackingCode: string; status: IndividualRegistrationStatus; submittedAt: Date | null; createdAt: Date; updatedAt: Date; nextAction: string; correctionRequirement?: string; decisionInformation?: string; }

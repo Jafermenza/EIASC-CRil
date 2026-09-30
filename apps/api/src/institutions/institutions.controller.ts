@@ -17,9 +17,15 @@ export class InstitutionsController {
 
   @Post('registrations/institution')
   async create(@Body() body: InstitutionApplicationInput) {
-    if (!body?.payment) throw new BadRequestException('Registration payment is required before submission');
-    await this.payments.validateForSubmission('INSTITUTION', body.payment);
     const application = await this.institutions.createApplication(body);
+    return application;
+  }
+
+  @Post('registrations/institution/:trackingCode/payment')
+  async payment(@Param('trackingCode') trackingCode: string, @Body() body: { payment?: InstitutionApplicationInput['payment'] }) {
+    if (!body?.payment) throw new BadRequestException('Registration payment is required');
+    await this.payments.validateForSubmission('INSTITUTION', body.payment);
+    const application = await this.institutions.submitPayment(trackingCode);
     await this.payments.attachToApplication('INSTITUTION', application.id, body.payment);
     return { ...application, payment: await this.payments.getForApplication('INSTITUTION', application.id) };
   }

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -16,6 +16,11 @@ export class RegistrationsController {
       throw new BadRequestException('Registration payload is required');
     }
     return this.registrations.createIndividual(body);
+  }
+
+  @Post('individual/:trackingCode/payment')
+  payment(@Param('trackingCode') trackingCode: string, @Body() body: { payment?: IndividualRegistrationInput['payment'] }) {
+    return this.registrations.submitPayment(trackingCode, body?.payment);
   }
 
   @Post('individual/:trackingCode/resubmit')
@@ -45,6 +50,12 @@ export class RegistrationsController {
   @Get('admin/members/:id')
   memberDetail(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.registrations.memberDetail(req.user!, id);
+  }
+
+  @Patch('admin/members/:id')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  updateMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: Record<string, unknown>) {
+    return this.registrations.updateMember(req.user!, id, body);
   }
 
   @UseGuards(AuthGuard, RolesGuard)

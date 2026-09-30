@@ -49,6 +49,29 @@ describe('RegistrationsService', () => {
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'REGISTRATION_SUBMITTED' }) }));
   });
 
+  it('saves a valid individual registration before payment', async () => {
+    prisma.registration.create.mockResolvedValueOnce({
+      id: 'registration-1', trackingCode: 'EIASC-2026-ABC123', status: 'DRAFT', declarationAccepted: true,
+      firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: new Date('1990-01-01'), gender: 'Female',
+      maritalStatus: 'Single', phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed',
+      regionId: 'r', zoneId: 'z', subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', nationalIdentity: null,
+      institutionId: null, familyRelationship: null, familyMemberName: null, familyMemberPhone: null,
+      correctionReason: null, rejectionReason: null, decisionAt: null, submittedAt: null,
+      createdAt: new Date('2026-09-10'), updatedAt: new Date('2026-09-10'),
+    });
+    const result = await service.createIndividual({ ...input, payment: undefined });
+    expect(result).toEqual(expect.objectContaining({
+      trackingCode: 'EIASC-2026-ABC123',
+      status: 'DRAFT',
+      phone: '+251900000000',
+      submittedAt: null,
+    }));
+    expect(payments.attachToApplication).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ action: 'REGISTRATION_SAVED' }),
+    }));
+  });
+
   it('rejects a likely duplicate by phone', async () => {
     prisma.member.findFirst.mockResolvedValue({ id: 'member-1' });
     await expect(service.createIndividual(input)).rejects.toBeInstanceOf(ConflictException);

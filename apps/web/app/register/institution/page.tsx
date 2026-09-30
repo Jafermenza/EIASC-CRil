@@ -34,7 +34,8 @@ export default function InstitutionRegistrationPage() {
   const [types, setTypes] = useState<Type[]>([]);
   const [fees, setFees] = useState<Fees | null>(null);
   const [error, setError] = useState("");
-  const [result, setResult] = useState("");
+  const [result, setResult] = useState<{ trackingCode: string; phone: string } | null>(null);
+  const [application, setApplication] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [paying, setPaying] = useState(false);
   const [form, setForm] = useState({
@@ -184,6 +185,14 @@ export default function InstitutionRegistrationPage() {
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("payment_ref");
     if (ref) {
+      const saved = sessionStorage.getItem("institution-registration-application");
+      if (saved) {
+        try {
+          setApplication(JSON.parse(saved));
+        } catch {
+          sessionStorage.removeItem("institution-registration-application");
+        }
+      }
       set("paymentMethod", "CHAPA");
       set("paymentReference", ref);
       setStep(3);
@@ -239,12 +248,64 @@ export default function InstitutionRegistrationPage() {
       const data = await r.json();
       if (!r.ok)
         throw new Error(extractErrorMessage(data, "Unable to start Chapa payment."));
+      if (application) sessionStorage.setItem("institution-registration-application", JSON.stringify(application));
       window.location.assign(data.checkoutUrl);
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Unable to start Chapa payment.");
     } finally {
       setPaying(false);
     }
+  }
+  async function saveApplication() {
+    if (!step1Valid() || !step2Valid()) {
+      reportError(validationReason());
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const payload = applicationPayload();
+      const r = await fetch(`${API}/registrations/institution`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(extractErrorMessage(data, "The institution application could not be saved."));
+      setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      setStep(3);
+    } catch (err) {
+      reportError(err instanceof Error ? err.message : "The application service could not save your application.");
+    } finally {
+      setLoading(false);
+    }
+  }
+  function applicationPayload() {
+    return {
+      institutionName: form.institutionName,
+      institutionTypeId: form.institutionTypeId,
+      establishmentDate: form.establishmentDate,
+      phone: form.phone,
+      email: form.email,
+      alternativeName: form.alternativeName,
+      website: form.website,
+      secondaryPhone: form.secondaryPhone,
+      regionId: form.regionId,
+      zoneId: form.zoneId,
+      subcityId: form.subcityId || undefined,
+      districtId: form.districtId || undefined,
+      address: form.address,
+      mission: form.mission,
+      description: form.description,
+      services: form.services,
+      communityActivities: form.communityActivities,
+      applicantName: form.applicantName,
+      applicantPhone: form.applicantPhone,
+      applicantEmail: form.applicantEmail,
+      leaders: [{ fullName: form.leaderName, role: form.leaderRole, phone: form.leaderPhone, email: form.leaderEmail }],
+      staff: { imamCount: Number(form.imamCount), teacherCount: Number(form.teacherCount), administrativeStaffCount: Number(form.administrativeStaffCount), otherStaffCount: Number(form.otherStaffCount) },
+      education: { studentCount: Number(form.studentCount), teacherCount: Number(form.educationTeacherCount), educationLevels: form.educationLevels.split(",").map((x) => x.trim()).filter(Boolean) },
+    };
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -270,56 +331,15 @@ export default function InstitutionRegistrationPage() {
     setError("");
     setLoading(true);
     try {
-      const payload: any = {
-        institutionName: form.institutionName,
-        institutionTypeId: form.institutionTypeId,
-        establishmentDate: form.establishmentDate,
-        phone: form.phone,
-        email: form.email,
-        alternativeName: form.alternativeName,
-        website: form.website,
-        secondaryPhone: form.secondaryPhone,
-        regionId: form.regionId,
-        zoneId: form.zoneId,
-        subcityId: form.subcityId || undefined,
-        districtId: form.districtId || undefined,
-        address: form.address,
-        mission: form.mission,
-        description: form.description,
-        services: form.services,
-        communityActivities: form.communityActivities,
-        applicantName: form.applicantName,
-        applicantPhone: form.applicantPhone,
-        applicantEmail: form.applicantEmail,
-        leaders: [
-          {
-            fullName: form.leaderName,
-            role: form.leaderRole,
-            phone: form.leaderPhone,
-            email: form.leaderEmail,
-          },
-        ],
-        staff: {
-          imamCount: Number(form.imamCount),
-          teacherCount: Number(form.teacherCount),
-          administrativeStaffCount: Number(form.administrativeStaffCount),
-          otherStaffCount: Number(form.otherStaffCount),
-        },
-        education: {
-          studentCount: Number(form.studentCount),
-          teacherCount: Number(form.educationTeacherCount),
-          educationLevels: form.educationLevels
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean),
-        },
+      if (!application) throw new Error("Save your application before submitting payment.");
+      const payload = {
         payment: {
           method: form.paymentMethod,
           referenceNumber: form.paymentReference,
           receiptUrl: form.receiptUrl || undefined,
         },
       };
-      const r = await fetch(`${API}/registrations/institution`, {
+      const r = await fetch(`${API}/registrations/institution/${encodeURIComponent(application.trackingCode)}/payment`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -329,7 +349,8 @@ export default function InstitutionRegistrationPage() {
         throw new Error(
           extractErrorMessage(data, "The institution application could not be submitted."),
         );
-      setResult(data.trackingCode);
+      setResult(data);
+      sessionStorage.removeItem("institution-registration-application");
     } catch (err) {
       reportError(err instanceof Error ? err.message : "The application service could not complete submission.");
     } finally {
@@ -342,18 +363,20 @@ export default function InstitutionRegistrationPage() {
         <p className="eyebrow">EIASC · INSTITUTION</p>
         <h1>Institution application submitted</h1>
         <p className="lead">
-          Your application and payment reference have been recorded.
+          Your payment reference has been recorded.
         </p>
         <section className="workflow-panel">
           <p className="eyebrow">TRACKING CODE</p>
-          <h2>{result}</h2>
+          <h2>{result.trackingCode}</h2>
           <p>
             Status: <strong>SUBMITTED</strong>
           </p>
+          <p>Registered phone: <strong>{result.phone}</strong></p>
+          <p>Your registration remains incomplete until payment is received or approved by authorized EIASC authorities.</p>
           <div className="action-row">
             <Link
               className="button button-primary"
-              href={`/track?code=${encodeURIComponent(result)}`}
+              href={`/track?code=${encodeURIComponent(result.trackingCode)}`}
             >
               Track application
             </Link>
@@ -370,8 +393,8 @@ export default function InstitutionRegistrationPage() {
         <p className="eyebrow">EIASC · INSTITUTION REGISTRATION</p>
         <h1>Register an Islamic institution</h1>
         <p className="lead">
-          Complete the application in three sequential steps. Payment is
-          required before submission.
+          Save your application before payment. Payment is required to complete
+          registration.
         </p>
       </div>
       <section className="workflow-panel">
@@ -689,10 +712,10 @@ export default function InstitutionRegistrationPage() {
               <button
                 type="button"
                 className="button button-primary"
-                disabled={!step2Valid()}
-                onClick={() => setStep(3)}
+                disabled={!step2Valid() || loading}
+                onClick={saveApplication}
               >
-                Continue to payment
+                {loading ? "Saving application…" : "Save application & continue to payment"}
               </button>
             </div>
           </section>
@@ -701,6 +724,14 @@ export default function InstitutionRegistrationPage() {
           <section>
             <p className="eyebrow">03 · PAYMENT & SUBMISSION</p>
             <h2>Pay the registration fee</h2>
+            {application && (
+              <section className="workflow-panel">
+                <p><strong>Application saved</strong></p>
+                <p>Tracking / application ID: <strong>{application.trackingCode}</strong></p>
+                <p>Registered phone: <strong>{application.phone}</strong></p>
+                <p>Your registration is incomplete until payment is received or approved by authorized EIASC authorities.</p>
+              </section>
+            )}
             <div className="workflow-panel">
               <strong>
                 {fees
@@ -816,7 +847,7 @@ export default function InstitutionRegistrationPage() {
                 <button
                   type="button"
                   className="button button-primary"
-                  disabled={paying || !form.phone}
+                  disabled={paying || !application}
                   onClick={startChapa}
                 >
                   {paying ? "Opening secure checkout…" : "Pay with Chapa"}

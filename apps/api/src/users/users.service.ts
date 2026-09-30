@@ -14,7 +14,8 @@ interface UpdateUserInput { status?: UserStatus; role?: RoleCode; jurisdictionLe
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService, private readonly credentials: CredentialProvisioningService) {}
-  async list(actor: AuthenticatedUser) { const users = await this.prisma.user.findMany({ where: await this.scopeWhere(actor), include: { roles: { include: { role: true } } }, orderBy: { createdAt: 'desc' } }); return users.map((user) => this.present(user)); }
+  async list(actor: AuthenticatedUser) { const users = await this.prisma.user.findMany({ where: await this.scopeWhere(actor), include: { roles: { include: { role: true } } }, orderBy: [{ jurisdictionLevel: 'asc' }, { jurisdictionId: 'asc' }, { createdAt: 'desc' }] }); return users.map((user) => this.present(user)); }
+  async roles(actor: AuthenticatedUser) { if (!actor.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Only super administrators can manage role assignments'); return this.prisma.role.findMany({ orderBy: { name: 'asc' }, select: { code: true, name: true } }); }
   async get(actor: AuthenticatedUser, id: string) { const user = await this.prisma.user.findUnique({ where: { id }, include: { roles: { include: { role: true } } } }); if (!user) throw new NotFoundException('User not found'); await this.assertManageable(actor, user); return this.present(user); }
   async create(actor: AuthenticatedUser, input: CreateUserInput, requestId?: string) {
     const email = input.email?.trim().toLowerCase() || null; const phone = input.phone?.trim() || null;

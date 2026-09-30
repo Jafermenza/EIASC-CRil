@@ -18,7 +18,6 @@ export class RegistrationsService {
 
   private async validateIndividual(input: IndividualRegistrationInput, excludeRegistrationId?: string) {
     if (!input || !input.declarationAccepted) throw new BadRequestException('Declaration must be accepted');
-    if (!input.payment) throw new BadRequestException('Registration payment is required before submission');
     const required = [input.firstName,input.lastName,input.gender,input.maritalStatus,input.phone,input.email,input.regionId,input.zoneId];
     if (required.some((value) => !this.clean(value))) throw new BadRequestException('Required registration fields are missing');
     const birthDate = new Date(input.birthDate); if (!input.birthDate || Number.isNaN(birthDate.getTime())) throw new BadRequestException('birthDate must be a valid date');
@@ -33,25 +32,38 @@ export class RegistrationsService {
     if (input.institutionId) { const institution = await this.prisma.institution.findUnique({ where: { id: input.institutionId }, select: { id: true, status: true, regionId: true, zoneId: true, subcityId: true, districtId: true } }); if (!institution) throw new BadRequestException('Institution not found'); if (institution.status !== 'ACTIVE') throw new BadRequestException('Institution affiliation is only available for active institutions'); if (institution.regionId !== input.regionId || institution.zoneId !== input.zoneId || (input.subcityId !== undefined && institution.subcityId !== input.subcityId) || (input.districtId !== undefined && institution.districtId !== input.districtId)) throw new BadRequestException('Institution does not belong to the selected location'); }
     if (input.familyRelationship && !this.clean(input.familyMemberName)) throw new BadRequestException('familyMemberName is required when familyRelationship is supplied');
     if (input.familyMemberPhone && !this.clean(input.familyMemberName)) throw new BadRequestException('familyMemberName is required when familyMemberPhone is supplied');
-    await this.payments.validateForSubmission('INDIVIDUAL', input.payment);
+    if (input.payment) await this.payments.validateForSubmission('INDIVIDUAL', input.payment);
     return { birthDate, age, phone, email, nationalIdentity };
   }
 
-  private toRecord(record: any, age: number): IndividualRegistrationRecord { return { id: record.id, trackingCode: record.trackingCode, status: record.status, firstName: record.firstName!, middleName: record.middleName ?? undefined, lastName: record.lastName!, birthDate: record.birthDate!.toISOString(), gender: record.gender!, maritalStatus: record.maritalStatus!, phone: record.phone!, email: record.email!, educationLevel: record.educationLevel ?? undefined, employmentStatus: record.employmentStatus ?? undefined, regionId: record.regionId!, zoneId: record.zoneId!, subcityId: record.subcityId ?? undefined, districtId: record.districtId ?? undefined, currentAddress: record.currentAddress ?? undefined, nationalIdentity: record.nationalIdentity ?? undefined, institutionId: record.institutionId ?? undefined, familyRelationship: record.familyRelationship ?? undefined, familyMemberName: record.familyMemberName ?? undefined, familyMemberPhone: record.familyMemberPhone ?? undefined, declarationAccepted: record.declarationAccepted, age, submittedAt: record.submittedAt, createdAt: record.createdAt, updatedAt: record.updatedAt }; }
+  private toRecord(record: any, age: number): IndividualRegistrationRecord { return { id: record.id, trackingCode: record.trackingCode, status: record.status, firstName: record.firstName!, middleName: record.middleName ?? undefined, lastName: record.lastName!, birthDate: record.birthDate!.toISOString(), gender: record.gender!, maritalStatus: record.maritalStatus!, phone: record.phone!, email: record.email!, educationLevel: record.educationLevel ?? undefined, fieldOfStudy: record.fieldOfStudy ?? undefined, employmentStatus: record.employmentStatus ?? undefined, careerRole: record.careerRole ?? undefined, regionId: record.regionId!, zoneId: record.zoneId!, subcityId: record.subcityId ?? undefined, districtId: record.districtId ?? undefined, currentAddress: record.currentAddress ?? undefined, nationalIdentity: record.nationalIdentity ?? undefined, institutionId: record.institutionId ?? undefined, familyRelationship: record.familyRelationship ?? undefined, familyMemberName: record.familyMemberName ?? undefined, familyMemberPhone: record.familyMemberPhone ?? undefined, declarationAccepted: record.declarationAccepted, age, submittedAt: record.submittedAt, createdAt: record.createdAt, updatedAt: record.updatedAt }; }
 
   async createIndividual(input: IndividualRegistrationInput): Promise<IndividualRegistrationRecord> {
     const { birthDate, age, phone, email, nationalIdentity } = await this.validateIndividual(input); const trackingCode = await this.trackingCode(); const now = new Date();
-    const record = await this.prisma.registration.create({ data: { trackingCode, type: RegistrationType.INDIVIDUAL, status: RegistrationStatus.SUBMITTED, declarationAccepted: true, firstName: this.clean(input.firstName), middleName: this.clean(input.middleName), lastName: this.clean(input.lastName), birthDate, gender: this.clean(input.gender), maritalStatus: this.clean(input.maritalStatus), phone, email, educationLevel: this.clean(input.educationLevel), employmentStatus: this.clean(input.employmentStatus), regionId: input.regionId, zoneId: input.zoneId, subcityId: input.subcityId || undefined, districtId: input.districtId || undefined, currentAddress: this.clean(input.currentAddress), nationalIdentity, institutionId: this.clean(input.institutionId), familyRelationship: this.clean(input.familyRelationship), familyMemberName: this.clean(input.familyMemberName), familyMemberPhone: this.clean(input.familyMemberPhone), submittedAt: now } });
-    await this.payments.attachToApplication('INDIVIDUAL', record.id, input.payment);
-    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_SUBMITTED', entityType: 'Registration', entityId: record.id, metadata: { type: 'INDIVIDUAL', trackingCode, paymentMethod: input.payment.method, paymentReference: input.payment.referenceNumber } } });
+    const record = await this.prisma.registration.create({ data: { trackingCode, type: RegistrationType.INDIVIDUAL, status: input.payment ? RegistrationStatus.SUBMITTED : RegistrationStatus.DRAFT, declarationAccepted: true, firstName: this.clean(input.firstName), middleName: this.clean(input.middleName), lastName: this.clean(input.lastName), birthDate, gender: this.clean(input.gender), maritalStatus: this.clean(input.maritalStatus), phone, email, educationLevel: this.clean(input.educationLevel), fieldOfStudy: this.clean(input.fieldOfStudy), employmentStatus: this.clean(input.employmentStatus), careerRole: this.clean(input.careerRole), regionId: input.regionId, zoneId: input.zoneId, subcityId: input.subcityId || undefined, districtId: input.districtId || undefined, currentAddress: this.clean(input.currentAddress), nationalIdentity, institutionId: this.clean(input.institutionId), familyRelationship: this.clean(input.familyRelationship), familyMemberName: this.clean(input.familyMemberName), familyMemberPhone: this.clean(input.familyMemberPhone), submittedAt: input.payment ? now : undefined } });
+    if (input.payment) await this.payments.attachToApplication('INDIVIDUAL', record.id, input.payment);
+    await this.prisma.auditLog.create({ data: { action: input.payment ? 'REGISTRATION_SUBMITTED' : 'REGISTRATION_SAVED', entityType: 'Registration', entityId: record.id, metadata: { type: 'INDIVIDUAL', trackingCode, ...(input.payment ? { paymentMethod: input.payment.method, paymentReference: input.payment.referenceNumber } : {}) } } });
     return this.toRecord(record, age);
+  }
+
+  async submitPayment(trackingCode: string, payment: IndividualRegistrationInput['payment']): Promise<IndividualRegistrationRecord> {
+    const code = trackingCode.trim().toUpperCase();
+    if (!code || !payment) throw new BadRequestException('Tracking code and payment are required');
+    const record = await this.prisma.registration.findUnique({ where: { trackingCode: code } });
+    if (!record) throw new NotFoundException('Application not found');
+    if (record.type !== RegistrationType.INDIVIDUAL || record.status !== RegistrationStatus.DRAFT) throw new ConflictException('Payment can only be submitted for a saved individual application');
+    await this.payments.attachToApplication('INDIVIDUAL', record.id, payment);
+    const updated = await this.prisma.registration.update({ where: { id: record.id }, data: { status: RegistrationStatus.SUBMITTED, submittedAt: new Date() } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_SUBMITTED', entityType: 'Registration', entityId: record.id, metadata: { type: 'INDIVIDUAL', trackingCode: code, paymentMethod: payment.method, paymentReference: payment.referenceNumber } } });
+    return this.toRecord(updated, this.calculateAge(updated.birthDate!));
   }
 
   async resubmitIndividual(trackingCode: string, input: IndividualRegistrationInput): Promise<IndividualRegistrationRecord> {
     const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
+    if (!input.payment) throw new BadRequestException('Registration payment is required before resubmission');
     const existing = await this.prisma.registration.findUnique({ where: { trackingCode: code } }); if (!existing) throw new NotFoundException('Application not found'); if (existing.type !== RegistrationType.INDIVIDUAL) throw new BadRequestException('Only individual applications can be resubmitted here'); if (existing.status !== RegistrationStatus.CORRECTION) throw new ConflictException('Application is not awaiting correction');
     const { birthDate, age, phone, email, nationalIdentity } = await this.validateIndividual(input, existing.id); const now = new Date();
-    const record = await this.prisma.registration.update({ where: { id: existing.id }, data: { status: RegistrationStatus.RESUBMITTED, declarationAccepted: true, firstName: this.clean(input.firstName), middleName: this.clean(input.middleName), lastName: this.clean(input.lastName), birthDate, gender: this.clean(input.gender), maritalStatus: this.clean(input.maritalStatus), phone, email, educationLevel: this.clean(input.educationLevel), employmentStatus: this.clean(input.employmentStatus), regionId: input.regionId, zoneId: input.zoneId, subcityId: input.subcityId || undefined, districtId: input.districtId || undefined, currentAddress: this.clean(input.currentAddress), nationalIdentity, institutionId: this.clean(input.institutionId), familyRelationship: this.clean(input.familyRelationship), familyMemberName: this.clean(input.familyMemberName), familyMemberPhone: this.clean(input.familyMemberPhone), correctionReason: null, submittedAt: now } });
+    const record = await this.prisma.registration.update({ where: { id: existing.id }, data: { status: RegistrationStatus.RESUBMITTED, declarationAccepted: true, firstName: this.clean(input.firstName), middleName: this.clean(input.middleName), lastName: this.clean(input.lastName), birthDate, gender: this.clean(input.gender), maritalStatus: this.clean(input.maritalStatus), phone, email, educationLevel: this.clean(input.educationLevel), fieldOfStudy: this.clean(input.fieldOfStudy), employmentStatus: this.clean(input.employmentStatus), careerRole: this.clean(input.careerRole), regionId: input.regionId, zoneId: input.zoneId, subcityId: input.subcityId || undefined, districtId: input.districtId || undefined, currentAddress: this.clean(input.currentAddress), nationalIdentity, institutionId: this.clean(input.institutionId), familyRelationship: this.clean(input.familyRelationship), familyMemberName: this.clean(input.familyMemberName), familyMemberPhone: this.clean(input.familyMemberPhone), correctionReason: null, submittedAt: now } });
     await this.payments.attachToApplication('INDIVIDUAL', record.id, input.payment);
     await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_RESUBMITTED', entityType: 'Registration', entityId: record.id, metadata: { type: 'INDIVIDUAL', trackingCode: code, paymentReference: input.payment.referenceNumber } } }); return this.toRecord(record, age);
   }
@@ -96,6 +108,32 @@ export class RegistrationsService {
     return { ...member, loginUserId: loginUser?.id ?? null, loginUserStatus: loginUser?.status ?? null, credential };
   }
 
+  async updateMember(user: AuthenticatedUser, id: string, input: Record<string, unknown>) {
+    const member = await this.prisma.member.findUnique({ where: { id } });
+    if (!member) throw new NotFoundException('Member not found');
+    if (!(await this.authorization.canAccess(user, { regionId: member.regionId, zoneId: member.zoneId, subcityId: member.subcityId, districtId: member.districtId }))) throw new ConflictException('Member is outside your jurisdiction');
+    const fields = ['firstName', 'middleName', 'lastName', 'phone', 'email', 'educationLevel', 'fieldOfStudy', 'employmentStatus', 'careerRole', 'currentAddress', 'nationalIdentity'] as const;
+    const data: Record<string, string | null> = {};
+    for (const field of fields) {
+      if (input[field] === undefined) continue;
+      if (typeof input[field] !== 'string') throw new BadRequestException(`${field} must be a string`);
+      data[field] = this.clean(input[field]) ?? null;
+    }
+    if (!Object.keys(data).length) throw new BadRequestException('Provide at least one editable member field');
+    if ('firstName' in data && !data.firstName) throw new BadRequestException('firstName is required');
+    if ('lastName' in data && !data.lastName) throw new BadRequestException('lastName is required');
+    if ('phone' in data && !data.phone) throw new BadRequestException('phone is required');
+    if ('email' in data && data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) throw new BadRequestException('A valid email address is required');
+    try {
+      const updated = await this.prisma.member.update({ where: { id }, data });
+      await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'MEMBER_UPDATED', entityType: 'Member', entityId: id, metadata: { fields: Object.keys(data) } } });
+      return updated;
+    } catch (error) {
+      if ((error as { code?: string }).code === 'P2002') throw new ConflictException('Phone, email, or national identity is already registered');
+      throw error;
+    }
+  }
+
   private async scoped(user: AuthenticatedUser, id?: string) {
     this.assertReviewRole(user);
     const registration = id ? await this.prisma.registration.findUnique({ where: { id }, include: { member: true } }) : null;
@@ -131,7 +169,7 @@ export class RegistrationsService {
     if (!registration!.regionId || !registration!.zoneId || !registration!.districtId || !registration!.birthDate || !registration!.firstName || !registration!.lastName || !registration!.gender || !registration!.maritalStatus || !registration!.phone || !registration!.email) throw new BadRequestException('Registration is missing required member data');
     await this.payments.assertPaid('INDIVIDUAL', id);
     const member = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.member.create({ data: { firstName: registration!.firstName!, middleName: registration!.middleName, lastName: registration!.lastName!, birthDate: registration!.birthDate!, gender: registration!.gender!, maritalStatus: registration!.maritalStatus!, phone: registration!.phone!, email: registration!.email!, educationLevel: registration!.educationLevel, employmentStatus: registration!.employmentStatus, nationalIdentity: registration!.nationalIdentity, currentAddress: registration!.currentAddress, regionId: registration!.regionId!, zoneId: registration!.zoneId!, subcityId: registration!.subcityId, districtId: registration!.districtId!, status: MemberStatus.ACTIVE } });
+      const created = await tx.member.create({ data: { firstName: registration!.firstName!, middleName: registration!.middleName, lastName: registration!.lastName!, birthDate: registration!.birthDate!, gender: registration!.gender!, maritalStatus: registration!.maritalStatus!, phone: registration!.phone!, email: registration!.email!, educationLevel: registration!.educationLevel, fieldOfStudy: registration!.fieldOfStudy, employmentStatus: registration!.employmentStatus, careerRole: registration!.careerRole, nationalIdentity: registration!.nationalIdentity, currentAddress: registration!.currentAddress, regionId: registration!.regionId!, zoneId: registration!.zoneId!, subcityId: registration!.subcityId, districtId: registration!.districtId!, status: MemberStatus.ACTIVE } });
       await tx.registration.update({ where: { id }, data: { status: RegistrationStatus.APPROVED, memberId: created.id, decisionAt: new Date(), correctionReason: null } });
       return created;
     });

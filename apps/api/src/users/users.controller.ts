@@ -14,6 +14,9 @@ export class UsersController {
   @Get()
   list(@Req() request: AuthenticatedRequest) { return this.users.list(this.actor(request)); }
 
+  @Get('roles')
+  roles(@Req() request: AuthenticatedRequest) { return this.users.roles(this.actor(request)); }
+
   @Get(':id')
   get(@Req() request: AuthenticatedRequest, @Param('id') id: string) { return this.users.get(this.actor(request), id); }
 

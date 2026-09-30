@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
+import { useGeographyMap } from '../../../../lib/useGeographyMap';
 
 const API = '/api/v1';
 
@@ -15,6 +16,8 @@ type License = {
 export default function LicenseDetailPage() {
   const params = useParams<{ id: string }>();
   const [license, setLicense] = useState<License | null>(null); const [error, setError] = useState(''); const [reason, setReason] = useState(''); const [expiresAt, setExpiresAt] = useState(''); const [busy, setBusy] = useState('');
+  const [credentialId, setCredentialId] = useState('');
+  const geography = useGeographyMap();
 
   async function load() {
     const token = typeof window === 'undefined' ? '' : localStorage.getItem('accessToken') || '';
@@ -31,6 +34,15 @@ export default function LicenseDetailPage() {
       const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Action failed'); setReason(''); setExpiresAt(''); await load();
     } catch (err) { setError(err instanceof Error ? err.message : 'Action failed'); } finally { setBusy(''); }
   }
+  async function generateCredential() {
+    setBusy('credential'); setError('');
+    try {
+      const token = typeof window === 'undefined' ? '' : localStorage.getItem('accessToken') || '';
+      const response = await fetch(`${API}/credentials`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ type: 'LICENSE', subjectId: params.id }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Credential generation failed');
+      setCredentialId(data.id);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Credential generation failed'); } finally { setBusy(''); }
+  }
 
   if (error && !license) return <main className="shell"><section className="grid"><article><p className="form-error">{error}</p><Link className="button button-secondary" href="/admin/licenses">Back to licenses</Link></article></section></main>;
   if (!license) return <main className="shell"><p>Loading license…</p></main>;
@@ -45,7 +57,7 @@ export default function LicenseDetailPage() {
       <div className="hero"><Link className="back-link" href="/admin/licenses">← Licensing registry</Link><p className="eyebrow">EIASC · INSTITUTIONAL LICENSING</p><h1>{license.institution.name}</h1><p className="lead">{license.licenseNumber || 'License application'} · {license.status}</p></div>
       <section className="grid detail-grid">
         <article><h2>License record</h2><dl><dt>Application stage</dt><dd>{license.applicationStatus}</dd><dt>License number</dt><dd>{license.licenseNumber || 'Not issued'}</dd><dt>License type</dt><dd>{license.licenseType}</dd><dt>Issue date</dt><dd>{license.issuedAt ? new Date(license.issuedAt).toLocaleDateString() : '—'}</dd><dt>Effective from</dt><dd>{license.effectiveFrom ? new Date(license.effectiveFrom).toLocaleDateString() : '—'}</dd><dt>Expiry</dt><dd>{license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : 'Not set'}</dd><dt>Reason / decision note</dt><dd>{license.reason || '—'}</dd></dl></article>
-        <article><h2>Institution</h2><dl><dt>Status</dt><dd>{license.institution.status}</dd><dt>Institution code</dt><dd>{license.institution.institutionCode || '—'}</dd><dt>Region</dt><dd>{license.institution.regionId}</dd><dt>Zone / City</dt><dd>{license.institution.zoneId}</dd><dt>District</dt><dd>{license.institution.districtId}</dd></dl></article>
+        <article><h2>Institution</h2><dl><dt>Status</dt><dd>{license.institution.status}</dd><dt>Institution code</dt><dd>{license.institution.institutionCode || '—'}</dd><dt>Region</dt><dd>{geography.regions.get(license.institution.regionId) || license.institution.regionId}</dd><dt>Zone / City</dt><dd>{geography.zones.get(license.institution.zoneId) || license.institution.zoneId}</dd><dt>District</dt><dd>{geography.districts.get(license.institution.districtId) || license.institution.districtId}</dd></dl></article>
       </section>
       <section className="grid"><article><h2>Institution documents</h2>{license.institution.documents?.length ? <ul>{license.institution.documents.map((document) => <li key={document.id}>{document.documentType} — {document.fileName}</li>)}</ul> : <p>No documents are attached to this institution record.</p>}</article></section>
 
@@ -57,6 +69,8 @@ export default function LicenseDetailPage() {
           {canReject && <button className="button button-danger" disabled={!!busy || !reason.trim()} onClick={() => run('reject', { reason })}>{busy === 'reject' ? 'Rejecting…' : 'Reject application'}</button>}
           {canIssue && <button className="button button-primary" disabled={!!busy} onClick={() => run('issue', expiresAt ? { expiresAt } : {})}>{busy === 'issue' ? 'Issuing…' : 'Issue license'}</button>}
           {canRestore && <button className="button button-primary" disabled={!!busy} onClick={() => run('restore')}>{busy === 'restore' ? 'Restoring…' : 'Restore license'}</button>}
+          {license.status === 'ACTIVE' && <button className="button button-secondary" disabled={!!busy} onClick={() => void generateCredential()}>{busy === 'credential' ? 'Generating…' : 'Generate certificate'}</button>}
+          {credentialId && <Link className="button button-secondary" href={`/credentials/${credentialId}`}>View / print certificate</Link>}
         </div>
         <div className="form-grid">
           <div className="field"><label htmlFor="expiresAt">Expiry date and time</label><input id="expiresAt" type="datetime-local" value={expiresAt} onChange={(event) => setExpiresAt(event.target.value)} /><small>Required when the selected action needs an expiry date.</small></div>

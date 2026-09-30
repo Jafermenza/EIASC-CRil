@@ -30,7 +30,8 @@ export default function IndividualRegistrationPage() {
   const [subcities, setSubcities] = useState<Location[]>([]);
   const [districts, setDistricts] = useState<Location[]>([]);
   const [fees, setFees] = useState<Fees | null>(null);
-  const [result, setResult] = useState<{ trackingCode: string } | null>(null);
+  const [result, setResult] = useState<{ trackingCode: string; phone: string } | null>(null);
+  const [application, setApplication] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [paying, setPaying] = useState(false);
@@ -44,7 +45,9 @@ export default function IndividualRegistrationPage() {
     phone: "",
     email: "",
     educationLevel: "",
+    fieldOfStudy: "",
     employmentStatus: "",
+    careerRole: "",
     regionId: "",
     zoneId: "",
     subcityId: "",
@@ -166,6 +169,14 @@ export default function IndividualRegistrationPage() {
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("payment_ref");
     if (ref) {
+      const saved = sessionStorage.getItem("individual-registration-application");
+      if (saved) {
+        try {
+          setApplication(JSON.parse(saved));
+        } catch {
+          sessionStorage.removeItem("individual-registration-application");
+        }
+      }
       set("paymentMethod", "CHAPA");
       set("paymentReference", ref);
       setStep(3);
@@ -224,11 +235,40 @@ export default function IndividualRegistrationPage() {
       const data = await response.json();
       if (!response.ok)
         throw new Error(extractErrorMessage(data, "Unable to start Chapa payment."));
+      if (application) sessionStorage.setItem("individual-registration-application", JSON.stringify(application));
       window.location.assign(data.checkoutUrl);
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Unable to start Chapa payment.");
     } finally {
       setPaying(false);
+    }
+  }
+  async function saveApplication() {
+    if (!stepOneValid() || !stepTwoValid()) {
+      reportError(validationReason());
+      return;
+    }
+    setError("");
+    setLoading(true);
+    try {
+      const payload: any = { ...form };
+      delete payload.paymentMethod;
+      delete payload.paymentReference;
+      delete payload.receiptUrl;
+      delete payload.bankId;
+      const response = await fetch(`${API}/registrations/individual`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(extractErrorMessage(data, "Registration could not be saved."));
+      setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      setStep(3);
+    } catch (e) {
+      reportError(e instanceof Error ? e.message : "Registration could not be saved.");
+    } finally {
+      setLoading(false);
     }
   }
   async function submit(event: FormEvent) {
@@ -253,22 +293,17 @@ export default function IndividualRegistrationPage() {
       return;
     }
     setError("");
-    setResult(null);
     setLoading(true);
     try {
-      const payload: any = {
-        ...form,
+      const payload = {
         payment: {
           method: form.paymentMethod,
           referenceNumber: form.paymentReference,
           receiptUrl: form.receiptUrl || undefined,
         },
       };
-      delete payload.paymentMethod;
-      delete payload.paymentReference;
-      delete payload.receiptUrl;
-      delete payload.bankId;
-      const response = await fetch(`${API}/registrations/individual`, {
+      if (!application) throw new Error("Save your application before submitting payment.");
+      const response = await fetch(`${API}/registrations/individual/${encodeURIComponent(application.trackingCode)}/payment`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
@@ -279,6 +314,7 @@ export default function IndividualRegistrationPage() {
           extractErrorMessage(data, "Registration could not be submitted."),
         );
       setResult(data);
+      sessionStorage.removeItem("individual-registration-application");
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Registration could not be submitted.");
@@ -292,8 +328,7 @@ export default function IndividualRegistrationPage() {
         <p className="eyebrow">EIASC · INDIVIDUAL REGISTRATION</p>
         <h1>Application submitted</h1>
         <p className="lead">
-          Your application and payment reference have been recorded. Keep your
-          tracking code safe.
+          Your payment reference has been recorded. Keep your tracking code safe.
         </p>
         <section className="workflow-panel">
           <p className="eyebrow">TRACKING CODE</p>
@@ -301,6 +336,8 @@ export default function IndividualRegistrationPage() {
           <p>
             Status: <strong>SUBMITTED</strong>
           </p>
+          <p>Registered phone: <strong>{result.phone}</strong></p>
+          <p>Your registration remains incomplete until payment is received or approved by authorized EIASC authorities.</p>
           <a
             className="button"
             href={`/track?code=${encodeURIComponent(result.trackingCode)}`}
@@ -316,8 +353,8 @@ export default function IndividualRegistrationPage() {
         <p className="eyebrow">EIASC · INDIVIDUAL REGISTRATION</p>
         <h1>Register as a member</h1>
         <p className="lead">
-          Complete the application in three simple steps. Payment is required
-          before submission.
+          Save your application before payment. Payment is required to complete
+          registration.
         </p>
       </div>
       <section className="workflow-panel" aria-label="Registration progress">
@@ -592,21 +629,25 @@ export default function IndividualRegistrationPage() {
               />
             </p>
             <p>
-              <input
-                style={inputClass}
-                placeholder="Education level"
-                value={form.educationLevel}
-                onChange={(e) => set("educationLevel", e.target.value)}
-              />
+              <label>
+                Education level
+                <select style={inputClass} value={form.educationLevel} onChange={(e) => { set("educationLevel", e.target.value); if (!e.target.value) set("fieldOfStudy", ""); }}>
+                  <option value="">Select education level</option>
+                  {["Under High School", "High School", "Certificate", "Diploma or Level IV", "Bachelor Degree", "Master Degree", "Traditional Scholar Sanad", "PhD / Doctoral", "Assistant Professor", "Professor"].map((level) => <option key={level} value={level}>{level}</option>)}
+                </select>
+              </label>
             </p>
+            {form.educationLevel && <p><label>Field of study<input style={inputClass} placeholder="Field of study" value={form.fieldOfStudy} onChange={(e) => set("fieldOfStudy", e.target.value)} /></label></p>}
             <p>
-              <input
-                style={inputClass}
-                placeholder="Employment status"
-                value={form.employmentStatus}
-                onChange={(e) => set("employmentStatus", e.target.value)}
-              />
+              <label>
+                Career level
+                <select style={inputClass} value={form.employmentStatus} onChange={(e) => { set("employmentStatus", e.target.value); if (!e.target.value) set("careerRole", ""); }}>
+                  <option value="">Select career level</option>
+                  {["Self Employed", "Employed", "Entrepreneur", "Investor", "Retired", "Unemployed"].map((level) => <option key={level} value={level}>{level}</option>)}
+                </select>
+              </label>
             </p>
+            {form.employmentStatus && <p><label>Role / occupation<input style={inputClass} placeholder="Role or occupation" value={form.careerRole} onChange={(e) => set("careerRole", e.target.value)} /></label></p>}
             <div className="action-row">
               <button
                 type="button"
@@ -618,9 +659,10 @@ export default function IndividualRegistrationPage() {
               <button
                 type="button"
                 className="button button-primary"
-                onClick={() => { if (!stepTwoValid()) { reportError(validationReason()); return; } setError(""); setStep(3); }}
+                disabled={loading}
+                onClick={saveApplication}
               >
-                Continue to payment
+                {loading ? "Saving application…" : "Save application & continue to payment"}
               </button>
             </div>
           </section>
@@ -629,6 +671,14 @@ export default function IndividualRegistrationPage() {
           <section>
             <p className="eyebrow">03 · PAYMENT & SUBMISSION</p>
             <h2>Pay the registration fee</h2>
+            {application && (
+              <section className="workflow-panel">
+                <p><strong>Application saved</strong></p>
+                <p>Tracking / application ID: <strong>{application.trackingCode}</strong></p>
+                <p>Registered phone: <strong>{application.phone}</strong></p>
+                <p>Your registration is incomplete until payment is received or approved by authorized EIASC authorities.</p>
+              </section>
+            )}
             <div className="workflow-panel">
               <strong>
                 {fees
@@ -744,7 +794,7 @@ export default function IndividualRegistrationPage() {
                 <button
                   type="button"
                   className="button button-primary"
-                  disabled={paying || !form.phone}
+                  disabled={paying || !application}
                   onClick={startChapa}
                 >
                   {paying ? "Opening secure checkout…" : "Pay with Chapa"}

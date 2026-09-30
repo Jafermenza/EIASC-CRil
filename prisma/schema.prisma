@@ -519,7 +519,9 @@ model Member {
   phone              String              @unique
   email              String?             @unique
   educationLevel     String?
+  fieldOfStudy       String?
   employmentStatus   String?
+  careerRole         String?
   nationalIdentity   String?             @unique
   currentAddress     String?
   regionId           String              @db.Uuid
@@ -572,7 +574,9 @@ model Registration {
   phone               String?
   email               String?
   educationLevel      String?
+  fieldOfStudy        String?
   employmentStatus    String?
+  careerRole          String?
   regionId            String?             @db.Uuid
   zoneId              String?             @db.Uuid
   subcityId           String?             @db.Uuid
