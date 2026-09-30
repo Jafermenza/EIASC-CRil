@@ -1,0 +1,98 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { formatLocation, useGeographyMap } from '../../../../lib/useGeographyMap';
+import { extractErrorMessage } from '../../../../lib/validation';
+import { useToast } from '../../../../components/ui/toast-provider';
+
+const API = '/api/v1';
+type Member = { id: string; firstName: string; lastName: string; phone: string; email?: string | null; status: string; membershipNumber?: string | null; regionId?: string | null; zoneId?: string | null; subcityId?: string | null; districtId?: string | null; createdAt: string };
+
+export default function MembersDirectoryPage() {
+  const geography = useGeographyMap();
+  const { push } = useToast();
+  const searchParams = useSearchParams();
+  const [items, setItems] = useState<Member[]>([]);
+  const [status, setStatus] = useState(searchParams.get('status') || '');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState('');
+
+  const auth = () => ({ authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` });
+
+  async function load() {
+    setLoading(true); setError('');
+    const query = new URLSearchParams({ page: String(page), pageSize: '50' });
+    if (status) query.set('status', status);
+    if (search.trim()) query.set('search', search.trim());
+    try {
+      const response = await fetch(`${API}/registrations/admin/members?${query}`, { headers: auth(), cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(extractErrorMessage(data, 'Unable to load the member directory.'));
+      setItems(data.items || []); setTotalPages(data.totalPages || 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load the member directory.'); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); }, [page, status]);
+
+  async function resetCredentials(memberId: string) {
+    if (!window.confirm('Reset this member\'s username and password? A new temporary password will be sent to them.')) return;
+    setResetting(memberId);
+    try {
+      const detailResponse = await fetch(`${API}/registrations/admin/members/${memberId}`, { headers: auth() });
+      const detail = await detailResponse.json();
+      if (!detailResponse.ok) throw new Error(extractErrorMessage(detail, 'Unable to load member account.'));
+      if (!detail.loginUserId) throw new Error('This member does not yet have a login account.');
+      const response = await fetch(`${API}/users/${detail.loginUserId}/reset-credentials`, { method: 'POST', headers: auth() });
+      const body = await response.json();
+      if (!response.ok) throw new Error(extractErrorMessage(body, 'Unable to reset credentials.'));
+      push({ type: 'success', title: 'Credentials reset', message: 'A new username/password was sent to the member.' });
+    } catch (reason) {
+      push({ type: 'error', title: 'Reset failed', message: reason instanceof Error ? reason.message : 'Unable to reset credentials.' });
+    } finally { setResetting(''); }
+  }
+
+  function exportCsv() {
+    const rows = [['Name', 'Phone', 'Email', 'Membership number', 'Status', 'Location', 'Registered'], ...items.map((m) => [`${m.firstName} ${m.lastName}`, m.phone, m.email || '', m.membershipNumber || '', m.status, formatLocation(geography, m), new Date(m.createdAt).toLocaleDateString()])];
+    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'eiasc-members.csv'; anchor.click(); URL.revokeObjectURL(url);
+  }
+
+  return (
+    <main className="shell" style={{ maxWidth: 1200 }}>
+      <div className="hero"><p className="eyebrow">EIASC · APPROVED MEMBERS</p><h1>Member directory</h1><p className="lead">Approved members across your authorized jurisdiction. View details, reset login credentials, filter by status, and export the list.</p></div>
+      <section className="workflow-panel">
+        <div className="form-grid">
+          <div className="field"><label htmlFor="member-search">Search</label><input id="member-search" placeholder="Name, phone or membership number" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); void load(); } }} /></div>
+          <div className="field"><label htmlFor="member-status">Status</label><select id="member-status" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Inactive / suspended</option></select></div>
+          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : 'Search'}</button></div>
+          <div className="field field-action"><button className="button button-secondary" onClick={exportCsv} disabled={!items.length}>Export CSV</button></div>
+        </div>
+      </section>
+      {error && <section className="error-reason" role="alert"><strong>Directory could not be loaded</strong><span>{error}</span></section>}
+      <section className="workflow-panel" style={{ marginTop: 18 }}>
+        <div className="table-heading"><div><p className="eyebrow">DIRECTORY</p><h2>Members</h2></div><span className="result-count">{loading ? 'Loading…' : `${items.length} shown`}</span></div>
+        <div className="table-wrap"><table><thead><tr><th>Member</th><th>Membership number</th><th>Location</th><th>Status</th><th>Registered</th><th>Action</th></tr></thead><tbody>
+          {items.length ? items.map((m) => (
+            <tr key={m.id}>
+              <td><strong>{m.firstName} {m.lastName}</strong><br /><small>{m.phone} · {m.email || '—'}</small></td>
+              <td>{m.membershipNumber || '—'}</td>
+              <td>{formatLocation(geography, m)}</td>
+              <td><span className={`status-badge status-${m.status.toLowerCase()}`}>{m.status}</span></td>
+              <td>{new Date(m.createdAt).toLocaleDateString()}</td>
+              <td><div className="action-row"><Link className="button button-secondary" href={`/admin/directory/members/${m.id}`}>View detail</Link><button className="button button-secondary" disabled={resetting === m.id} onClick={() => void resetCredentials(m.id)}>{resetting === m.id ? 'Resetting…' : 'Reset credentials'}</button></div></td>
+            </tr>
+          )) : <tr><td colSpan={6}><div className="empty-state">{loading ? 'Loading members…' : 'No approved members match this filter.'}</div></td></tr>}
+        </tbody></table></div>
+        <div className="pagination"><button className="button button-secondary" disabled={page <= 1 || loading} onClick={() => setPage((p) => p - 1)}>Previous</button><strong>Page {page} / {totalPages}</strong><button className="button button-secondary" disabled={page >= totalPages || loading} onClick={() => setPage((p) => p + 1)}>Next</button></div>
+      </section>
+    </main>
+  );
+}

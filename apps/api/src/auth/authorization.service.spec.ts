@@ -1,4 +1,5 @@
 import { RoleCode } from '@prisma/client';
+import { jest } from '@jest/globals';
 import { AuthorizationService } from './authorization.service';
 
 describe('AuthorizationService', () => {

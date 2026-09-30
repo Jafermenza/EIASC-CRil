@@ -24,8 +24,11 @@ export default function LicensesPage() {
     try {
       const token = localStorage.getItem('accessToken') || '';
       const response = await fetch(`${API}/licenses`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ institutionId: institutionId.trim(), licenseType }) });
-      const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Unable to create license application');
-      setInstitutionId(''); await load(); window.location.href = `/admin/licenses/${data.id}`;
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || 'Unable to create license application');
+      if (!data?.id) throw new Error('License application was created but no record ID was returned');
+      setInstitutionId('');
+      window.location.assign(`/admin/licenses/${data.id}`);
     } catch (err) { setError(err instanceof Error ? err.message : 'Unable to create license application'); } finally { setCreating(false); }
   }
 

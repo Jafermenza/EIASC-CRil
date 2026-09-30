@@ -1,0 +1,2 @@
+INSERT INTO "PlatformSetting" ("key","value","updatedAt") VALUES ('REGISTRATION_INDIVIDUAL_FEE_ETB','100',CURRENT_TIMESTAMP) ON CONFLICT ("key") DO NOTHING;
+INSERT INTO "PlatformSetting" ("key","value","updatedAt") VALUES ('REGISTRATION_INSTITUTION_FEE_ETB','1000',CURRENT_TIMESTAMP) ON CONFLICT ("key") DO UPDATE SET "value"='1000',"updatedAt"=CURRENT_TIMESTAMP WHERE "PlatformSetting"."value" IN ('500','');

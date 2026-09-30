@@ -8,18 +8,32 @@
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace @eiasc/web\" \"npm run dev --workspace @eiasc/api\"",
     "build": "npm run build --workspace @eiasc/api && npm run build --workspace @eiasc/web",
-    "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\"",
+    "lint": "eslint \"apps/**/*.ts\" \"apps/**/*.tsx\" --ignore-pattern apps/web/next-env.d.ts",
     "typecheck": "npm run typecheck --workspace @eiasc/api && npm run typecheck --workspace @eiasc/web",
     "test": "npm run test --workspace @eiasc/api",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts && tsx scripts/import-geography.ts",
+    "db:ensure-baseline": "node scripts/ensure-migration-baseline.mjs",
+    "db:migrate": "npm run db:ensure-baseline && prisma migrate dev",
+    "db:deploy": "npm run db:ensure-baseline && prisma migrate deploy",
+    "db:apply-registration-payments": "prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912100000_registration_payments/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912110000_registration_payment_settings/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130000_digital_credentials/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130100_digital_credential_automation/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912130200_fix_credential_token_encoding/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912140000_credential_configuration_designer/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912150000_credential_lifecycle_and_regional_config/migration.sql && prisma db execute --schema prisma/schema.prisma --file prisma/migrations/20260912151000_institution_registration_fee_default/migration.sql",
+    "db:seed": "tsx prisma/seed.ts",
     "db:import-geography": "tsx scripts/import-geography.ts",
+    "db:export-geography": "node scripts/export-geography.mjs",
     "db:verify-geography": "tsx scripts/verify-geography.ts",
-    "test:e2e": "playwright test"
+    "db:bootstrap": "npm run db:deploy && npm run db:seed && npm run db:import-geography && npm run db:export-geography && npm run db:verify-geography",
+    "test:e2e": "playwright test",
+    "security:review": "node scripts/security-review.mjs",
+    "ops:smoke": "node scripts/production-smoke.mjs",
+    "ops:backup-restore": "bash scripts/backup-restore-drill.sh"
   },
   "dependencies": {"dotenv": "^16.4.7", "xlsx": "0.18.5"},
   "devDependencies": {"@playwright/test": "^1.52.0", "@types/node": "20.17.24", "@types/react": "18.3.18", "@types/react-dom": "18.3.5", "@typescript-eslint/eslint-plugin": "8.26.0", "@typescript-eslint/parser": "8.26.0", "concurrently": "9.1.2", "eslint": "8.57.1", "prisma": "5.22.0", "tsx": "4.19.3", "typescript": "5.8.2"},
   "prisma": {"seed": "tsx prisma/seed.ts"}
+  "dependencies": { "dotenv": "^16.4.7" },
+  "devDependencies": { "@playwright/test": "^1.63.0", "@types/node": "20.17.24", "@types/react": "19.1.12", "@types/react-dom": "19.1.9", "@typescript-eslint/eslint-plugin": "8.26.0", "@typescript-eslint/parser": "8.26.0", "concurrently": "9.1.2", "eslint": "8.57.1", "prisma": "5.22.0", "tsx": "4.19.3", "typescript": "5.8.2" },
+  "overrides": { "multer": "2.3.0", "postcss": "8.5.28", "webpack": "5.110.3" },
+  "prisma": { "seed": "tsx prisma/seed.ts" }
 }

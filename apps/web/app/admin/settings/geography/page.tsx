@@ -1,122 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+const API='/api/v1';
+type Location={id:string;code:string;name:string;regionId?:string;zoneId?:string;subcityId?:string|null};
+type Preview={valid:boolean;rows:number;errors:string[];headers:string[]};
 
-const API = '/api/v1';
-
-type Location = { id: string; code: string; name: string };
-type Preview = { valid: boolean; rows: number; errors: string[]; headers: string[] };
-
-export default function GeographyPage() {
-  const [regions, setRegions] = useState<Location[]>([]);
-  const [zones, setZones] = useState<Location[]>([]);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
-  const [preview, setPreview] = useState<Preview | null>(null);
-  const [fileBase64, setFileBase64] = useState('');
-  const [sourceVersion, setSourceVersion] = useState('2026-09-08');
-  const [form, setForm] = useState({ level: 'REGION', code: '', name: '', parentId: '' });
-
-  const authHeaders = () => ({ authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` });
-
-  async function load() {
-    const headers = authHeaders();
-    const [regionResponse, zoneResponse] = await Promise.all([
-      fetch(`${API}/locations/regions`, { headers }),
-      fetch(`${API}/locations/zones`, { headers }),
-    ]);
-    if (!regionResponse.ok || !zoneResponse.ok) throw new Error('Unable to load geography reference data');
-    setRegions(await regionResponse.json());
-    setZones(await zoneResponse.json());
-  }
-
-  useEffect(() => { load().catch((e) => setError(e instanceof Error ? e.message : 'Unable to load geography')); }, []);
-
-  async function readFile(file: File) {
-    setError(''); setMessage(''); setPreview(null);
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    let binary = '';
-    bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-    setFileBase64(btoa(binary));
-  }
-
-  async function previewImport() {
-    setError(''); setMessage('');
-    try {
-      const response = await fetch(`${API}/locations/admin/import/preview`, {
-        method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' },
-        body: JSON.stringify({ fileBase64 }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to validate workbook');
-      setPreview(data);
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to validate workbook'); }
-  }
-
-  async function importData() {
-    setError(''); setMessage('');
-    try {
-      const response = await fetch(`${API}/locations/admin/import`, {
-        method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' },
-        body: JSON.stringify({ fileBase64, sourceVersion }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Import failed');
-      setMessage(`Import completed: ${data.regionCount} regions, ${data.zoneCount} zones, ${data.districtCount} districts.`);
-      setPreview(null); setFileBase64(''); await load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Import failed'); }
-  }
-
-  async function createManual(event: React.FormEvent) {
-    event.preventDefault(); setError(''); setMessage('');
-    const endpoint = form.level === 'REGION' ? 'regions' : form.level === 'ZONE' ? 'zones' : form.level === 'SUBCITY' ? 'subcities' : 'districts';
-    const body = form.level === 'REGION'
-      ? { code: form.code, name: form.name }
-      : form.level === 'ZONE' || form.level === 'SUBCITY'
-        ? { code: form.code, name: form.name, ...(form.level === 'ZONE' ? { regionId: form.parentId } : { zoneId: form.parentId }) }
-        : { code: form.code, name: form.name, zoneId: form.parentId };
-    try {
-      const response = await fetch(`${API}/locations/admin/${endpoint}`, { method: 'POST', headers: { ...authHeaders(), 'content-type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.message || 'Unable to create location');
-      setMessage(`${form.level} created successfully.`); setForm({ ...form, code: '', name: '' }); await load();
-    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to create location'); }
-  }
-
-  return <main className="shell" style={{ maxWidth: 1200 }}>
-    <div className="hero"><p className="eyebrow">EIASC · REFERENCE DATA</p><h1>Geographic administration</h1><p className="lead">Maintain the controlled administrative hierarchy used by registration, institutions and jurisdiction.</p></div>
-    {error && <article className="grid"><div role="alert">{error}</div></article>}
-    {message && <article className="grid"><div role="status">{message}</div></article>}
-
-    <section className="grid">
-      <div>
-        <h2>Import geography</h2>
-        <p>Use the approved Excel format. The workbook is validated before any database changes are committed.</p>
-        <input type="file" accept=".xlsx,.xls,.csv" onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])} />
-        <input value={sourceVersion} onChange={(e) => setSourceVersion(e.target.value)} placeholder="Source version" aria-label="Source version" />
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 12 }}>
-          <button className="button" type="button" disabled={!fileBase64} onClick={previewImport}>Validate workbook</button>
-          <button className="button" type="button" disabled={!fileBase64 || !preview?.valid} onClick={importData}>Import validated data</button>
-        </div>
-        {preview && <div style={{ marginTop: 16 }}><strong>{preview.valid ? 'Validation passed' : 'Validation failed'}</strong><p>{preview.rows} data rows detected.</p>{preview.errors.length > 0 && <ul>{preview.errors.slice(0, 20).map((item) => <li key={item}>{item}</li>)}</ul>}</div>}
-      </div>
-    </section>
-
-    <section className="grid">
-      <div>
-        <h2>Manual entry</h2>
-        <form onSubmit={createManual} style={{ display: 'grid', gap: 12, maxWidth: 760 }}>
-          <select value={form.level} onChange={(e) => setForm({ ...form, level: e.target.value, parentId: '' })} aria-label="Administrative level">
-            <option value="REGION">Region</option><option value="ZONE">Zone / City</option><option value="SUBCITY">Sub-city / Town</option><option value="DISTRICT">District / Woreda</option>
-          </select>
-          <input required value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="Stable code" />
-          <input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Official name" />
-          {form.level !== 'REGION' && <select required value={form.parentId} onChange={(e) => setForm({ ...form, parentId: e.target.value })} aria-label="Parent location">
-            <option value="">Select parent</option>{(form.level === 'ZONE' ? regions : zones).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.code}</option>)}
-          </select>}
-          <button className="button" type="submit">Create {form.level === 'REGION' ? 'region' : form.level === 'ZONE' ? 'zone/city' : form.level === 'SUBCITY' ? 'sub-city/town' : 'district/woreda'}</button>
-        </form>
-      </div>
-    </section>
-  </main>;
+export default function GeographyPage(){
+ const [regions,setRegions]=useState<Location[]>([]);const [zones,setZones]=useState<Location[]>([]);const [subcities,setSubcities]=useState<Location[]>([]);const [districts,setDistricts]=useState<Location[]>([]);const [message,setMessage]=useState('');const [error,setError]=useState('');const [preview,setPreview]=useState<Preview|null>(null);const [fileBase64,setFileBase64]=useState('');const [sourceVersion,setSourceVersion]=useState('418739e33760bf79661f3914e2d8c9cf33248437');const [form,setForm]=useState({level:'REGION',code:'',name:'',parentId:''});
+ const auth=()=>({authorization:`Bearer ${localStorage.getItem('accessToken')||''}`});
+ async function load(){setError('');const responses=await Promise.all([fetch(`${API}/locations/regions`),fetch(`${API}/locations/zones`),fetch(`${API}/locations/subcities`),fetch(`${API}/locations/districts`)]);const bad=responses.findIndex(r=>!r.ok);if(bad>=0)throw new Error(`Unable to load geography level ${['regions','zones/cities','sub-cities/towns','districts/woredas'][bad]}.`);const [a,b,c,d]=await Promise.all(responses.map(r=>r.json()));setRegions(a);setZones(b);setSubcities(c);setDistricts(d);}
+ useEffect(()=>{load().catch(e=>setError(e instanceof Error?e.message:'Unable to load geography'));},[]);
+ async function readFile(file:File){const bytes=new Uint8Array(await file.arrayBuffer());let binary='';bytes.forEach(b=>binary+=String.fromCharCode(b));setFileBase64(btoa(binary));setPreview(null);setError('');}
+ async function previewImport(){try{const r=await fetch(`${API}/locations/admin/import/preview`,{method:'POST',headers:{...auth(),'content-type':'application/json'},body:JSON.stringify({fileBase64})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to validate geography file');setPreview(d);}catch(e){setError(e instanceof Error?e.message:'Unable to validate geography file');}}
+ async function importData(){try{const r=await fetch(`${API}/locations/admin/import`,{method:'POST',headers:{...auth(),'content-type':'application/json'},body:JSON.stringify({fileBase64,sourceVersion})});const d=await r.json();if(!r.ok)throw new Error(d.message||'Import failed');setMessage(`Import completed: ${d.regionCount} regions, ${d.zoneCount} zones/cities, ${d.districtCount} districts/woredas.`);setFileBase64('');setPreview(null);await load();}catch(e){setError(e instanceof Error?e.message:'Import failed');}}
+ async function createManual(e:React.FormEvent){e.preventDefault();setError('');setMessage('');const endpoint=form.level==='REGION'?'regions':form.level==='ZONE'?'zones':form.level==='SUBCITY'?'subcities':'districts';const body=form.level==='REGION'?{code:form.code,name:form.name}:form.level==='ZONE'?{code:form.code,name:form.name,regionId:form.parentId}:form.level==='SUBCITY'?{code:form.code,name:form.name,zoneId:form.parentId}:{code:form.code,name:form.name,zoneId:form.parentId};try{const r=await fetch(`${API}/locations/admin/${endpoint}`,{method:'POST',headers:{...auth(),'content-type':'application/json'},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(d.message||'Unable to create geographic data');setMessage(`${form.level} created successfully.`);setForm({...form,code:'',name:''});await load();}catch(e){setError(e instanceof Error?e.message:'Unable to create geographic data');}}
+ const parentOptions=form.level==='ZONE'?regions:zones;
+ return <main className="shell" style={{maxWidth:1200}}><div className="hero"><p className="eyebrow">EIASC · REFERENCE DATA</p><h1>Geographic administration</h1><p className="lead">Manage the Region → Zone/City → Sub-city/Town → District/Woreda hierarchy used by registration.</p></div>{error&&<section className="error-reason" role="alert">{error}</section>}{message&&<section className="workflow-panel" role="status">{message}</section>}
+ <section className="grid"><article className="workflow-panel"><h2>Database status</h2><div className="grid"><div><strong>{regions.length}</strong><br/>Regions</div><div><strong>{zones.length}</strong><br/>Zones / Cities</div><div><strong>{subcities.length}</strong><br/>Sub-cities / Towns</div><div><strong>{districts.length}</strong><br/>Districts / Woredas</div></div><p>Counts are read directly from PostgreSQL. Imported and manually created records are therefore visible here after refresh.</p></article></section>
+ <section className="grid"><div><h2>Manual entry</h2><form onSubmit={createManual} style={{display:'grid',gap:12,maxWidth:760}}><label>Level<select value={form.level} onChange={e=>setForm({...form,level:e.target.value,parentId:''})}><option value="REGION">Region</option><option value="ZONE">Zone / City</option><option value="SUBCITY">Sub-city / Town</option><option value="DISTRICT">District / Woreda</option></select></label><label>Stable code<input required value={form.code} onChange={e=>setForm({...form,code:e.target.value})}/></label><label>Official name<input required value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/></label>{form.level!=='REGION'&&<label>Parent<select required value={form.parentId} onChange={e=>setForm({...form,parentId:e.target.value})}><option value="">Select parent</option>{parentOptions.map(x=><option key={x.id} value={x.id}>{x.name} · {x.code}</option>)}</select></label>}<button className="button button-primary" type="submit">Create {form.level}</button></form></div></section>
+ <section className="grid"><div><h2>Import approved hierarchy</h2><p>Preview first; import is transactional. Use the pinned approved source for production bootstrap.</p><input type="file" accept=".csv,.txt" onChange={e=>e.target.files?.[0]&&readFile(e.target.files[0])}/><input value={sourceVersion} onChange={e=>setSourceVersion(e.target.value)} placeholder="Source version"/><div className="action-row"><button className="button" type="button" disabled={!fileBase64} onClick={previewImport}>Validate file</button><button className="button button-primary" type="button" disabled={!fileBase64||!preview?.valid} onClick={importData}>Import validated data</button></div>{preview&&<div><strong>{preview.valid?'Validation passed':'Validation failed'}</strong><p>{preview.rows} rows detected.</p>{preview.errors.length>0&&<ul>{preview.errors.slice(0,20).map(x=><li key={x}>{x}</li>)}</ul>}</div>}</div></section>
+ <section className="grid"><div><h2>Loaded records</h2><details><summary>Regions ({regions.length})</summary><ul>{regions.map(x=><li key={x.id}>{x.name} · {x.code}</li>)}</ul></details><details><summary>Zones / Cities ({zones.length})</summary><ul>{zones.map(x=><li key={x.id}>{x.name} · {x.code}</li>)}</ul></details><details><summary>Sub-cities / Towns ({subcities.length})</summary><ul>{subcities.map(x=><li key={x.id}>{x.name} · {x.code}</li>)}</ul></details><details><summary>Districts / Woredas ({districts.length})</summary><ul>{districts.slice(0,300).map(x=><li key={x.id}>{x.name} · {x.code}</li>)}</ul>{districts.length>300&&<p>First 300 displayed; all records remain available to cascading registration selectors.</p>}</details></div></section>
+ </main>;
 }

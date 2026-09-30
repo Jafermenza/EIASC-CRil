@@ -29,8 +29,7 @@ CREATE TABLE "Credential" (
   CONSTRAINT "Credential_credentialNumber_key" UNIQUE ("credentialNumber"),
   CONSTRAINT "Credential_tokenHash_key" UNIQUE ("tokenHash"),
   CONSTRAINT "Credential_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT "Credential_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "Institution"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT "Credential_licenseId_fkey" FOREIGN KEY ("licenseId") REFERENCES "License"("id") ON DELETE CASCADE ON UPDATE CASCADE
+  CONSTRAINT "Credential_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "Institution"("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 CREATE INDEX "Credential_type_status_idx" ON "Credential"("type", "status");
 CREATE INDEX "Credential_memberId_idx" ON "Credential"("memberId");

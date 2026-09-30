@@ -1,0 +1,14 @@
+ALTER TABLE "CredentialConfiguration"
+  ADD COLUMN IF NOT EXISTS "institutionLogoUrl" TEXT,
+  ADD COLUMN IF NOT EXISTS "authorizingNameEn" TEXT,
+  ADD COLUMN IF NOT EXISTS "authorizingNameAr" TEXT,
+  ADD COLUMN IF NOT EXISTS "licenseTitle" TEXT,
+  ADD COLUMN IF NOT EXISTS "bodyEn" TEXT,
+  ADD COLUMN IF NOT EXISTS "bodyAr" TEXT,
+  ADD COLUMN IF NOT EXISTS "locationValue" TEXT,
+  ADD COLUMN IF NOT EXISTS "additionalInstitutionInfo" TEXT,
+  ADD COLUMN IF NOT EXISTS "frameBackgroundUrl" TEXT,
+  ADD COLUMN IF NOT EXISTS "qrEnabled" BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS "memberFrameBackgroundUrl" TEXT,
+  ADD COLUMN IF NOT EXISTS "memberLogoUrl" TEXT,
+  ADD COLUMN IF NOT EXISTS "memberAdditionalInfo" TEXT;

@@ -516,7 +516,8 @@ model Member {
   birthDate          DateTime
   gender              String
   maritalStatus      String
-  phone              String
+  phone              String              @unique
+  email              String?             @unique
   educationLevel     String?
   employmentStatus   String?
   nationalIdentity   String?             @unique
@@ -569,6 +570,7 @@ model Registration {
   gender              String?
   maritalStatus       String?
   phone               String?
+  email               String?
   educationLevel      String?
   employmentStatus    String?
   regionId            String?             @db.Uuid
@@ -593,6 +595,7 @@ model Registration {
   @@index([status])
   @@index([type])
   @@index([phone])
+  @@index([email])
   @@index([nationalIdentity])
 }
 

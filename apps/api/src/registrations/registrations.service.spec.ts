@@ -1,4 +1,5 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
+import { jest } from '@jest/globals';
 import { RegistrationsService } from './registrations.service';
 
 describe('RegistrationsService', () => {
@@ -9,12 +10,14 @@ describe('RegistrationsService', () => {
     auditLog: { create: jest.fn() },
   };
   const locations = { validateHierarchy: jest.fn() };
-  const service = new RegistrationsService(prisma as never, locations as never);
+  const payments = { validateForSubmission: jest.fn(), attachToApplication: jest.fn() };
+  const service = new RegistrationsService(prisma as never, locations as never, payments as never);
 
   const input = {
     firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: '1990-01-01', gender: 'Female', maritalStatus: 'Single',
-    phone: '+251900000000', educationLevel: 'Degree', employmentStatus: 'Employed', regionId: 'r', zoneId: 'z',
+    phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed', regionId: 'r', zoneId: 'z',
     subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', declarationAccepted: true,
+    payment: { method: 'BANK_TRANSFER' as const, referenceNumber: 'BANK-12345' },
   };
 
   beforeEach(() => {
@@ -26,12 +29,14 @@ describe('RegistrationsService', () => {
     prisma.registration.create.mockResolvedValue({
       id: 'registration-1', trackingCode: 'EIASC-2026-ABC123', status: 'SUBMITTED', declarationAccepted: true,
       firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: new Date('1990-01-01'), gender: 'Female',
-      maritalStatus: 'Single', phone: '+251900000000', educationLevel: 'Degree', employmentStatus: 'Employed',
+      maritalStatus: 'Single', phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed',
       regionId: 'r', zoneId: 'z', subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', nationalIdentity: null,
       institutionId: null, familyRelationship: null, familyMemberName: null, familyMemberPhone: null,
       correctionReason: null, rejectionReason: null, decisionAt: null, submittedAt: new Date('2026-09-10'),
       createdAt: new Date('2026-09-10'), updatedAt: new Date('2026-09-10'),
     });
+    payments.validateForSubmission.mockResolvedValue({ amount: 100, method: input.payment.method, referenceNumber: input.payment.referenceNumber, receiptUrl: null });
+    payments.attachToApplication.mockResolvedValue(null);
   });
 
   it('submits a valid individual registration and returns a tracking code', async () => {
@@ -40,6 +45,7 @@ describe('RegistrationsService', () => {
     expect(result.status).toBe('SUBMITTED');
     expect(result.age).toBeGreaterThan(0);
     expect(locations.validateHierarchy).toHaveBeenCalledWith({ regionId: 'r', zoneId: 'z', subcityId: 's', districtId: 'd' });
+    expect(payments.attachToApplication).toHaveBeenCalledWith('INDIVIDUAL', 'registration-1', input.payment);
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'REGISTRATION_SUBMITTED' }) }));
   });
 
@@ -85,16 +91,16 @@ describe('RegistrationsService', () => {
       id: 'registration-1', type: 'INDIVIDUAL', status: 'CORRECTION', trackingCode: 'EIASC-2026-ABC123',
     });
     prisma.registration.update.mockResolvedValue({
-      ...prisma.registration.create.mock.results[0]?.value,
       id: 'registration-1', trackingCode: 'EIASC-2026-ABC123', status: 'RESUBMITTED', declarationAccepted: true,
       firstName: 'Amina', middleName: 'Hawa', lastName: 'Ahmed', birthDate: new Date('1990-01-01'), gender: 'Female',
-      maritalStatus: 'Single', phone: '+251900000000', educationLevel: 'Degree', employmentStatus: 'Employed',
+      maritalStatus: 'Single', phone: '+251900000000', email: 'amina@example.test', educationLevel: 'Degree', employmentStatus: 'Employed',
       regionId: 'r', zoneId: 'z', subcityId: 's', districtId: 'd', currentAddress: 'Addis Ababa', nationalIdentity: null,
       institutionId: null, familyRelationship: null, familyMemberName: null, familyMemberPhone: null,
       correctionReason: null, rejectionReason: null, decisionAt: null, submittedAt: new Date(), createdAt: new Date(), updatedAt: new Date(),
     });
     const result = await service.resubmitIndividual('EIASC-2026-ABC123', input);
     expect(result.status).toBe('RESUBMITTED');
+    expect(payments.attachToApplication).toHaveBeenCalledWith('INDIVIDUAL', 'registration-1', input.payment);
     expect(prisma.auditLog.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ action: 'REGISTRATION_RESUBMITTED' }) }));
   });
 });

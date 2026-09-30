@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { JurisdictionLevel, RoleCode, UserStatus } from '@prisma/client';
+import { jest } from '@jest/globals';
 import { UsersService } from '../src/users/users.service';
 
 const actor = (roles: RoleCode[] = [RoleCode.SUPER_ADMIN]) => ({ id: 'actor', email: 'admin@example.test', phone: null, status: UserStatus.ACTIVE, roles, jurisdictionLevel: JurisdictionLevel.NATIONAL, jurisdictionId: null, institutionId: null });

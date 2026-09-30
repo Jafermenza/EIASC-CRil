@@ -53,10 +53,14 @@ export class AuthService {
   async logout(token: string, requestId?: string) {
     const stored = await this.prisma.refreshToken.findUnique({ where: { tokenHash: hashToken(token) } });
     if (stored && !stored.revokedAt) {
-      await this.prisma.refreshToken.update({ where: { id: stored.id }, data: { revokedAt: new Date() } });
+      await this.prisma.refreshToken.updateMany({ where: { userId: stored.userId, revokedAt: null }, data: { revokedAt: new Date() } });
       await this.audit(stored.userId, 'LOGOUT', 'User', stored.userId, requestId);
     }
     return { success: true };
+  }
+
+  async hasActiveSession(userId: string): Promise<boolean> {
+    return Boolean(await this.prisma.refreshToken.findFirst({ where: { userId, revokedAt: null, expiresAt: { gt: new Date() } }, select: { id: true } }));
   }
 
   async me(userId: string): Promise<AuthenticatedUser> {
