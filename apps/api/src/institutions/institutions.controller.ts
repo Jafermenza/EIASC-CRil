@@ -33,7 +33,7 @@ export class InstitutionsController {
   @Get('admin/institutions/applications') queue(@Req() req: AuthenticatedRequest, @Query() query: InstitutionListQuery) { return this.institutions.queue(req.user!, query); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
-  @Get('admin/institutions/applications/:id') detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.detail(req.user!, id); }
+  @Get('admin/institutions/applications/:id') async detail(@Req() req: AuthenticatedRequest, @Param('id') id: string) { const application = await this.institutions.detail(req.user!, id); return { ...application, payment: await this.payments.getForApplication('INSTITUTION', id) }; }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
   @Post('admin/institutions/applications/:id/review') review(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.review(req.user!, id); }
@@ -53,6 +53,9 @@ export class InstitutionsController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Get('institutions/:id') get(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.getInstitution(req.user!, id); }
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(...ADMIN_ROLES)
+  @Get('institutions/:id/admin-user') adminUser(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.adminUser(req.user!, id); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Patch('institutions/:id') update(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: InstitutionProfileUpdateInput) { return this.institutions.updateInstitution(req.user!, id, body); }

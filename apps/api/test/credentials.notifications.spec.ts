@@ -2,7 +2,7 @@ import { jest } from '@jest/globals';
 import { CredentialsService } from '../src/credentials/credentials.service';
 
 describe('Credential notification event', () => {
-  it('emits in-app and email notifications when an institution credential is issued', async () => {
+  it('emits in-app, email, and SMS notifications when an institution credential is issued', async () => {
     const prisma = {
       institution: { findUnique: jest.fn().mockResolvedValue({ id: 'i1', status: 'ACTIVE' }) },
       credential: {
@@ -39,8 +39,10 @@ describe('Credential notification event', () => {
       'i1',
     );
     expect(result.credentialNumber).toContain('EIASC-I-');
-    expect(notifications.notifyEvent).toHaveBeenCalledTimes(2);
+    expect(notifications.notifyEvent).toHaveBeenCalledTimes(3);
     expect(notifications.notifyEvent.mock.calls[0][1].type).toBe('CREDENTIAL_ISSUED');
     expect(notifications.notifyEvent.mock.calls[1][1].type).toBe('CREDENTIAL_ISSUED_EMAIL');
+    expect(notifications.notifyEvent.mock.calls[2][1].type).toBe('CREDENTIAL_ISSUED');
+    expect(notifications.notifyEvent.mock.calls[2][2]).toBe('SMS');
   });
 });

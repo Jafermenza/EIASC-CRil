@@ -1,4 +1,4 @@
-CREATE TABLE "PlatformSetting" (
+CREATE TABLE IF NOT EXISTS "PlatformSetting" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "key" TEXT NOT NULL,
   "value" TEXT,
@@ -6,9 +6,9 @@ CREATE TABLE "PlatformSetting" (
   CONSTRAINT "PlatformSetting_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX "PlatformSetting_key_key" ON "PlatformSetting"("key");
+CREATE UNIQUE INDEX IF NOT EXISTS "PlatformSetting_key_key" ON "PlatformSetting"("key");
 
-CREATE TABLE "RegistrationBank" (
+CREATE TABLE IF NOT EXISTS "RegistrationBank" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "bankName" TEXT NOT NULL,
   "accountName" TEXT NOT NULL,
@@ -21,4 +21,4 @@ CREATE TABLE "RegistrationBank" (
   CONSTRAINT "RegistrationBank_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "RegistrationBank_active_displayOrder_idx" ON "RegistrationBank"("active", "displayOrder");
+CREATE INDEX IF NOT EXISTS "RegistrationBank_active_displayOrder_idx" ON "RegistrationBank"("active", "displayOrder");

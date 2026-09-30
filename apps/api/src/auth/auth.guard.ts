@@ -24,6 +24,7 @@ export class AuthGuard implements CanActivate {
     try {
       const payload = verifyJwt<AccessTokenPayload>(header.slice(7).trim(), this.secret!);
       if (payload.type !== 'access' || !payload.sub) throw new Error('Invalid access token');
+      if (!(await this.authService.hasActiveSession(payload.sub))) throw new Error('Session has been revoked');
       request.user = await this.authService.me(payload.sub);
       return true;
     } catch {

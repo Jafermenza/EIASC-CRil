@@ -3,6 +3,8 @@ import { createOpaqueToken } from '../auth/crypto';
 import { PrismaService } from '../prisma.service';
 import { ChapaInitializeInput, PaymentInput, RegistrationKind, RegistrationPaymentMethod } from './payment.types';
 import { PaymentSettingsService } from './payment-settings.service';
+import { AuthorizationService } from '../auth/authorization.service';
+import { AuthenticatedUser } from '../auth/auth.types';
 
 const METHODS: RegistrationPaymentMethod[] = ['TELEBIRR', 'CHAPA', 'BANK_TRANSFER'];
 
@@ -10,7 +12,7 @@ type JsonObject = Record<string, unknown>;
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService, private readonly settings: PaymentSettingsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly settings: PaymentSettingsService, private readonly authorization: AuthorizationService) {}
 
   private async fee(kind: RegistrationKind): Promise<number> {
     const config = await this.settings.getPublic();
@@ -108,16 +110,23 @@ export class PaymentsService {
     return (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "institutionApplicationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`)[0] ?? null;
   }
 
-  async queue(user: { roles: string[] }) {
+  async queue(user: AuthenticatedUser) {
     const allowed = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','FINANCE_OFFICER','INSPECTOR'];
     if (!user.roles.some((role) => allowed.includes(role))) throw new ForbiddenException('Payment review permission required');
-    return this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT p."id",p."method",p."amount",p."currency",p."referenceNumber",p."providerReference",p."status",p."submittedAt",p."verifiedAt",p."rejectionReason",r."trackingCode" AS "individualTrackingCode",r."firstName",r."lastName",ia."trackingCode" AS "institutionTrackingCode",ia."institutionName" FROM "RegistrationPayment" p LEFT JOIN "Registration" r ON r."id"=p."registrationId" LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId" ORDER BY p."submittedAt" DESC LIMIT 200`;
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT p."id",p."method",p."amount",p."currency",p."referenceNumber",p."providerReference",p."status",p."submittedAt",p."verifiedAt",p."rejectionReason",r."trackingCode" AS "individualTrackingCode",r."firstName",r."lastName",r."regionId" AS "registrationRegionId",r."zoneId" AS "registrationZoneId",r."subcityId" AS "registrationSubcityId",r."districtId" AS "registrationDistrictId",ia."trackingCode" AS "institutionTrackingCode",ia."institutionName",ia."regionId" AS "institutionRegionId",ia."zoneId" AS "institutionZoneId",ia."subcityId" AS "institutionSubcityId",ia."districtId" AS "institutionDistrictId" FROM "RegistrationPayment" p LEFT JOIN "Registration" r ON r."id"=p."registrationId" LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId" ORDER BY p."submittedAt" DESC LIMIT 200`;
+    const visible = [];
+    for (const row of rows) {
+      if (await this.authorization.canAccess(user, { regionId: (row.registrationRegionId ?? row.institutionRegionId) as string | null, zoneId: (row.registrationZoneId ?? row.institutionZoneId) as string | null, subcityId: (row.registrationSubcityId ?? row.institutionSubcityId) as string | null, districtId: (row.registrationDistrictId ?? row.institutionDistrictId) as string | null })) visible.push(row);
+    }
+    return visible;
   }
 
-  async verifyManual(id: string, userId: string, approve: boolean, reason?: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; method: RegistrationPaymentMethod }>>`SELECT "id","method" FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`;
+  async verifyManual(id: string, userOrId: AuthenticatedUser | string, approve: boolean, reason?: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; method: RegistrationPaymentMethod; registrationRegionId: string | null; registrationZoneId: string | null; registrationSubcityId: string | null; registrationDistrictId: string | null; institutionRegionId: string | null; institutionZoneId: string | null; institutionSubcityId: string | null; institutionDistrictId: string | null }>>`SELECT p."id",p."method",r."regionId" AS "registrationRegionId",r."zoneId" AS "registrationZoneId",r."subcityId" AS "registrationSubcityId",r."districtId" AS "registrationDistrictId",ia."regionId" AS "institutionRegionId",ia."zoneId" AS "institutionZoneId",ia."subcityId" AS "institutionSubcityId",ia."districtId" AS "institutionDistrictId" FROM "RegistrationPayment" p LEFT JOIN "Registration" r ON r."id"=p."registrationId" LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId" WHERE p."id"=${id}::uuid LIMIT 1`;
     if (!rows[0]) throw new NotFoundException('Payment not found');
     if (rows[0].method === 'CHAPA') throw new BadRequestException('Chapa payments are verified automatically');
+    if (typeof userOrId !== 'string') await this.authorization.assertCanAccess(userOrId, { regionId: rows[0].registrationRegionId ?? rows[0].institutionRegionId, zoneId: rows[0].registrationZoneId ?? rows[0].institutionZoneId, subcityId: rows[0].registrationSubcityId ?? rows[0].institutionSubcityId, districtId: rows[0].registrationDistrictId ?? rows[0].institutionDistrictId });
+    const userId = typeof userOrId === 'string' ? userOrId : userOrId.id;
     await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"=${approve ? 'PAID' : 'REJECTED'}::"RegistrationPaymentStatus","verifiedBy"=${userId}::uuid,"verifiedAt"=CURRENT_TIMESTAMP,"rejectionReason"=${approve ? null : (reason?.trim() || 'Payment rejected')},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid`;
     return (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT * FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`)[0];
   }
