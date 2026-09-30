@@ -1,4 +1,8 @@
 # EIASC CRil — Roadmap Progress Log
+
+**Repository:** `EIASC-CRil`  
+**Master roadmap:** `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.1.md`  
+**Purpose:** Permanent engineering progress record tied to commits and validation evidence.
 **Repository:** `Jafermenza/EIASC-CRil`  
 **Master roadmap:** `Master MVP PRD, Architecture & AI Agent Milestone Roadmap v2.1.md`
 
@@ -75,22 +79,100 @@ Commits: `69c275180be47dc14087de11ca22b0ee871ebcbb`, `e096a3a49b7bb752e635fe1ff5
 
 **Gate: PASSING in CI.** Registration uses authoritative PostgreSQL geography, institution types, fees, payment methods and banks; conditional geography is enforced server-side.
 
-## 2026-09-13 — M5 Digital Credentials & QR — COMPLETE
+### Release-gate status
 
-Release commits: `2fe5d92b1513358f50904eb6655c4ebe5c97db40`, `e5700d5ec6865b2e5755039a454596771c505e39`, `0cdabbdd4c59a84668abd4f50b0df69f47a4a3c1`, `8e7a598dc52ae51d0d761df45555524bf5b1d889`, `0d309345c974fd25fae7b7d11444cbe16b9ae2bb`.
+**M3.5 implementation gate: PASSING in CI.**
 
-M5 acceptance covers automatic credential numbers, public verification, QR, expiry/revocation, audit/history, configuration and valid/expired/revoked/invalid states. CI run `34749279496`, job `103702735914`, passed migration validation, seed, geography validation, lint, typecheck, unit/API tests, backup/restore, build and milestone-scoped Playwright E2E.
+The conditional geography rule is now a permanent acceptance requirement, not a temporary workaround.
 
-**M5 release gate: PASS.**
+### Known follow-up
 
-## 2026-09-13 — M6 Institutional Membership — COMPLETE
+The Prisma schema/client representation of the institution-application district field must remain reconciled with the nullable database migration before production migration workflows are finalized.
 
-Release commits: `447e4c9b4b40a49132501d6482a93a19769ecde4`, `da3657efc4c55ea3d240f998ee011ab731abd035`, `6c074efc1421d4d5acfa7653b20a5e068cdd9486`.
+---
 
+## 2026-09-13 — M5 Digital Credentials & QR — Release Candidate
 M6 preserves the institutional membership lifecycle `PENDING → ACTIVE → SUSPENDED → ENDED`, institution-scoped authorization, institutional listing, persisted `endedAt`, and lifecycle audit evidence. The dedicated M6 acceptance suite uses an isolated member fixture and verifies the complete workflow. CI run `34749820789` passed after fixture remediation.
 
-**M6 release gate: PASS. PR #13 merged to `main` as `1e724c73790c117e026afcf6a1a297ed8edde2ef`.**
+### Roadmap binding
 
+The v2.1 roadmap defines M5 as the next release after the M3.5 registration gate. This branch is the controlled M5 release-candidate stream. Existing M5 implementation was inspected before changes; completed functionality was preserved.
+
+### Existing implementation verified in repository
+
+- Member, institution and license credential types exist.
+- Credential numbers are generated automatically.
+- Public verification API accepts credential number or verification token.
+- Public verification UI renders the actual API result and a QR verification representation.
+- Credential publication/review, history and audit records exist.
+- Revocation and expiry state handling exist.
+- Credential design configuration supports global and regional configuration with server-side role/jurisdiction checks.
+
+### Release-candidate commits
+
+| Commit | Work | Status |
+|---|---|---|
+| `2fe5d92b1513358f50904eb6655c4ebe5c97db40` | Add M5 public verification acceptance coverage for valid, expired, revoked and invalid credentials | Implemented |
+| `e5700d5ec6865b2e5755039a454596771c505e39` | Make M5 verification fixtures unique and deterministic enough for CI | Implemented |
+| `0cdabbdd4c59a84668abd4f50b0df69f47a4a3c1` | Enforce configured credential validity at the database boundary, including regional configuration fallback to global configuration | Implemented |
+| `8e7a598dc52ae51d0d761df45555524bf5b1d889` | Assert newly generated credentials receive configured expiry and cover all public verification states | Implemented |
+| `694614ddfd1ecb69632ddf5f055fca6d249f998c` | Replace fixture-creation M5 E2E with focused public verification-state coverage using an existing seeded credential and state restoration | Implemented |
+| `f4c0a659c9c336a0e716306af357c1c113285200` | Retire legacy credential automation acceptance scenario from the M5 release gate | Implemented |
+| `90371ddd5699dad6446661db1476edfd870465bd` | Retire already-complete M4 licensing E2E from the M5 release gate | Implemented |
+| `13c5ba41b86ce915ea88f3564aae700d4bcdbce4` | Retire mixed M5/M6 E2E so M6 membership is not included in the M5 release gate | Implemented |
+| `184d92715b248e28bd6c7376f83a7389f026957e` | Stabilize PostgreSQL M5 credential triggers by copying trigger records to local variables before SQL references | Implemented |
+
+### M5 E2E release-gate scope
+
+The M5 gate is now intentionally limited to behavior delivered by M5. Completed M4 licensing and future M6 membership workflows are not release blockers for M5. The focused M5 E2E verifies the public credential contract: valid, expired, revoked and invalid credentials. The fixture is read from the existing CI seed and its credential state is restored after the test.
+
+### M5 database rule
+
+Credential expiry is enforced at the PostgreSQL boundary rather than relying only on UI or a single issuance code path.
+
+For a newly inserted credential:
+
+```text
+regional configuration for subject region
+        ↓ if absent
+global/default configuration
+        ↓
+validityYears
+        ↓
+Credential.expiresAt
+```
+
+Existing credentials with a null expiry are backfilled by the migration using the same regional → default fallback.
+
+### M5 acceptance coverage
+
+```text
+[✓] Automatic credential number exists
+[✓] Public verification endpoint exists
+[✓] Public verification UI exists
+[✓] QR verification representation exists
+[✓] Credential history/audit exists
+[✓] Regional/global credential configuration exists
+[✓] Valid credential verification covered
+[✓] Expired credential verification covered
+[✓] Revoked credential verification covered
+[✓] Invalid credential verification covered
+[✓] Configured validity produces Credential.expiresAt
+[✓] Legacy M4/M6 E2E removed from M5 gate
+[✓] M5 E2E fixture no longer creates unrelated Member records
+[ ] CI typecheck/lint/tests/build/E2E for this release candidate
+[ ] Final M5 release-gate approval
+```
+
+### Current M5 status
+
+**RELEASE CANDIDATE — CI VALIDATION PENDING.**
+
+M5 must not be marked complete until CI proves the migration, typecheck, lint, API/unit tests, production build and focused Playwright acceptance suite all pass.
+
+### Next action
+
+Run the M5 release-candidate CI. If CI fails, fix only the failing gate, record the remediation commit here, and rerun CI. If all gates pass, mark M5 complete and open the M6 Institutional Membership release stream.
 ## 2026-09-13 — M7 Reporting & Dashboards — COMPLETE
 Release commits: `4154474e179f56b51783c3e5abb8b2df55762ef5`, `04bb7eac2426fcd0c324bdc54fc5a27e70005d10`, `67e52899c8ca3d86fb0c08aae90e14c589fa55ab`, `5fb9651b870c06aa34e797fb7c2ca064d6d46e19`, `f5dd01069939b7bc0222e5a561e60c07b48f1813`, `53cde4f82f83fa6e17d5560549d98c3647c12b9`, `757865b61e6920e428f3f32ea0ab2d3c620a2acf`, `e5c1cb95d894230f1615b2c7d719cbc817d6a72f`.
 
@@ -250,6 +332,7 @@ M12 is being treated as a hard release gate. No production approval is implied b
 [pending] Final go-live approval
 ```
 
+Previously completed work includes implementation work for later areas already present in the repository, but those areas remain subject to their current roadmap acceptance gates and are not retroactively marked production-complete without final evidence.
 **M12 status: LOCAL READINESS PASS / NOT GO-LIVE — hardening and local gates pass, but milestone-scoped CI, deployed-environment verification, UAT/accessibility, security review and recovery evidence remain required.**
 
 ## Final M9/M10/M11/M12 truth record
@@ -261,6 +344,17 @@ M12 is being treated as a hard release gate. No production approval is implied b
 | M11 PWA / Offline / App Experience | Implemented + local acceptance pass | Milestone-scoped CI pending | **NOT RELEASED** |
 | M12 Production Hardening & Go-Live | Security hardening + local acceptance pass | CI/deployed-UAT/recovery evidence pending | **NOT RELEASED** |
 
+## Next planned release order
+
+```text
+M5 Digital Credentials & QR         ← CURRENT RELEASE CANDIDATE
+M6 Institutional Membership         ← NEXT after M5 gate passes
+M7 Reporting & Dashboards
+M8 Resource Allocation Engine
+M9 Notifications / SMS / Afro SMS
+M10 Platform Settings & Integrations
+M11 PWA / Offline / App Experience
+M12 Production Hardening / UAT / Go-Live
 This record intentionally distinguishes **code implemented** from **milestone passed**. No milestone is marked complete without the required evidence.
 
 ### M12 gate checklist
