@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useToast } from "../../../components/ui/toast-provider";
 import { extractErrorMessage, isValidEmail, isValidPhone } from "../../../lib/validation";
+
+const MapLocationPicker = dynamic(() => import("../../../components/ui/map-location-picker"), { ssr: false });
 
 type Location = { id: string; name: string };
 type Type = { id: string; code: string; name: string; description?: string };
@@ -38,6 +41,8 @@ export default function InstitutionRegistrationPage() {
   const [application, setApplication] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
   const [form, setForm] = useState({
     institutionName: "",
     institutionTypeId: "",
@@ -52,6 +57,8 @@ export default function InstitutionRegistrationPage() {
     subcityId: "",
     districtId: "",
     address: "",
+    latitude: "",
+    longitude: "",
     mission: "",
     description: "",
     services: "",
@@ -273,6 +280,7 @@ export default function InstitutionRegistrationPage() {
       const data = await r.json();
       if (!r.ok) throw new Error(extractErrorMessage(data, "The institution application could not be saved."));
       setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      setLocationVerified(typeof data.locationVerified === "boolean" ? data.locationVerified : null);
       setStep(3);
     } catch (err) {
       reportError(err instanceof Error ? err.message : "The application service could not save your application.");
@@ -295,6 +303,8 @@ export default function InstitutionRegistrationPage() {
       subcityId: form.subcityId || undefined,
       districtId: form.districtId || undefined,
       address: form.address,
+      latitude: form.latitude ? Number(form.latitude) : undefined,
+      longitude: form.longitude ? Number(form.longitude) : undefined,
       mission: form.mission,
       description: form.description,
       services: form.services,
@@ -655,6 +665,57 @@ export default function InstitutionRegistrationPage() {
                 />
               </label>
             </p>
+            <h3>Map location</h3>
+            <p className="lead" style={{ fontSize: 14 }}>
+              Enter the institution&apos;s coordinates manually, or use the map to pin the
+              location. We compare the coordinates against the administrative geography
+              database for the selected region/zone/sub-city/district; if a match is found
+              nearby it is marked verified automatically, otherwise it is flagged for admin
+              review.
+            </p>
+            <p style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <label style={{ flex: "1 1 160px" }}>
+                Latitude
+                <input
+                  style={inputStyle}
+                  type="number"
+                  step="any"
+                  min={-90}
+                  max={90}
+                  placeholder="e.g. 9.0300"
+                  value={form.latitude}
+                  onChange={(e) => set("latitude", e.target.value)}
+                />
+              </label>
+              <label style={{ flex: "1 1 160px" }}>
+                Longitude
+                <input
+                  style={inputStyle}
+                  type="number"
+                  step="any"
+                  min={-180}
+                  max={180}
+                  placeholder="e.g. 38.7400"
+                  value={form.longitude}
+                  onChange={(e) => set("longitude", e.target.value)}
+                />
+              </label>
+            </p>
+            <p>
+              <button type="button" className="button button-secondary" onClick={() => setShowMap((v) => !v)}>
+                {showMap ? "Hide map" : "Pin location on map"}
+              </button>
+            </p>
+            {showMap && (
+              <MapLocationPicker
+                latitude={form.latitude}
+                longitude={form.longitude}
+                onPick={(lat, lng) => {
+                  set("latitude", lat.toFixed(6));
+                  set("longitude", lng.toFixed(6));
+                }}
+              />
+            )}
             <h3>Responsible person</h3>
             <p>
               <label>
@@ -729,6 +790,16 @@ export default function InstitutionRegistrationPage() {
                 <p><strong>Application saved</strong></p>
                 <p>Tracking / application ID: <strong>{application.trackingCode}</strong></p>
                 <p>Registered phone: <strong>{application.phone}</strong></p>
+                {locationVerified !== null && (
+                  <p>
+                    Map location:{" "}
+                    <strong>
+                      {locationVerified
+                        ? "Verified against geographic database"
+                        : "Could not be auto-verified — flagged for admin review"}
+                    </strong>
+                  </p>
+                )}
                 <p>Your registration is incomplete until payment is received or approved by authorized EIASC authorities.</p>
               </section>
             )}

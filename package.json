@@ -27,6 +27,9 @@
     "db:export-geography": "node scripts/export-geography.mjs",
     "db:verify-geography": "tsx scripts/verify-geography.ts",
     "db:bootstrap": "npm run db:deploy && npm run db:seed && npm run db:import-geography && npm run db:export-geography && npm run db:verify-geography",
+    "db:local-start": "node scripts/local-postgres.mjs start",
+    "db:local-stop": "node scripts/local-postgres.mjs stop",
+    "db:local-status": "node scripts/local-postgres.mjs status",
     "test:e2e": "playwright test",
     "security:review": "node scripts/security-review.mjs",
     "ops:smoke": "node scripts/production-smoke.mjs",
@@ -37,6 +40,7 @@
     "xlsx": "0.18.5"
   },
   "devDependencies": {
+    "embedded-postgres": "18.4.0-beta.17",
     "@playwright/test": "^1.63.0",
     "@types/node": "20.17.24",
     "@types/react": "19.1.12",

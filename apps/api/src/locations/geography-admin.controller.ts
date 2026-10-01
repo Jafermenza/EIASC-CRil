@@ -48,6 +48,16 @@ export class GeographyAdminController {
     return this.geography.createDistrict(this.required(body.code, 'code'), this.required(body.name, 'name'), this.required(body.zoneId, 'zoneId'), this.string(body.subcityId));
   }
 
+  @Post('coordinates')
+  coordinates(@Body() body: Record<string, unknown>) {
+    const level = this.required(body.level, 'level');
+    if (!['region', 'zone', 'subcity', 'district'].includes(level)) throw new BadRequestException('level must be one of region, zone, subcity, district');
+    const id = this.required(body.id, 'id');
+    const latitude = Number(body.latitude); const longitude = Number(body.longitude);
+    if (Number.isNaN(latitude) || Number.isNaN(longitude)) throw new BadRequestException('latitude and longitude must be numbers');
+    return this.geography.setCoordinates(level as 'region' | 'zone' | 'subcity' | 'district', id, latitude, longitude);
+  }
+
   private fileBase64(body: Record<string, unknown>): string {
     return this.required(body.fileBase64, 'fileBase64');
   }

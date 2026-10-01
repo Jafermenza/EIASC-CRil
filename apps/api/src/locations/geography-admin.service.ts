@@ -17,6 +17,13 @@ type Row = {
 
 const HEADERS = ['Region', 'Region Code', 'Zone/City', 'Zone Code', 'Sub-city/Town', 'Sub-city Code', 'District/Woreda', 'District Code', 'Latitude', 'Longitude'];
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : value == null ? '' : String(value).trim();
+const coord = (value: unknown, min: number, max: number): number | undefined => {
+  const raw = text(value);
+  if (!raw) return undefined;
+  const n = Number(raw);
+  if (Number.isNaN(n) || n < min || n > max) throw new BadRequestException(`Invalid coordinate value: ${raw}`);
+  return n;
+};
 
 function parseCsv(input: string): string[][] {
   const rows: string[][] = []; let row: string[] = []; let field = ''; let quoted = false;
@@ -61,6 +68,8 @@ export class GeographyAdminService {
       const line = index + 2; const region = text(row.Region); const regionCode = text(row['Region Code']); const zone = text(row['Zone/City']); const zoneCode = text(row['Zone Code']); const subcity = text(row['Sub-city/Town']); const subcityCode = text(row['Sub-city Code']); const district = text(row['District/Woreda']); const districtCode = text(row['District Code']);
       if (!region || !regionCode || !zone || !zoneCode || !district || !districtCode) errors.push(`Row ${line}: region, zone/city and district/woreda names and codes are required`);
       if ((subcity && !subcityCode) || (!subcity && subcityCode)) errors.push(`Row ${line}: sub-city/town name and code must be supplied together`);
+      try { coord(row.Latitude, -90, 90); } catch { errors.push(`Row ${line}: Latitude must be between -90 and 90`); }
+      try { coord(row.Longitude, -180, 180); } catch { errors.push(`Row ${line}: Longitude must be between -180 and 180`); }
       const key = `${regionCode}|${zoneCode}|${subcityCode}|${districtCode}`;
       if (seen.has(key)) errors.push(`Row ${line}: duplicate hierarchy row ${key}`);
       seen.add(key);
@@ -81,7 +90,7 @@ export class GeographyAdminService {
           const zone = await tx.zoneCity.upsert({ where: { code: text(row['Zone Code']) }, update: { name: text(row['Zone/City']), regionId: region.id }, create: { code: text(row['Zone Code']), name: text(row['Zone/City']), regionId: region.id } }); zoneCount += 1;
           let subcityId: string | null = null; const subcityCode = text(row['Sub-city Code']);
           if (subcityCode) { const subcity = await tx.subcityTown.upsert({ where: { code: subcityCode }, update: { name: text(row['Sub-city/Town']), zoneId: zone.id }, create: { code: subcityCode, name: text(row['Sub-city/Town']), zoneId: zone.id } }); subcityId = subcity.id; subcityCount += 1; }
-          await tx.district.upsert({ where: { code: text(row['District Code']) }, update: { name: text(row['District/Woreda']), zoneId: zone.id, subcityId }, create: { code: text(row['District Code']), name: text(row['District/Woreda']), zoneId: zone.id, subcityId } }); districtCount += 1;
+          await tx.district.upsert({ where: { code: text(row['District Code']) }, update: { name: text(row['District/Woreda']), zoneId: zone.id, subcityId, latitude: coord(row.Latitude, -90, 90), longitude: coord(row.Longitude, -180, 180) }, create: { code: text(row['District Code']), name: text(row['District/Woreda']), zoneId: zone.id, subcityId, latitude: coord(row.Latitude, -90, 90), longitude: coord(row.Longitude, -180, 180) } }); districtCount += 1;
         }
       }, { timeout: 120000 });
       const unique = (key: keyof Row) => new Set(rows.map((row) => text(row[key]))).size;
@@ -98,4 +107,18 @@ export class GeographyAdminService {
   createZone(code: string, name: string, regionId: string) { return this.prisma.zoneCity.create({ data: { code: code.trim(), name: name.trim(), regionId: regionId.trim() } }); }
   createSubcity(code: string, name: string, zoneId: string) { return this.prisma.subcityTown.create({ data: { code: code.trim(), name: name.trim(), zoneId: zoneId.trim() } }); }
   createDistrict(code: string, name: string, zoneId: string, subcityId?: string) { return this.prisma.district.create({ data: { code: code.trim(), name: name.trim(), zoneId: zoneId.trim(), subcityId: subcityId?.trim() || null } }); }
+
+  /** Lets an admin directly set/update the reference latitude/longitude for a geography record used for applicant map-location verification. */
+  async setCoordinates(level: 'region' | 'zone' | 'subcity' | 'district', id: string, latitude: number, longitude: number) {
+    const lat = coord(latitude, -90, 90); const lng = coord(longitude, -180, 180);
+    if (lat === undefined || lng === undefined) throw new BadRequestException('latitude and longitude are required');
+    const data = { latitude: lat, longitude: lng };
+    switch (level) {
+      case 'region': return this.prisma.region.update({ where: { id }, data });
+      case 'zone': return this.prisma.zoneCity.update({ where: { id }, data });
+      case 'subcity': return this.prisma.subcityTown.update({ where: { id }, data });
+      case 'district': return this.prisma.district.update({ where: { id }, data });
+      default: throw new BadRequestException('Invalid geography level');
+    }
+  }
 }

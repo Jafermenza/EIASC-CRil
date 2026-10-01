@@ -253,6 +253,8 @@ model Region {
   id           String        @id @default(uuid()) @db.Uuid
   code         String        @unique
   name         String
+  latitude     Float?
+  longitude    Float?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   zones        ZoneCity[]
@@ -266,6 +268,8 @@ model ZoneCity {
   id           String        @id @default(uuid()) @db.Uuid
   code         String        @unique
   name         String
+  latitude     Float?
+  longitude    Float?
   regionId     String        @db.Uuid
   region       Region        @relation(fields: [regionId], references: [id], onDelete: Restrict)
   createdAt    DateTime      @default(now())
@@ -282,6 +286,8 @@ model SubcityTown {
   id           String        @id @default(uuid()) @db.Uuid
   code         String        @unique
   name         String
+  latitude     Float?
+  longitude    Float?
   zoneId       String        @db.Uuid
   zone         ZoneCity      @relation(fields: [zoneId], references: [id], onDelete: Restrict)
   createdAt    DateTime      @default(now())
@@ -297,6 +303,8 @@ model District {
   id           String        @id @default(uuid()) @db.Uuid
   code         String        @unique
   name         String
+  latitude     Float?
+  longitude    Float?
   zoneId       String?       @db.Uuid
   subcityId    String?       @db.Uuid
   zone         ZoneCity?     @relation("ZoneDistricts", fields: [zoneId], references: [id], onDelete: Restrict)
@@ -342,6 +350,9 @@ model Institution {
   zoneId              String             @db.Uuid
   subcityId           String?            @db.Uuid
   districtId          String             @db.Uuid
+  latitude            Float?
+  longitude           Float?
+  locationVerified    Boolean            @default(false)
   status              InstitutionStatus  @default(PENDING)
   createdAt           DateTime           @default(now())
   updatedAt           DateTime           @updatedAt
@@ -387,6 +398,9 @@ model InstitutionApplication {
   description         String?
   services            String?
   communityActivities String?
+  latitude            Float?
+  longitude           Float?
+  locationVerified    Boolean                    @default(false)
   applicantName       String?
   applicantPhone      String?
   applicantEmail      String?

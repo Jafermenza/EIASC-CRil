@@ -248,6 +248,10 @@ export default function IndividualRegistrationPage() {
       reportError(validationReason());
       return;
     }
+    if (!form.declarationAccepted) {
+      reportError("Please accept the declaration confirming the information provided is accurate before continuing.");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
@@ -648,6 +652,17 @@ export default function IndividualRegistrationPage() {
               </label>
             </p>
             {form.employmentStatus && <p><label>Role / occupation<input style={inputClass} placeholder="Role or occupation" value={form.careerRole} onChange={(e) => set("careerRole", e.target.value)} /></label></p>}
+            <p>
+              <label>
+                <input
+                  required
+                  type="checkbox"
+                  checked={form.declarationAccepted}
+                  onChange={(e) => set("declarationAccepted", e.target.checked)}
+                />{" "}
+                I confirm that the information provided is accurate.
+              </label>
+            </p>
             <div className="action-row">
               <button
                 type="button"

@@ -7,7 +7,7 @@ import { LocationsService } from '../locations/locations.service';
 import { PaymentsService } from '../payments/payments.service';
 import { PrismaService } from '../prisma.service';
 import { CredentialProvisioningService } from '../auth/credential-provisioning.service';
-import { ApplicationTrackingResult, IndividualRegistrationInput, IndividualRegistrationRecord } from './registration.types';
+import { ApplicationTrackingResult, IndividualRegistrationInput, IndividualRegistrationRecord, IndividualRegistrationStatus } from './registration.types';
 
 @Injectable()
 export class RegistrationsService {
@@ -71,9 +71,18 @@ export class RegistrationsService {
   async track(trackingCode: string, phone?: string, firstName?: string): Promise<ApplicationTrackingResult> {
     const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
     const registration = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { type: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, firstName: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
-    if (!registration) throw new NotFoundException('Application not found'); if (phone && registration.phone !== phone.trim()) throw new NotFoundException('Application not found'); if (firstName && registration.firstName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
-    const nextActionByStatus: Record<RegistrationStatus, string> = { DRAFT: 'Complete and submit the application', SUBMITTED: 'Wait for EIASC review', UNDER_REVIEW: 'Application is being reviewed', CORRECTION: 'Update the requested information and resubmit', RESUBMITTED: 'Wait for EIASC review', APPROVED: 'Your application has been approved', REJECTED: 'Review the decision information', REVOKED: 'Contact EIASC for further information' };
-    return { type: registration.type, trackingCode: registration.trackingCode, status: registration.status, submittedAt: registration.submittedAt, createdAt: registration.createdAt, updatedAt: registration.updatedAt, nextAction: nextActionByStatus[registration.status], correctionRequirement: registration.status === RegistrationStatus.CORRECTION ? registration.correctionReason ?? undefined : undefined, decisionInformation: registration.status === RegistrationStatus.REJECTED || registration.status === RegistrationStatus.APPROVED ? registration.rejectionReason ?? (registration.decisionAt ? `Decision recorded on ${registration.decisionAt.toISOString()}` : undefined) : undefined };
+    if (registration) {
+      if (phone && registration.phone !== phone.trim()) throw new NotFoundException('Application not found'); if (firstName && registration.firstName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
+      const nextActionByStatus: Record<RegistrationStatus, string> = { DRAFT: 'Complete and submit the application', SUBMITTED: 'Wait for EIASC review', UNDER_REVIEW: 'Application is being reviewed', CORRECTION: 'Update the requested information and resubmit', RESUBMITTED: 'Wait for EIASC review', APPROVED: 'Your application has been approved', REJECTED: 'Review the decision information', REVOKED: 'Contact EIASC for further information' };
+      return { type: registration.type, trackingCode: registration.trackingCode, status: registration.status, submittedAt: registration.submittedAt, createdAt: registration.createdAt, updatedAt: registration.updatedAt, nextAction: nextActionByStatus[registration.status], correctionRequirement: registration.status === RegistrationStatus.CORRECTION ? registration.correctionReason ?? undefined : undefined, decisionInformation: registration.status === RegistrationStatus.REJECTED || registration.status === RegistrationStatus.APPROVED ? registration.rejectionReason ?? (registration.decisionAt ? `Decision recorded on ${registration.decisionAt.toISOString()}` : undefined) : undefined };
+    }
+    // Institution applications use their own tracking-code sequence and table. The public
+    // tracking page accepts either code type, so fall back here instead of reporting "not found".
+    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
+    if (!application) throw new NotFoundException('Application not found');
+    if (phone && application.phone !== phone.trim() && application.applicantPhone !== phone.trim()) throw new NotFoundException('Application not found');
+    const institutionNextActionByStatus: Record<string, string> = { DRAFT: 'Complete and submit the application', SUBMITTED: 'Wait for EIASC review', UNDER_REVIEW: 'Application is being reviewed', CORRECTION_REQUIRED: 'Update the requested information and resubmit', RESUBMITTED: 'Wait for EIASC review', APPROVED: 'Application approved', REJECTED: 'Review the decision information', REVOKED: 'Contact EIASC for further information' };
+    return { type: 'INSTITUTION', trackingCode: application.trackingCode, status: application.status as unknown as IndividualRegistrationStatus, submittedAt: application.submittedAt, createdAt: application.createdAt, updatedAt: application.updatedAt, nextAction: institutionNextActionByStatus[application.status] ?? 'Wait for EIASC review', correctionRequirement: application.status === 'CORRECTION_REQUIRED' ? application.correctionReason ?? undefined : undefined, decisionInformation: application.status === 'REJECTED' || application.status === 'APPROVED' ? application.rejectionReason ?? (application.decisionAt ? `Decision recorded on ${application.decisionAt.toISOString()}` : undefined) : undefined };
   }
 
   private assertReviewRole(user: AuthenticatedUser) {
