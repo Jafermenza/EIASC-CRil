@@ -299,6 +299,38 @@ M12 is being treated as a hard release gate. No production approval is implied b
 - Request IDs are accepted only when bounded to a safe character/length pattern; invalid values are replaced with a generated UUID.
 - Authentication endpoints retain a bounded rate limit with `Retry-After` response handling.
 - API responses from the security middleware are marked `no-store` to reduce accidental caching of authenticated/error responses.
+
+---
+
+## 2026-10-01 — Production bug fixes: tracking lookup, declaration gating, institution map location — `38cba8f`
+
+Three defects reported against the deployed local build were triaged and fixed directly on `main`, commit `38cba8f`.
+
+### Fixes implemented
+
+1. **Public tracking lookup failure for institution codes** (`/track?code=EIASC-I-...`)
+   - `registrations.service.ts#track()` previously queried only the individual `Registration` table, so institution tracking codes always reported "not found."
+   - Added a fallback lookup against `InstitutionApplication` (matching `phone`/`applicantPhone`), mapped to the same response shape with `type: 'INSTITUTION'`.
+   - Verified live against the user-reported code `EIASC-I-2026-1Z4V5I` via direct API and Next.js proxy curl checks.
+
+2. **Individual registration declaration gating** (`/register/individual`)
+   - The declaration checkbox only existed on the payment step (step 3), but the step-2 "Save application & continue to payment" action posted to the backend immediately, where `validateIndividual()` requires `declarationAccepted`, producing an opaque "Registration needs attention" error.
+   - Added the declaration checkbox to step 2 ahead of the save/continue button, plus a client-side guard in `saveApplication()` that blocks submission with a clear message if the declaration is unchecked.
+
+3. **Institution registration — Map location feature**
+   - Added `latitude`/`longitude` to `Region`, `ZoneCity`, `SubcityTown`, `District`, and `latitude`/`longitude`/`locationVerified` to `InstitutionApplication`/`Institution` (migration `20261001000000_add_map_location`).
+   - Backend: `institutions.service.ts` adds Haversine-distance verification (`verifyLocation()`, 50 km tolerance) against the most specific available geography reference point; wired into `createApplication()`, `updateApplication()`, and copied through on `approve()`.
+   - Admin geography CSV import (`geography-admin.service.ts`) now persists previously-unused `Latitude`/`Longitude` columns into `District` (non-destructive on re-import); added `POST /locations/admin/coordinates` for direct coordinate entry without a CSV.
+   - Frontend: new `MapLocationPicker` component (`leaflet` + `react-leaflet@5`, loaded client-only via `next/dynamic`) added to `/register/institution`, offering manual latitude/longitude entry and an interactive click/drag map pin; the resulting `locationVerified` status is shown to the applicant after save.
+
+### Validation evidence
+
+- `apps/api` and `apps/web` type-check cleanly (`tsc --noEmit`).
+- Live curl verification of the fixed tracking code, and HTTP 200 checks for `/register/individual`, `/register/institution`, `/track?code=...`.
+- End-to-end institution-application test runs against local reference geography data produced both `locationVerified: true` (coordinates within tolerance) and `locationVerified: false` (far-off coordinates) as expected; all temporary test data removed afterward.
+- This is local implementation/manual evidence only; no milestone-scoped GitHub CI run has been recorded for these fixes. They are ad hoc defect fixes outside the M9-M12 roadmap milestones rather than a new roadmap milestone.
+
+**Status: IMPLEMENTED / LOCAL VERIFICATION PASS / CI NOT RUN.**
 - Express proxy trust is explicitly configured for the deployment reverse-proxy topology so authentication throttling can use the originating client address.
 - Existing dependency audit gate remains mandatory through `npm run security:review`, blocking high/critical dependency vulnerabilities.
 - Existing production smoke test and backup/restore drill remain part of the operational gate.
