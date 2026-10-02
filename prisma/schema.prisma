@@ -190,6 +190,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
   notifications       Notification[]
+  amendments           RegistrationAmendment[]
   reviewSnapshots      ApplicationReviewSnapshot[]
   correctionRequests   ApplicationCorrection[]
   assignedInspections  Inspection[]
@@ -385,6 +386,7 @@ model Institution {
   staffSummary        InstitutionStaffSummary?
   education           InstitutionEducation?
   documents           InstitutionDocument[]
+  amendments          InstitutionApplicationAmendment[]
   reviewSnapshots     ApplicationReviewSnapshot[]
   correctionRequests  ApplicationCorrection[]
   inspections         Inspection[]
@@ -445,6 +447,30 @@ model InstitutionApplication {
   @@index([status])
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([institutionName])
+}
+
+model RegistrationAmendment {
+  id             String       @id @default(uuid()) @db.Uuid
+  registrationId String       @db.Uuid
+  version        Int
+  snapshot       Json
+  changedFields  Json?
+  createdAt      DateTime     @default(now())
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  @@unique([registrationId, version])
+  @@index([registrationId, createdAt])
+}
+
+model InstitutionApplicationAmendment {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  institutionApplicationId  String                  @db.Uuid
+  version                    Int
+  snapshot                   Json
+  changedFields              Json?
+  createdAt                  DateTime                @default(now())
+  application                InstitutionApplication @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  @@unique([institutionApplicationId, version])
+  @@index([institutionApplicationId, createdAt])
 }
 
 model ApplicationReviewSnapshot {
