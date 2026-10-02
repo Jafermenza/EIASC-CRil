@@ -428,3 +428,22 @@ Implemented on `reconciliation/phase-3-application-review` from the Phase 2 bran
 
 Validation is still pending because CI remains intentionally suspended; no claim of build/typecheck/E2E success is made until those checks are executed.
 \n\n### Supporting-document increment (before next phase)\n\n- Individual and institution public application forms now provide an optional **Supporting document** field plus **Other attachments** (multiple files).\n- Accepted uploads are PDF, JPEG, PNG, or WebP, with a 10 MB per-file limit enforced server-side.\n- Institution applications reuse the existing `InstitutionDocument` workflow; individual applications now have `RegistrationDocument` records.\n- Each uploaded file is stored on the application document storage path with a generated server-side storage key; the database also records a secure application document URL, MIME type, original file name, size, and timestamp.\n- Applicant upload requests require the registered phone number or applicant first name/tracking-code combination; reviewers receive jurisdiction-protected document access.\n- Supporting documents remain editable in `DRAFT` and correction states, so a correction/resubmission can add missing evidence without replacing the original application record.\n- Reviewer application detail now exposes individual supporting-document metadata alongside payment and amendment history.\n- Database migration: `20261003000000_application_supporting_documents`.\n- Validation is still pending because CI is intentionally suspended; no claim of CI/build validation is made on this branch.\n
+
+### Phase 4 — Reviewer and inspection workflow
+
+Implemented on `reconciliation/phase-4-reviewer-inspection`:
+
+- Unified reviewer queue for individual and institution applications.
+- Reviewer detail combines submitted application data, amendment history, supporting documents, payment history/evidence, inspections and audit history.
+- Immutable submitted-form snapshots are captured in `ApplicationReviewSnapshot`.
+- Structured correction requests are stored in `ApplicationCorrection`, including field-level correction instructions.
+- Existing review/reject/approve controls remain available and the unified workspace invokes the authoritative application workflow.
+- Institution applications can explicitly require inspection before approval.
+- Inspection assignment is restricted to users carrying the `INSPECTOR` role.
+- Inspection lifecycle records assignment, schedule, start/completion, findings and PASS/FAIL/CONDITIONAL decision with decision reason.
+- Institution approval now blocks when inspection is required but there is no completed acceptable inspection decision.
+- Inspection and reviewer actions generate actor-attributed audit events.
+- Amendment history models were added so the existing Phase 3 reviewer references are persisted rather than remaining an implicit workflow dependency.
+- Migration: `20261003120000_phase4_reviewer_inspection`.
+
+Validation remains pending because project CI is intentionally suspended; this branch has not been represented as CI/build validated.
