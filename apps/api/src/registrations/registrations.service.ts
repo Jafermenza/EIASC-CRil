@@ -222,7 +222,8 @@ export class RegistrationsService {
 
   async detail(user: AuthenticatedUser, id: string) {
     const registration = await this.scoped(user, id);
-    return { ...registration, payment: await this.payments.getForApplication('INDIVIDUAL', id) };
+    const amendments = await this.prisma.registrationAmendment.findMany({ where: { registrationId: id }, orderBy: { version: 'desc' }, select: { id: true, version: true, statusBefore: true, statusAfter: true, changedFields: true, submittedAt: true, snapshot: true } });
+    return { ...registration, payment: await this.payments.getForApplication('INDIVIDUAL', id), amendments };
   }
 
   async review(user: AuthenticatedUser, id: string) { const registration = await this.scoped(user, id); const reviewStatuses: RegistrationStatus[] = [RegistrationStatus.SUBMITTED, RegistrationStatus.RESUBMITTED]; if (!reviewStatuses.includes(registration!.status)) throw new ConflictException('Registration is not awaiting review'); return this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.UNDER_REVIEW } }); }
