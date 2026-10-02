@@ -13,6 +13,7 @@ const MAX_SIZE = 10 * 1024 * 1024;
 const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [
   InstitutionApplicationStatus.DRAFT,
   InstitutionApplicationStatus.CORRECTION_REQUIRED,
+  InstitutionApplicationStatus.UNDER_REVIEW,
 ];
 
 @Injectable()
