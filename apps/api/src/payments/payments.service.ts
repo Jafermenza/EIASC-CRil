@@ -143,6 +143,53 @@ export class PaymentsService {
     return this.initializeChapa({ kind, applicationId: app.id, name: app.institutionName, email: app.email, phone: app.phone });
   }
 
+  async refreshForApplication(kind: RegistrationKind, applicationId: string) {
+    const payment = await this.getForApplication(kind, applicationId);
+    if (payment && payment.status === 'INITIATED' && payment.method === 'CHAPA') {
+      await this.verifyChapa(String(payment.referenceNumber), Number(payment.amount));
+      return this.getForApplication(kind, applicationId);
+    }
+    return payment;
+  }
+
+  async statusForApplication(kind: RegistrationKind, applicationId: string) {
+    const payment = await this.refreshForApplication(kind, applicationId);
+    const amount = await this.fee(kind);
+    const status = payment?.status ?? (amount > 0 ? 'REQUIRED' : 'NOT_REQUIRED');
+    return {
+      required: amount > 0,
+      amount,
+      currency: 'ETB',
+      status,
+      payment: payment ?? null,
+      nextAction: status === 'PAID'
+        ? 'Payment verified. Continue with the application.'
+        : status === 'PENDING' || status === 'INITIATED'
+          ? 'Payment is awaiting verification.'
+          : status === 'REJECTED'
+            ? 'Payment was rejected. Pay again or submit a new payment reference.'
+            : amount > 0
+              ? 'Payment is required. Use Pay Now to continue.'
+              : 'No payment is required.',
+    };
+  }
+
+  async initializeForApplication(kind: RegistrationKind, trackingCode: string) {
+    const code = trackingCode.trim().toUpperCase();
+    if (kind === 'INDIVIDUAL') {
+      const app = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
+      if (!app) throw new NotFoundException('Application not found');
+      const status = await this.statusForApplication(kind, app.id);
+      if (status.status === 'PAID') return { alreadyPaid: true, status };
+      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone });
+    }
+    const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, institutionName: true, email: true, phone: true } });
+    if (!app) throw new NotFoundException('Application not found');
+    const status = await this.statusForApplication(kind, app.id);
+    if (status.status === 'PAID') return { alreadyPaid: true, status };
+    return this.initializeChapa({ kind, applicationId: app.id, name: app.institutionName, email: app.email, phone: app.phone });
+  }
+
   async getForApplication(kind: RegistrationKind, applicationId: string) {
     if (kind === 'INDIVIDUAL') return (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "registrationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`)[0] ?? null;
     return (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "institutionApplicationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`)[0] ?? null;
