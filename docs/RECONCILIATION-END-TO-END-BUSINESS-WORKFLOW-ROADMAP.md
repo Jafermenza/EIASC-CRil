@@ -1,12 +1,28 @@
 # EIASC-CRil — Reconciliation: End-to-End Business Workflow & Implementation Roadmap
 
 Repository: Jafermenza/EIASC-CRil
-Branch: main
+Branch: reconciliation/phase-1-payment
 Assessment date: 2026-10-03
 
 Purpose: Reconcile the executable business workflows found in the current implementation with the intended end-to-end operating model, identify workflow gaps, and define the implementation sequence required to close them without weakening existing functionality.
 
 > This is an implementation reconciliation, not a product vision document. A capability is marked implemented only when current code provides the required business transition and supporting controls. Planned items remain planned until code and acceptance tests prove them.
+
+## Phase 1 implementation status — current branch
+
+Implemented in the current branch:
+- application-linked Chapa initialization for individual and institution applications;
+- server-side payment resolution during public application tracking;
+- tracking-page Pay Now for Chapa;
+- Telebirr/bank-transfer payment evidence submission for saved applications;
+- Chapa return-to-tracking behavior and reusable active checkout links;
+- duplicate-payment-reference protection and active-payment idempotency;
+- provider-state reconciliation for verified, pending and terminal failed/expired/cancelled states;
+- payment re-check/attachment on institution correction resubmission;
+- existing server-side approval gates remain dependent on PAID payment state;
+- automated unit coverage for required, pending and paid payment states.
+
+Still required before Phase 1 exit: complete provider/duplicate/retry tests, verify all applicant entry points use the same resolver, run local lint/typecheck/tests/build/E2E, and prove the migration is applied in the target database. Finance/Registrar decision UI remains Phase 2.
 
 ## 1. Target operating principle
 
