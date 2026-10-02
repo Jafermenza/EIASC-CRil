@@ -60,7 +60,7 @@ export class RegistrationsService {
 
   private applicantFirstNameMatches(expected: string | null | undefined, supplied?: string) {
     if (!supplied?.trim() || !expected?.trim()) return false;
-    return expected.trim().split(/\\s+/)[0].toLowerCase() === supplied.trim().toLowerCase();
+    return expected.trim().split(/\s+/)[0].toLowerCase() === supplied.trim().toLowerCase();
   }
 
   private async assertApplicantAccess(trackingCode: string, phone?: string, firstName?: string) {
