@@ -12,8 +12,11 @@ export class PaymentsController {
   constructor(private readonly payments: PaymentsService) {}
   @Get('fees') fees() { return this.payments.fees(); }
   @Post('chapa/initialize') initializeChapa(@Body() body: ChapaInitializeInput) { return this.payments.initializeChapa(body); }
-  @Post('chapa/initialize-for-application') initializeForApplication(@Body() body: { kind?: RegistrationKind; trackingCode?: string }) { if (!body?.kind || !body.trackingCode) throw new BadRequestException('kind and trackingCode are required'); return this.payments.initializeForApplication(body.kind, body.trackingCode); }
-  @Post('chapa/initialize-for-application') initializeForApplication(@Body() body: { kind?: RegistrationKind; trackingCode?: string }) { if (!body?.kind || !body.trackingCode) throw new BadRequestException('kind and trackingCode are required'); return this.payments.initializeForApplication(body.kind, body.trackingCode); }
+  @Post('chapa/initialize-for-application')
+  initializeForApplication(@Body() body: { kind?: RegistrationKind; trackingCode?: string }) {
+    if (!body?.kind || !body.trackingCode) throw new BadRequestException('kind and trackingCode are required');
+    return this.payments.initializeForApplication(body.kind, body.trackingCode);
+  }
   @Get('chapa/callback') async callback(@Query('trx_ref') trxRef: string, @Query('tx_ref') txRef: string, @Res() response: Response) { const reference = (trxRef || txRef || '').trim(); if (!reference) throw new BadRequestException('Chapa transaction reference is required'); const result = await this.payments.callback(reference); const base = (process.env.WEB_PUBLIC_URL ?? process.env.FRONTEND_URL ?? '').replace(/\/$/, ''); return response.redirect(`${base}${result.returnPath ?? '/register'}?payment_ref=${encodeURIComponent(reference)}`); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER, RoleCode.INSPECTOR)
