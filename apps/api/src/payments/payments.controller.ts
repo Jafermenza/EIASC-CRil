@@ -21,7 +21,7 @@ export class PaymentsController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER, RoleCode.INSPECTOR)
   @Get('admin/queue') queue(@Req() req: AuthenticatedRequest, @Query('status') status?: string, @Query('method') method?: string, @Query('search') search?: string) { return this.payments.queue(req.user!, { status, method, search }); }
-  @Get('admin/:id') detail(@Req() req: AuthenticatedRequest, @Query('id') queryId?: string) { if (!queryId) throw new BadRequestException('id is required'); return this.payments.detail(queryId, req.user!); }
+  @Get('admin/detail') detail(@Req() req: AuthenticatedRequest, @Query('id') queryId?: string) { if (!queryId) throw new BadRequestException('id is required'); return this.payments.detail(queryId, req.user!); }
   @Post('admin/review') review(@Req() req: AuthenticatedRequest, @Body() body: { id?: string; decision?: 'VERIFY'|'REJECT'|'CLARIFICATION'; reason?: string }) { if (!body?.id || !body.decision) throw new BadRequestException('id and decision are required'); return this.payments.review(body.id, req.user!, body.decision, body.reason); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER)
