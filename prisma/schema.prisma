@@ -611,6 +611,7 @@ model Registration {
   updatedAt            DateTime            @updatedAt
   member              Member?             @relation("MemberRegistration", fields: [memberId], references: [id], onDelete: SetNull)
   institution         Institution?        @relation("InstitutionRegistration", fields: [institutionId], references: [id], onDelete: SetNull)
+  amendments          RegistrationAmendment[]
   @@index([status])
   @@index([type])
   @@index([phone])
