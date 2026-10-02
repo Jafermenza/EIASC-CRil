@@ -5,6 +5,7 @@ import { ChapaInitializeInput, PaymentInput, RegistrationKind, RegistrationPayme
 import { PaymentSettingsService } from './payment-settings.service';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const METHODS: RegistrationPaymentMethod[] = ['TELEBIRR', 'CHAPA', 'BANK_TRANSFER'];
 
@@ -12,7 +13,7 @@ type JsonObject = Record<string, unknown>;
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService, private readonly settings: PaymentSettingsService, private readonly authorization: AuthorizationService) {}
+  constructor(private readonly prisma: PrismaService, private readonly settings: PaymentSettingsService, private readonly authorization: AuthorizationService, private readonly notifications: NotificationsService) {}
 
   private async fee(kind: RegistrationKind): Promise<number> {
     const config = await this.settings.getPublic();
@@ -279,8 +280,23 @@ export class PaymentsService {
       });
     });
     const recipientRows = scope.registrationId
-      ? await this.prisma.$queryRaw<Array<{ userId: string }>>`SELECT u."id" AS "userId" FROM "User" u JOIN "Member" m ON (u."email"=m."email" OR u."phone"=m."phone") JOIN "Registration" r ON r."memberId"=m."id" WHERE r."id"=${scope.registrationId}::uuid LIMIT 1`
-      : await this.prisma.$queryRaw<Array<{ userId: string }>>`SELECT u."id" AS "userId" FROM "User" u JOIN "Institution" i ON u."institutionId"=i."id" JOIN "InstitutionApplication" ia ON ia."institutionId"=i."id" WHERE ia."id"=${scope.institutionApplicationId}::uuid LIMIT 1`;
+      ? await this.prisma.$queryRaw<Array<{ userId: string }>>\`SELECT u."id" AS "userId" FROM "User" u JOIN "Member" m ON (u."email"=m."email" OR u."phone"=m."phone") JOIN "Registration" r ON r."memberId"=m."id" WHERE r."id"=\${scope.registrationId}::uuid LIMIT 1\`
+      : await this.prisma.$queryRaw<Array<{ userId: string }>>\`SELECT u."id" AS "userId" FROM "User" u JOIN "Institution" i ON u."institutionId"=i."id" JOIN "InstitutionApplication" ia ON ia."institutionId"=i."id" WHERE ia."id"=\${scope.institutionApplicationId}::uuid LIMIT 1\`;
+    const notificationTarget = recipientRows[0]?.userId;
+    if (notificationTarget) {
+      const title = decision === 'VERIFY' ? 'Payment verified' : decision === 'REJECT' ? 'Payment rejected' : 'Payment clarification required';
+      const message = decision === 'VERIFY'
+        ? 'Your registration payment has been verified. You may continue with the application.'
+        : decision === 'REJECT'
+          ? `Your registration payment was rejected. Reason: ${cleanReason}`
+          : `Please clarify your registration payment. Reason: ${cleanReason}`;
+      await this.notifications.notifyEvent(notificationTarget, {
+        type: decision === 'VERIFY' ? 'PAYMENT_VERIFIED' : decision === 'REJECT' ? 'PAYMENT_REJECTED' : 'PAYMENT_CLARIFICATION_REQUIRED',
+        title,
+        message,
+        metadata: { paymentId: id, reason: cleanReason || null },
+      });
+    }
     return {
       ...(await this.detail(id, user)),
       notificationTargetFound: Boolean(recipientRows[0]),
