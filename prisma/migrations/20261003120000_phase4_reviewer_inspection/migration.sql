@@ -58,3 +58,28 @@ CREATE TABLE "Inspection" (
 CREATE INDEX "Inspection_registrationId_status_idx" ON "Inspection"("registrationId","status");
 CREATE INDEX "Inspection_institutionApplicationId_status_idx" ON "Inspection"("institutionApplicationId","status");
 CREATE INDEX "Inspection_assignedToUserId_status_idx" ON "Inspection"("assignedToUserId","status");
+CREATE TABLE "RegistrationAmendment" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "registrationId" UUID NOT NULL,
+  "version" INTEGER NOT NULL,
+  "snapshot" JSONB NOT NULL,
+  "changedFields" JSONB,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "RegistrationAmendment_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "RegistrationAmendment_registrationId_fkey" FOREIGN KEY ("registrationId") REFERENCES "Registration"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX "RegistrationAmendment_registrationId_version_key" ON "RegistrationAmendment"("registrationId","version");
+CREATE INDEX "RegistrationAmendment_registrationId_createdAt_idx" ON "RegistrationAmendment"("registrationId","createdAt");
+
+CREATE TABLE "InstitutionApplicationAmendment" (
+  "id" UUID NOT NULL DEFAULT gen_random_uuid(),
+  "institutionApplicationId" UUID NOT NULL,
+  "version" INTEGER NOT NULL,
+  "snapshot" JSONB NOT NULL,
+  "changedFields" JSONB,
+  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "InstitutionApplicationAmendment_pkey" PRIMARY KEY ("id"),
+  CONSTRAINT "InstitutionApplicationAmendment_institutionApplicationId_fkey" FOREIGN KEY ("institutionApplicationId") REFERENCES "InstitutionApplication"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX "InstitutionApplicationAmendment_application_version_key" ON "InstitutionApplicationAmendment"("institutionApplicationId","version");
+CREATE INDEX "InstitutionApplicationAmendment_application_createdAt_idx" ON "InstitutionApplicationAmendment"("institutionApplicationId","createdAt");
