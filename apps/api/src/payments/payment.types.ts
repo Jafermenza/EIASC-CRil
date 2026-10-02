@@ -16,4 +16,5 @@ export interface ChapaInitializeInput {
   email?: string;
   phone: string;
   applicationId?: string;
+  trackingCode?: string;
 }
