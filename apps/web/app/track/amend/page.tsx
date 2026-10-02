@@ -45,6 +45,8 @@ export default function AmendApplicationPage() {
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"TELEBIRR" | "BANK_TRANSFER">("TELEBIRR");
   const [receiptUrl, setReceiptUrl] = useState("");
+  const [documentType, setDocumentType] = useState("OTHER");
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -99,6 +101,29 @@ export default function AmendApplicationPage() {
 
   function removeLeader(index: number) {
     setLeaders((items) => items.filter((_, i) => i !== index));
+  }
+
+  async function uploadDocument() {
+    if (!isInstitution || !documentFile) return;
+    setError(""); setMessage(""); setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (phone.trim()) params.set("phone", phone.trim());
+      if (firstName.trim()) params.set("firstName", firstName.trim());
+      const data = new FormData();
+      data.append("file", documentFile);
+      const endpoint = API + "/registrations/institution/" + encodeURIComponent(code.trim().toUpperCase()) + "/documents/" + documentType + "?" + params.toString();
+      const response = await fetch(endpoint, { method: "POST", body: data });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.message || "Document could not be uploaded.");
+      setForm((current: any) => ({ ...current, documents: [...(current.documents || []), result] }));
+      setDocumentFile(null);
+      setMessage("Document uploaded. It will be included with your amended application.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to upload document.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function resubmit(event: FormEvent) {
@@ -209,6 +234,16 @@ export default function AmendApplicationPage() {
                     <button type="button" className="button button-secondary" onClick={() => removeLeader(index)}>Remove leader</button>
                   </div>
                 ))}
+              </section>
+              <section className="workflow-panel" style={{ marginTop: 18 }}>
+                <h2>Supporting documents</h2>
+                <p>Review the documents already attached to this application. You may add a missing PDF or image before resubmission.</p>
+                {(form.documents || []).map((doc: any) => <div key={doc.id} style={{ padding: 8, borderBottom: "1px solid rgba(0,0,0,.1)" }}><strong>{doc.documentType}</strong> · {doc.fileName}</div>)}
+                <div className="grid" style={{ marginTop: 12 }}>
+                  <div className="field"><label>Document type</label><select value={documentType} onChange={(e) => setDocumentType(e.target.value)}><option value="ESTABLISHMENT_DOCUMENT">Establishment document</option><option value="AUTHORIZATION_DOCUMENT">Authorization document</option><option value="LEADERSHIP_DOCUMENT">Leadership document</option><option value="LOCATION_DOCUMENT">Location document</option><option value="OTHER">Other</option></select></div>
+                  <div className="field"><label>New document</label><input type="file" accept=".pdf,image/jpeg,image/png" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} /></div>
+                </div>
+                <button type="button" className="button button-secondary" disabled={loading || !documentFile} onClick={uploadDocument}>Upload document</button>
               </section>
               <section className="workflow-panel" style={{ marginTop: 18 }}>
                 <h2>Staff and education</h2>
