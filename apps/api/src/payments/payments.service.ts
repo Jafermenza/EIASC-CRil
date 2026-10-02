@@ -255,6 +255,8 @@ export class PaymentsService {
     if (!scope) throw new NotFoundException('Payment not found');
     await this.authorization.assertCanAccess(user, { regionId: scope.regionId, zoneId: scope.zoneId, subcityId: scope.subcityId, districtId: scope.districtId });
     if (scope.method === 'CHAPA') throw new BadRequestException('Chapa payments are verified automatically');
+    const current = await this.prisma.$queryRaw<Array<{ status: string }>>`SELECT "status" FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`;
+    if (current[0]?.status !== 'PENDING') throw new ConflictException('Only pending manual payments can be reviewed');
     const cleanReason = reason?.trim() ?? '';
     if ((decision === 'REJECT' || decision === 'CLARIFICATION') && cleanReason.length < 3) throw new BadRequestException('A reason is required for rejection or clarification');
     const nextStatus = decision === 'VERIFY' ? 'PAID' : decision === 'REJECT' ? 'REJECTED' : 'PENDING';
