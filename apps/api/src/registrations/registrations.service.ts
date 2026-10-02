@@ -96,7 +96,7 @@ export class RegistrationsService {
     this.assertReviewRole(user);
     const registration = await this.prisma.registration.findUnique({
       where: { id },
-      include: { institution: true, member: true },
+      include: { institution: true, member: true, documents: { orderBy: { createdAt: 'asc' }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } } },
     });
     if (!registration) throw new NotFoundException('Application not found');
     if (!(await this.authorization.canAccess(user, { regionId: registration.regionId, zoneId: registration.zoneId, subcityId: registration.subcityId, districtId: registration.districtId }))) throw new ConflictException('Application is outside your jurisdiction');
