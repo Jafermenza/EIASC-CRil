@@ -92,6 +92,64 @@ export class RegistrationsService {
     if (!user.roles.some((role) => reviewRoles.includes(role))) throw new ConflictException('Registration review permission required');
   }
 
+  async applicationDetail(user: AuthenticatedUser, id: string) {
+    this.assertReviewRole(user);
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      include: { institution: true, member: true },
+    });
+    if (!registration) throw new NotFoundException('Application not found');
+    if (!(await this.authorization.canAccess(user, { regionId: registration.regionId, zoneId: registration.zoneId, subcityId: registration.subcityId, districtId: registration.districtId }))) throw new ConflictException('Application is outside your jurisdiction');
+    const amendments = await this.prisma.registrationAmendment.findMany({ where: { registrationId: id }, orderBy: { version: 'desc' } });
+    const payment = await this.payments.getForApplication('INDIVIDUAL', id);
+    return { ...registration, payment, amendments };
+  }
+
+  private async applicationTransition(user: AuthenticatedUser, id: string, target: RegistrationStatus, reason: string) {
+    const app = await this.applicationDetail(user, id);
+    const allowed: Record<RegistrationStatus, RegistrationStatus[]> = {
+      DRAFT: [RegistrationStatus.SUBMITTED],
+      SUBMITTED: [RegistrationStatus.UNDER_REVIEW],
+      UNDER_REVIEW: [RegistrationStatus.CORRECTION, RegistrationStatus.APPROVED, RegistrationStatus.REJECTED],
+      CORRECTION: [RegistrationStatus.RESUBMITTED, RegistrationStatus.REJECTED],
+      RESUBMITTED: [RegistrationStatus.UNDER_REVIEW],
+      APPROVED: [],
+      REJECTED: [],
+      REVOKED: [],
+    };
+    if (!allowed[app.status].includes(target)) throw new ConflictException(`Invalid application transition: ${app.status} -> ${target}`);
+    if (!reason.trim()) throw new BadRequestException('Reason is required');
+    return app;
+  }
+
+  async reviewApplication(user: AuthenticatedUser, id: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.UNDER_REVIEW, 'Review started');
+    const updated = await this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.UNDER_REVIEW } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_REVIEW_STARTED', entityType: 'Registration', entityId: id, metadata: { fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
+
+  async requestApplicationCorrection(user: AuthenticatedUser, id: string, reason: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.CORRECTION, reason);
+    const updated = await this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.CORRECTION, correctionReason: this.clean(reason) } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_CORRECTION_REQUESTED', entityType: 'Registration', entityId: id, metadata: { reason: this.clean(reason), fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
+
+  async rejectApplication(user: AuthenticatedUser, id: string, reason: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.REJECTED, reason);
+    const updated = await this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.REJECTED, rejectionReason: this.clean(reason), decisionAt: new Date() } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_APPLICATION_REJECTED', entityType: 'Registration', entityId: id, metadata: { reason: this.clean(reason), fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
+
+  async approveApplication(user: AuthenticatedUser, id: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.APPROVED, 'Approval');
+    await this.payments.assertPaid('INDIVIDUAL', id);
+    if (app.status !== RegistrationStatus.UNDER_REVIEW) throw new ConflictException('Only applications under review may be approved');
+    return this.approve(user, id);
+  }
+
   async listMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; page?: string; pageSize?: string }) {
     this.assertReviewRole(user);
     const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
