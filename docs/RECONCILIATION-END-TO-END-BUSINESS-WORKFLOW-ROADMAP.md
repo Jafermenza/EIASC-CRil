@@ -410,3 +410,21 @@ The reconciliation is complete when payment state is authoritative; both individ
 Implement in small, recoverable commits in this order: payment state reconciliation → applicant Pay Now and automatic checks → Finance/Registrar queue and decision UI → application review workspace → individual/institution workflow closure → role-specific UI → membership integrity → licensing closure → durable events/notifications → queue/reporting hardening → full E2E and production gates.
 
 Do not remove an existing valid workflow merely to make a test pass. Preserve existing functionality, reconcile conflicting paths explicitly, add migrations for durable business rules, and add acceptance tests for every newly closed transition.
+
+## Applicant amendment and resubmission — implemented on `reconciliation/application-amendment-resubmission`
+
+The applicant correction loop is now implemented for both individual and institution applications:
+
+- Applications in `UNDER_REVIEW` or `CORRECTION/CORRECTION_REQUIRED` can be reopened by the applicant using the tracking number plus the registered phone number or first name.
+- The applicant receives the actual persisted submission, not a blank registration form, and can review and amend the submitted values before resubmission.
+- Individual applications can amend personal, contact, geography, affiliation and family information.
+- Institution applications can amend institution details, applicant details, geography, leadership, staff and education information and can add missing supporting documents.
+- Resubmission preserves the previous submitted version in `RegistrationAmendment` or `InstitutionApplicationAmendment`, including the status transition, changed-field list and JSON snapshot.
+- A successful amendment moves the application to `RESUBMITTED`, clearing the prior correction requirement so it returns to the reviewer queue.
+- Payment remains an authoritative prerequisite. A previously verified payment can be reused; an unpaid application must provide payment evidence before resubmission.
+- Applicant amendment/resubmission actions are written to the audit log.
+- Institution document uploads during amendment are protected by the same applicant verification and are allowed while the application is under review/correction.
+
+This closes the previously missing executable workflow: **reviewer identifies missing information → applicant retrieves original submission → applicant reviews/amends → applicant resubmits → reviewer receives the new version with amendment history**.
+
+Production validation remains pending because CI is intentionally suspended on this reconciliation workstream.
