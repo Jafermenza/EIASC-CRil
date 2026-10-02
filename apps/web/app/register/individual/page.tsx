@@ -267,7 +267,7 @@ export default function IndividualRegistrationPage() {
       });
       const data = await response.json();
       if (!response.ok) throw new Error(extractErrorMessage(data, "Registration could not be saved."));
-      await uploadSupportingDocuments(data.trackingCode, data.phone);\n      setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      setApplication({ trackingCode: data.trackingCode, phone: data.phone });\n      await uploadSupportingDocuments(data.trackingCode, data.phone);
       setStep(3);
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Registration could not be saved.");
