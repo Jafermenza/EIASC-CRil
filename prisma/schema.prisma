@@ -425,6 +425,7 @@ model InstitutionApplication {
   applicantName       String?
   applicantPhone      String?
   applicantEmail      String?
+  inspectionRequired  Boolean                    @default(false)
   correctionReason    String?
   rejectionReason     String?
   institutionId       String?                    @db.Uuid
