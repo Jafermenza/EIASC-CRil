@@ -50,7 +50,8 @@ export class PaymentsService {
       const payment = existing[0];
       const checkoutUrl = typeof payment?.metadata?.checkoutUrl === 'string' ? payment.metadata.checkoutUrl : undefined;
       if (payment?.status === 'PAID') return { alreadyPaid: true, status: await this.statusForApplication(input.kind, input.applicationId) };
-      if (payment?.status === 'INITIATED' && checkoutUrl) return { method: 'CHAPA', referenceNumber: payment.referenceNumber, amount, currency: 'ETB', checkoutUrl };
+      if ((payment?.status === 'INITIATED' || payment?.status === 'PENDING') && checkoutUrl) return { method: 'CHAPA', referenceNumber: payment.referenceNumber, amount, currency: 'ETB', checkoutUrl };
+      if (payment?.status === 'PENDING') return { alreadyPending: true, status: await this.statusForApplication(input.kind, input.applicationId) };
     }
     const txRef = `EIASC-${input.kind === 'INDIVIDUAL' ? 'MEM' : 'INST'}-${Date.now()}-${createOpaqueToken(5).toUpperCase()}`;
     const response = await fetch('https://api.chapa.co/v1/transaction/initialize', { method: 'POST', headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: String(amount), currency: 'ETB', email: input.email, first_name: input.firstName ?? input.name ?? 'EIASC', last_name: input.lastName ?? 'Applicant', phone_number: input.phone, tx_ref: txRef, callback_url: `${this.apiBase()}/api/v1/payments/chapa/callback`, return_url: `${this.webBase()}${returnPath}?payment_ref=${encodeURIComponent(txRef)}`, customization: { title: 'EIASC Registration', description: `${input.kind === 'INDIVIDUAL' ? 'Individual' : 'Institution'} registration fee` } }) });
