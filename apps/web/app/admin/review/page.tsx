@@ -1,0 +1,37 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+
+const API='/api/v1';
+type Item={type:'INDIVIDUAL'|'INSTITUTION';id:string;trackingCode:string;status:string;name:string;updatedAt:string;inspectionRequired?:boolean;payment?:{status?:string}};
+type Detail={type:string;application:any;payment:any;audits:any[]};
+
+export default function ReviewWorkspace(){
+  const [items,setItems]=useState<Item[]>([]),[detail,setDetail]=useState<Detail|null>(null),[type,setType]=useState(''),[search,setSearch]=useState(''),[reason,setReason]=useState(''),[fields,setFields]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false),[busy,setBusy]=useState(false);
+  const token=()=>localStorage.getItem('accessToken')||'';
+  async function call(path:string,opts:RequestInit={}){const r=await fetch(API+path,{...opts,headers:{authorization:'Bearer '+token(),'content-type':'application/json',...(opts.headers||{})},cache:'no-store'});const d=await r.json().catch(()=>null);if(!r.ok)throw new Error(d?.message||'Request failed');return d;}
+  async function load(){setLoading(true);try{const q=new URLSearchParams();if(type)q.set('type',type);if(search.trim())q.set('search',search.trim());setItems(await call('/admin/review/workspace?'+q));}catch(e){setError(e instanceof Error?e.message:'Unable to load review queue.')}finally{setLoading(false)}}
+  async function open(i:Item){try{setError('');setDetail(await call('/admin/review/'+i.type+'/'+i.id));}catch(e){setError(e instanceof Error?e.message:'Unable to load application.')}}
+  async function action(path:string,body?:any){if(!detail)return;setBusy(true);try{await call(path,{method:'POST',body:JSON.stringify(body||{})});await load();setDetail(null);setReason('');}catch(e){setError(e instanceof Error?e.message:'Action failed.')}finally{setBusy(false)}}
+  async function snapshot(){if(!detail)return;try{await call('/admin/review/'+detail.type+'/'+detail.application.id+'/snapshot',{method:'POST'});setError('Submitted form snapshot captured.')}catch(e){setError(e instanceof Error?e.message:'Unable to capture snapshot.')}}
+  async function correction(){if(!reason.trim())return setError('Correction reason is required.');const parsed=fields.split('\n').map(x=>x.trim()).filter(Boolean).map(x=>{const [field,...rest]=x.split(':');return {field:field.trim(),instruction:rest.join(':').trim()||'Please correct this field.'}});await action('/admin/review/'+detail!.type+'/'+detail!.application.id+'/correction',{reason,fields:parsed})}
+  useEffect(()=>{void load()},[type]);
+
+  return <main className="shell" style={{maxWidth:1500}}>
+    <div className="hero"><p className="eyebrow">EIASC · REVIEW & INSPECTION</p><h1>Unified review workspace</h1><p className="lead">One workspace for the submitted form, snapshots, attachments, payment evidence, corrections, decisions, inspections and audit history.</p></div>
+    {error&&<section className="error-reason"><strong>Workflow</strong><span>{error}</span></section>}
+    <section className="workflow-panel"><div className="action-row"><select value={type} onChange={e=>setType(e.target.value)}><option value="">All applications</option><option value="INDIVIDUAL">Individuals</option><option value="INSTITUTION">Institutions</option></select><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Tracking code or applicant/institution"/><button className="button button-secondary" onClick={()=>void load()}>Search</button></div></section>
+    <div style={{display:'grid',gridTemplateColumns:'minmax(320px,1fr) minmax(520px,2fr)',gap:18}}>
+      <section className="workflow-panel"><h2>Submitted queue</h2>{loading?<p>Loading…</p>:items.map(i=><button key={i.type+i.id} type="button" onClick={()=>void open(i)} style={{display:'block',width:'100%',textAlign:'left',padding:14,marginBottom:8,border:'1px solid var(--border)',borderRadius:10,background:detail?.application?.id===i.id?'var(--surface-2)':'transparent'}}><strong>{i.name}</strong><br/><small>{i.type} · {i.trackingCode} · {i.status} · Payment: {i.payment?.status||'—'}{i.inspectionRequired?' · Inspection required':''}</small></button>)}</section>
+      <section className="workflow-panel">{!detail?<p>Select an application to open its complete review record.</p>:<><p className="eyebrow">{detail.type}</p><h2>{detail.application.institutionName||[detail.application.firstName,detail.application.middleName,detail.application.lastName].filter(Boolean).join(' ')}</h2><p><strong>{detail.application.trackingCode}</strong> · {detail.application.status}</p>
+        <div className="action-row"><button className="button button-secondary" onClick={()=>void snapshot()}>Capture submitted snapshot</button>{detail.type==='INDIVIDUAL'?<><button className="button button-secondary" disabled={busy} onClick={()=>void action('/registrations/admin/application/'+detail.application.id+'/review')}>Start review</button><button className="button button-primary" disabled={busy||detail.payment?.latest?.status!=='PAID'} onClick={()=>void action('/registrations/admin/'+detail.application.id+'/approve')}>Approve</button></>:<><button className="button button-secondary" disabled={busy} onClick={()=>void action('/admin/institutions/applications/'+detail.application.id+'/review')}>Start review</button><button className="button button-primary" disabled={busy||detail.payment?.latest?.status!=='PAID'} onClick={()=>void action('/admin/institutions/applications/'+detail.application.id+'/approve')}>Approve</button></>}</div>
+        <h3>Submitted form snapshot</h3><pre style={{maxHeight:300,overflow:'auto'}}>{JSON.stringify(detail.application,null,2)}</pre>
+        <h3>Payment evidence & history</h3><pre style={{maxHeight:180,overflow:'auto'}}>{JSON.stringify(detail.payment,null,2)}</pre>
+        <h3>Attachments</h3><ul>{(detail.payment?.attachments||detail.application.documents||[]).map((d:any)=><li key={d.id}>{d.documentType} — {d.fileName} — {d.mimeType} <span>{d.storageUrl}</span></li>)}</ul>
+        <h3>Correction builder</h3><textarea value={reason} onChange={e=>setReason(e.target.value)} placeholder="Overall correction reason"/><textarea value={fields} onChange={e=>setFields(e.target.value)} placeholder={'One field per line, e.g.\nphone: Provide a reachable registered phone'} /><button className="button button-secondary" disabled={busy} onClick={()=>void correction()}>Request correction</button>
+        <h3>Reject</h3><button className="button button-secondary" disabled={busy||!reason.trim()} onClick={()=>void action(detail.type==='INDIVIDUAL'?'/registrations/admin/application/'+detail.application.id+'/reject':'/admin/institutions/applications/'+detail.application.id+'/reject',{reason})}>Reject with reason</button>
+        <h3>Audit history</h3><ul>{detail.audits?.map((a:any)=><li key={a.id}><small>{new Date(a.createdAt).toLocaleString()} · {a.action} · {JSON.stringify(a.metadata||{})}</small></li>)}</ul>
+      </>}</section>
+    </div>
+  </main>
+}
