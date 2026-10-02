@@ -70,7 +70,7 @@ export class RegistrationsService {
 
   async track(trackingCode: string, phone?: string, firstName?: string): Promise<ApplicationTrackingResult> {
     const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
-    const registration = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { type: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, firstName: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
+    const registration = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { id: true, type: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, firstName: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
     if (registration) {
       const payment = await this.payments.statusForApplication('INDIVIDUAL', registration.id);
       if (phone && registration.phone !== phone.trim()) throw new NotFoundException('Application not found'); if (firstName && registration.firstName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
@@ -79,7 +79,7 @@ export class RegistrationsService {
     }
     // Institution applications use their own tracking-code sequence and table. The public
     // tracking page accepts either code type, so fall back here instead of reporting "not found".
-    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
+    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
     if (!application) throw new NotFoundException('Application not found');
     const payment = await this.payments.statusForApplication('INSTITUTION', application.id);
     if (phone && application.phone !== phone.trim() && application.applicantPhone !== phone.trim()) throw new NotFoundException('Application not found');
