@@ -279,7 +279,7 @@ export default function InstitutionRegistrationPage() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(extractErrorMessage(data, "The institution application could not be saved."));
-      await uploadSupportingDocuments(data.trackingCode, data.phone, form.applicantName || form.leaderName);\n      setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      setApplication({ trackingCode: data.trackingCode, phone: data.phone });\n      await uploadSupportingDocuments(data.trackingCode, data.phone, form.applicantName || form.leaderName);
       setLocationVerified(typeof data.locationVerified === "boolean" ? data.locationVerified : null);
       setStep(3);
     } catch (err) {
