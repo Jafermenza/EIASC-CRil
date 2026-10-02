@@ -10,12 +10,16 @@ describe('PaymentsService', () => {
   const settings = {
     getPublic: jest.fn(),
   } as any;
+  const authorization = {
+    assertCanAccess: jest.fn(),
+    canAccess: jest.fn().mockResolvedValue(true),
+  } as any;
   let service: PaymentsService;
 
   beforeEach(() => {
     jest.clearAllMocks();
     settings.getPublic.mockResolvedValue({ individual: 100, institution: 500, banks: [{ id: 'bank-1', bankName: 'Test Bank', accountName: 'EIASC', accountNumber: '123', branch: null }] });
-    service = new PaymentsService(prisma, settings);
+    service = new PaymentsService(prisma, settings, authorization);
     delete process.env.CHAPA_SECRET_KEY;
   });
 
@@ -45,5 +49,15 @@ describe('PaymentsService', () => {
   it('allows approval when the linked payment is paid', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ status: 'PAID' }]);
     await expect(service.assertPaid('INSTITUTION', 'app-1')).resolves.toBeUndefined();
+  });
+
+  it('reports payment as required when no payment exists', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([]);
+    await expect(service.statusForApplication('INDIVIDUAL', 'app-1')).resolves.toMatchObject({ status: 'REQUIRED', required: true, amount: 100 });
+  });
+
+  it('reports a pending payment without treating it as verified', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: 'p1', status: 'PENDING', method: 'TELEBIRR', amount: 100, referenceNumber: 'TB-1' }]);
+    await expect(service.statusForApplication('INDIVIDUAL', 'app-1')).resolves.toMatchObject({ status: 'PENDING', required: true });
   });
 });
