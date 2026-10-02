@@ -36,7 +36,9 @@ export class InstitutionDocumentsService {
     const path = join(root, storageKey);
     await mkdir(join(root, String(new Date().getUTCFullYear())), { recursive: true });
     await writeFile(path, file.buffer, { flag: 'wx' });
-    return this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, storageUrl: `/api/v1/registrations/institution/${encodeURIComponent(trackingCode.trim().toUpperCase())}/documents/file`, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } });
+    const created = await this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, storageUrl: 'pending', fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } });
+    await this.prisma.institutionDocument.update({ where: { id: created.id }, data: { storageUrl: `/api/v1/registrations/institution/documents/${encodeURIComponent(created.id)}` } });
+    return { ...created, storageUrl: `/api/v1/registrations/institution/documents/${encodeURIComponent(created.id)}` };
   }
 }
 
