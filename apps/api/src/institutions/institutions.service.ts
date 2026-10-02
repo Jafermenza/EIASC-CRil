@@ -184,6 +184,12 @@ export class InstitutionsService {
     return { id: updated.id, trackingCode: updated.trackingCode, status: updated.status, updatedAt: updated.updatedAt, latitude: updated.latitude, longitude: updated.longitude, locationVerified: updated.locationVerified };
   }
 
+  async resubmitByTrackingCode(trackingCode: string, input: InstitutionApplicationUpdateInput, payment: InstitutionApplicationInput['payment'], phone?: string, firstName?: string) {
+    const code = trackingCode.trim().toUpperCase();
+    const app = await this.assertApplicantAccess(code, phone, firstName);
+    return this.resubmit(app.id, payment, phone, firstName, input);
+  }
+
   async resubmit(id: string, payment: InstitutionApplicationInput['payment'], phone?: string, firstName?: string, input?: InstitutionApplicationUpdateInput) {
     const app = await this.assertApplicantAccessById(id, phone, firstName);
     const amendmentInput = input ?? {};
