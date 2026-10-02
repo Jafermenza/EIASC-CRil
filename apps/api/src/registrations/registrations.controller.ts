@@ -23,12 +23,16 @@ export class RegistrationsController {
     return this.registrations.submitPayment(trackingCode, body?.payment);
   }
 
+  @Get(':trackingCode/amend')
+  amendment(@Param('trackingCode') trackingCode: string, @Query('phone') phone?: string, @Query('firstName') firstName?: string) {
+    return this.registrations.amendment(trackingCode, phone, firstName);
+  }
+
   @Post('individual/:trackingCode/resubmit')
-  resubmit(@Param('trackingCode') trackingCode: string, @Body() body: IndividualRegistrationInput) {
-    if (!body || typeof body !== 'object') {
-      throw new BadRequestException('Registration payload is required');
-    }
-    return this.registrations.resubmitIndividual(trackingCode, body);
+  resubmit(@Param('trackingCode') trackingCode: string, @Body() body: IndividualRegistrationInput & { accessPhone?: string; accessFirstName?: string }) {
+    if (!body || typeof body !== 'object') throw new BadRequestException('Registration payload is required');
+    const { accessPhone, accessFirstName, ...application } = body;
+    return this.registrations.resubmitIndividual(trackingCode, application, accessPhone, accessFirstName);
   }
 
   @UseGuards(AuthGuard, RolesGuard)
