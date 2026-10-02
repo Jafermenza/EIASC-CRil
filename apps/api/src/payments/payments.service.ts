@@ -131,7 +131,7 @@ export class PaymentsService {
 
   async refreshForApplication(kind: RegistrationKind, applicationId: string) {
     const payment = await this.getForApplication(kind, applicationId);
-    if (payment && payment.status === 'INITIATED' && payment.method === 'CHAPA') {
+    if (payment && (payment.status === 'INITIATED' || payment.status === 'PENDING') && payment.method === 'CHAPA') {
       await this.verifyChapa(String(payment.referenceNumber), Number(payment.amount));
       return this.getForApplication(kind, applicationId);
     }
