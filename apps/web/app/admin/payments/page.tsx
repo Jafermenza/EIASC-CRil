@@ -46,6 +46,7 @@ export default function AdminPaymentsPage(){
       const data=await r.json(); if(!r.ok) throw new Error(data.message??'Unable to load payment detail.'); setDetail(data); setSelectedDecision(null); setDecisionReason('');
     } catch(e){setError(e instanceof Error?e.message:'Unable to load payment detail.');}
   }
+  async function previewAttachment(id:string){ const r=await fetch(`${API}/registrations/institution/documents/${encodeURIComponent(id)}`,{headers:{authorization:`Bearer ${token()}`}}); if(!r.ok){setError('Unable to open the attachment.');return;} const blob=await r.blob(); const url=URL.createObjectURL(blob); window.open(url,'_blank','noopener,noreferrer'); setTimeout(()=>URL.revokeObjectURL(url),60000); }
   async function review(id:string,decision:'VERIFY'|'REJECT'|'CLARIFICATION',reason?:string){
     setBusy(id); setError('');
     try {
@@ -92,7 +93,7 @@ export default function AdminPaymentsPage(){
             <article><p className="eyebrow">APPLICANT / APPLICATION</p>{Object.entries(a).filter(([k])=>!['createdAt','updatedAt'].includes(k)).slice(0,14).map(([k,v])=><p key={k}><strong>{k}:</strong> {String(v??'—')}</p>)}</article>
           </div>
           <h3>Submitted attachments</h3>
-          {detail.attachments.length?<ul>{detail.attachments.map(x=><li key={String(x.id)}><strong>{String(x.fileName)}</strong> · {String(x.documentType)} · {String(x.mimeType)} · {String(x.size)} bytes {x.storageKey&&<>· <code>{String(x.storageKey)}</code></>}</li>)}</ul>:<p>No institution attachments are attached to this payment record.</p>}
+          {detail.attachments.length?<ul>{detail.attachments.map(x=><li key={String(x.id)}><strong>{String(x.fileName)}</strong> · {String(x.documentType)} · {String(x.mimeType)} · {String(x.size)} bytes <button className="button button-secondary" onClick={()=>void previewAttachment(String(x.id))}>Preview</button></li>)}</ul>:<p>No institution attachments are attached to this payment record.</p>}
           <h3>Payment history</h3>
           <div style={{overflowX:'auto'}}><table style={{width:'100%'}}><tbody>{detail.history.map((x,i)=><tr key={String(x.id??i)}><td>{String(x.method)}</td><td>{String(x.referenceNumber)}</td><td>{String(x.status)}</td><td>{String(x.createdAt??'')}</td><td>{x.rejectionReason?String(x.rejectionReason):''}</td></tr>)}</tbody></table></div>
           <h3>Audit history</h3>
