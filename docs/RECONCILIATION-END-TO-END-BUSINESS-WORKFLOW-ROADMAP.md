@@ -8,6 +8,26 @@ Purpose: Reconcile the executable business workflows found in the current implem
 
 > This is an implementation reconciliation, not a product vision document. A capability is marked implemented only when current code provides the required business transition and supporting controls. Planned items remain planned until code and acceptance tests prove them.
 
+## Phase 2 implementation status — current branch
+
+Implemented on `reconciliation/phase-2-finance-registrar`:
+
+- Finance/Registrar payment queue with status, method and applicant/reference search filters.
+- Jurisdiction authorization is applied to queue visibility and individual payment detail.
+- Payment detail retrieves the original individual/institution application data.
+- Institution application attachments are retrieved with payment detail.
+- Payment history and payment-specific audit history are exposed to the reviewer.
+- Finance Officer and Registrar are the only roles allowed to record payment decisions.
+- Verify, Reject and Request Clarification decisions are supported.
+- Reject and Clarification require an explicit reason.
+- Decisions are persisted together with reviewer identity and timestamp.
+- Decision audit events are written transactionally with the payment status change.
+- Applicant in-app notification is created when a linked applicant/institution account exists.
+- Chapa remains provider-verified and cannot be manually overridden.
+- The payment queue no longer grants payment-decision access to Inspector.
+
+Phase 2 is still pending production validation and E2E evidence. Applicant accounts that do not yet exist cannot receive an in-app notification; the decision is nevertheless durably recorded in the payment audit trail.
+
 ## Phase 1 implementation status — current branch
 
 Implemented in the current branch:
