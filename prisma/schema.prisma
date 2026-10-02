@@ -111,7 +111,7 @@ enum LicenseApplicationStatus {
   REJECTED
 }
 
-enum CredentialType {
+enum InspectionStatus {\n  ASSIGNED\n  IN_PROGRESS\n  COMPLETED\n  CANCELLED\n}\n\nenum InspectionDecision {\n  PENDING\n  PASS\n  FAIL\n  CONDITIONAL\n}\n\nmodel Registration {
   MEMBER
   INSTITUTION
   LICENSE
@@ -175,7 +175,7 @@ model User {
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
-  notifications       Notification[]
+  notifications       Notification[]\n  reviewSnapshots      ApplicationReviewSnapshot[]\n  correctionRequests   ApplicationCorrection[]\n  assignedInspections  Inspection[]
   createdPolicies     AllocationPolicy[] @relation("PolicyCreatedBy")
   approvedPolicies    AllocationPolicy[] @relation("PolicyApprovedBy")
   calculatedRuns      AllocationRun[]    @relation("RunCalculatedBy")
@@ -367,7 +367,7 @@ model Institution {
   leaders             InstitutionLeader[]
   staffSummary        InstitutionStaffSummary?
   education           InstitutionEducation?
-  documents           InstitutionDocument[]
+  documents           InstitutionDocument[]\n  reviewSnapshots     ApplicationReviewSnapshot[]\n  correctionRequests  ApplicationCorrection[]\n  inspections         Inspection[]
   statusHistory       InstitutionStatusHistory[]
   licenses            License[]
   credentials         Credential[]
@@ -427,7 +427,7 @@ model InstitutionApplication {
   @@index([institutionName])
 }
 
-model InstitutionApplicationLeader {
+model ApplicationReviewSnapshot {\n  id                         String                  @id @default(uuid()) @db.Uuid\n  registrationId             String?                 @db.Uuid\n  institutionApplicationId  String?                 @db.Uuid\n  capturedByUserId           String                  @db.Uuid\n  status                     String\n  snapshot                   Json\n  createdAt                  DateTime                @default(now())\n  registration               Registration?           @relation(fields: [registrationId], references: [id], onDelete: Cascade)\n  institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)\n  capturedBy                 User                    @relation(fields: [capturedByUserId], references: [id], onDelete: Restrict)\n  @@index([registrationId, createdAt])\n  @@index([institutionApplicationId, createdAt])\n}\n\nmodel ApplicationCorrection {\n  id                         String                  @id @default(uuid()) @db.Uuid\n  registrationId             String?                 @db.Uuid\n  institutionApplicationId  String?                 @db.Uuid\n  requestedByUserId          String                  @db.Uuid\n  reason                     String\n  fields                     Json?\n  resolvedAt                 DateTime?\n  createdAt                  DateTime                @default(now())\n  registration               Registration?           @relation(fields: [registrationId], references: [id], onDelete: Cascade)\n  institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)\n  requestedBy                User                    @relation(fields: [requestedByUserId], references: [id], onDelete: Restrict)\n  @@index([registrationId, createdAt])\n  @@index([institutionApplicationId, createdAt])\n}\n\nmodel Inspection {\n  id                         String             @id @default(uuid()) @db.Uuid\n  registrationId             String?            @db.Uuid\n  institutionApplicationId  String?            @db.Uuid\n  assignedToUserId           String             @db.Uuid\n  status                     InspectionStatus   @default(ASSIGNED)\n  decision                   InspectionDecision @default(PENDING)\n  scheduledAt                DateTime?\n  startedAt                  DateTime?\n  completedAt                DateTime?\n  findings                   Json?\n  decisionReason             String?\n  createdAt                  DateTime           @default(now())\n  updatedAt                  DateTime           @updatedAt\n  registration              Registration?      @relation(fields: [registrationId], references: [id], onDelete: Cascade)\n  institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)\n  assignedTo                User               @relation(fields: [assignedToUserId], references: [id], onDelete: Restrict)\n  @@index([registrationId, status])\n  @@index([institutionApplicationId, status])\n  @@index([assignedToUserId, status])\n}\n\nmodel InstitutionApplicationLeader {
   id            String                  @id @default(uuid()) @db.Uuid
   applicationId String                  @db.Uuid
   fullName      String
@@ -625,7 +625,7 @@ model Registration {
   rejectionReason     String?
   decisionAt          DateTime?
   memberId            String?             @unique @db.Uuid
-  documents            RegistrationDocument[]
+  documents            RegistrationDocument[]\n  reviewSnapshots      ApplicationReviewSnapshot[]\n  correctionRequests   ApplicationCorrection[]\n  inspections          Inspection[]
   submittedAt         DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
