@@ -172,10 +172,40 @@ export class PaymentsService {
     return (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT "id","method","amount","currency","referenceNumber","providerReference","status","receiptUrl","submittedAt","verifiedAt","verifiedBy","rejectionReason" FROM "RegistrationPayment" WHERE "institutionApplicationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`)[0] ?? null;
   }
 
-  async queue(user: AuthenticatedUser) {
-    const allowed = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','FINANCE_OFFICER','INSPECTOR'];
+  private async paymentScope(id: string) {
+    const rows = await this.prisma.$queryRaw<Array<{ id: string; method: RegistrationPaymentMethod; registrationId: string | null; institutionApplicationId: string | null; regionId: string | null; zoneId: string | null; subcityId: string | null; districtId: string | null }>>`
+      SELECT p."id",p."method",p."registrationId",p."institutionApplicationId",
+        COALESCE(r."regionId",ia."regionId") AS "regionId",
+        COALESCE(r."zoneId",ia."zoneId") AS "zoneId",
+        COALESCE(r."subcityId",ia."subcityId") AS "subcityId",
+        COALESCE(r."districtId",ia."districtId") AS "districtId"
+      FROM "RegistrationPayment" p
+      LEFT JOIN "Registration" r ON r."id"=p."registrationId"
+      LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
+      WHERE p."id"=${id}::uuid LIMIT 1`;
+    return rows[0] ?? null;
+  }
+
+  async queue(user: AuthenticatedUser, filters?: { status?: string; method?: string; search?: string }) {
+    const allowed = ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR','FINANCE_OFFICER'];
     if (!user.roles.some((role) => allowed.includes(role))) throw new ForbiddenException('Payment review permission required');
-    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT p."id",p."method",p."amount",p."currency",p."referenceNumber",p."providerReference",p."status",p."submittedAt",p."verifiedAt",p."rejectionReason",r."trackingCode" AS "individualTrackingCode",r."firstName",r."lastName",r."regionId" AS "registrationRegionId",r."zoneId" AS "registrationZoneId",r."subcityId" AS "registrationSubcityId",r."districtId" AS "registrationDistrictId",ia."trackingCode" AS "institutionTrackingCode",ia."institutionName",ia."regionId" AS "institutionRegionId",ia."zoneId" AS "institutionZoneId",ia."subcityId" AS "institutionSubcityId",ia."districtId" AS "institutionDistrictId" FROM "RegistrationPayment" p LEFT JOIN "Registration" r ON r."id"=p."registrationId" LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId" ORDER BY p."submittedAt" DESC LIMIT 200`;
+    const status = filters?.status?.trim().toUpperCase();
+    const method = filters?.method?.trim().toUpperCase();
+    const search = filters?.search?.trim();
+    const rows = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT p."id",p."method",p."amount",p."currency",p."referenceNumber",p."providerReference",p."status",
+        p."submittedAt",p."verifiedAt",p."verifiedBy",p."rejectionReason",p."metadata",
+        r."trackingCode" AS "individualTrackingCode",r."firstName",r."lastName",r."email" AS "individualEmail",r."phone" AS "individualPhone",
+        r."regionId" AS "registrationRegionId",r."zoneId" AS "registrationZoneId",r."subcityId" AS "registrationSubcityId",r."districtId" AS "registrationDistrictId",
+        ia."trackingCode" AS "institutionTrackingCode",ia."institutionName",ia."email" AS "institutionEmail",ia."phone" AS "institutionPhone",
+        ia."regionId" AS "institutionRegionId",ia."zoneId" AS "institutionZoneId",ia."subcityId" AS "institutionSubcityId",ia."districtId" AS "institutionDistrictId"
+      FROM "RegistrationPayment" p
+      LEFT JOIN "Registration" r ON r."id"=p."registrationId"
+      LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
+      WHERE (${status ?? null}::text IS NULL OR p."status"::text=${status})
+        AND (${method ?? null}::text IS NULL OR p."method"::text=${method})
+        AND (${search ?? null}::text IS NULL OR COALESCE(r."trackingCode",ia."trackingCode",'') ILIKE '%' || ${search ?? ''} || '%' OR COALESCE(r."firstName" || ' ' || r."lastName",ia."institutionName",'') ILIKE '%' || ${search ?? ''} || '%' OR p."referenceNumber" ILIKE '%' || ${search ?? ''} || '%')
+      ORDER BY p."submittedAt" DESC NULLS LAST, p."createdAt" DESC LIMIT 500`;
     const visible = [];
     for (const row of rows) {
       if (await this.authorization.canAccess(user, { regionId: (row.registrationRegionId ?? row.institutionRegionId) as string | null, zoneId: (row.registrationZoneId ?? row.institutionZoneId) as string | null, subcityId: (row.registrationSubcityId ?? row.institutionSubcityId) as string | null, districtId: (row.registrationDistrictId ?? row.institutionDistrictId) as string | null })) visible.push(row);
@@ -183,16 +213,80 @@ export class PaymentsService {
     return visible;
   }
 
-  async verifyManual(id: string, userOrId: AuthenticatedUser | string, approve: boolean, reason?: string) {
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; method: RegistrationPaymentMethod; registrationRegionId: string | null; registrationZoneId: string | null; registrationSubcityId: string | null; registrationDistrictId: string | null; institutionRegionId: string | null; institutionZoneId: string | null; institutionSubcityId: string | null; institutionDistrictId: string | null }>>`SELECT p."id",p."method",r."regionId" AS "registrationRegionId",r."zoneId" AS "registrationZoneId",r."subcityId" AS "registrationSubcityId",r."districtId" AS "registrationDistrictId",ia."regionId" AS "institutionRegionId",ia."zoneId" AS "institutionZoneId",ia."subcityId" AS "institutionSubcityId",ia."districtId" AS "institutionDistrictId" FROM "RegistrationPayment" p LEFT JOIN "Registration" r ON r."id"=p."registrationId" LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId" WHERE p."id"=${id}::uuid LIMIT 1`;
-    if (!rows[0]) throw new NotFoundException('Payment not found');
-    if (rows[0].method === 'CHAPA') throw new BadRequestException('Chapa payments are verified automatically');
-    if (typeof userOrId !== 'string') await this.authorization.assertCanAccess(userOrId, { regionId: rows[0].registrationRegionId ?? rows[0].institutionRegionId, zoneId: rows[0].registrationZoneId ?? rows[0].institutionZoneId, subcityId: rows[0].registrationSubcityId ?? rows[0].institutionSubcityId, districtId: rows[0].registrationDistrictId ?? rows[0].institutionDistrictId });
-    const userId = typeof userOrId === 'string' ? userOrId : userOrId.id;
-    await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"=${approve ? 'PAID' : 'REJECTED'}::"RegistrationPaymentStatus","verifiedBy"=${userId}::uuid,"verifiedAt"=CURRENT_TIMESTAMP,"rejectionReason"=${approve ? null : (reason?.trim() || 'Payment rejected')},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id}::uuid`;
-    return (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT * FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`)[0];
+  async detail(id: string, user: AuthenticatedUser) {
+    const scope = await this.paymentScope(id);
+    if (!scope) throw new NotFoundException('Payment not found');
+    await this.authorization.assertCanAccess(user, { regionId: scope.regionId, zoneId: scope.zoneId, subcityId: scope.subcityId, districtId: scope.districtId });
+    const payment = (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT * FROM "RegistrationPayment" WHERE "id"=${id}::uuid LIMIT 1`)[0];
+    const history = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+      SELECT * FROM "RegistrationPayment"
+      WHERE ("registrationId"=${scope.registrationId}::uuid OR "institutionApplicationId"=${scope.institutionApplicationId}::uuid)
+      ORDER BY "createdAt" DESC`;
+    let application: Record<string, unknown> | null = null;
+    let attachments: Array<Record<string, unknown>> = [];
+    if (scope.registrationId) {
+      application = (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+        SELECT r.*, m."id" AS "memberId", m."membershipNumber"
+        FROM "Registration" r LEFT JOIN "Member" m ON m."id"=r."memberId"
+        WHERE r."id"=${scope.registrationId}::uuid LIMIT 1`)[0] ?? null;
+    } else if (scope.institutionApplicationId) {
+      application = (await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+        SELECT ia.*, it."name" AS "institutionTypeName"
+        FROM "InstitutionApplication" ia
+        LEFT JOIN "InstitutionType" it ON it."id"=ia."institutionTypeId"
+        WHERE ia."id"=${scope.institutionApplicationId}::uuid LIMIT 1`)[0] ?? null;
+      attachments = await this.prisma.$queryRaw<Array<Record<string, unknown>>>`
+        SELECT "id","documentType","fileName","storageKey","mimeType","size","uploadedBy","createdAt"
+        FROM "InstitutionDocument" WHERE "institutionApplicationId"=${scope.institutionApplicationId}::uuid ORDER BY "createdAt" ASC`;
+    }
+    const audits = await this.prisma.auditLog.findMany({
+      where: { entityType: 'RegistrationPayment', entityId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return { payment, application, attachments, history, auditHistory: audits };
   }
 
+  async review(id: string, user: AuthenticatedUser, decision: 'VERIFY' | 'REJECT' | 'CLARIFICATION', reason?: string) {
+    if (!user.roles.some((role) => role === 'REGISTRAR' || role === 'FINANCE_OFFICER')) throw new ForbiddenException('Only Registrar or Finance Officer can decide payment verification');
+    const scope = await this.paymentScope(id);
+    if (!scope) throw new NotFoundException('Payment not found');
+    await this.authorization.assertCanAccess(user, { regionId: scope.regionId, zoneId: scope.zoneId, subcityId: scope.subcityId, districtId: scope.districtId });
+    if (scope.method === 'CHAPA') throw new BadRequestException('Chapa payments are verified automatically');
+    const cleanReason = reason?.trim() ?? '';
+    if ((decision === 'REJECT' || decision === 'CLARIFICATION') && cleanReason.length < 3) throw new BadRequestException('A reason is required for rejection or clarification');
+    const nextStatus = decision === 'VERIFY' ? 'PAID' : decision === 'REJECT' ? 'REJECTED' : 'PENDING';
+    const metadata = decision === 'CLARIFICATION' ? { reviewState: 'CLARIFICATION_REQUIRED', clarificationReason: cleanReason } : { reviewState: decision };
+    const userId = user.id;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`UPDATE "RegistrationPayment" SET
+        "status"=${nextStatus}::"RegistrationPaymentStatus",
+        "verifiedBy"=${userId}::uuid,
+        "verifiedAt"=CURRENT_TIMESTAMP,
+        "rejectionReason"=${decision === 'REJECT' ? cleanReason : null},
+        "metadata"=COALESCE("metadata",'{}'::jsonb) || ${JSON.stringify(metadata)}::jsonb,
+        "updatedAt"=CURRENT_TIMESTAMP
+        WHERE "id"=${id}::uuid`;
+      await tx.auditLog.create({
+        data: {
+          actorUserId: userId,
+          action: decision === 'VERIFY' ? 'PAYMENT_VERIFIED' : decision === 'REJECT' ? 'PAYMENT_REJECTED' : 'PAYMENT_CLARIFICATION_REQUESTED',
+          entityType: 'RegistrationPayment',
+          entityId: id,
+          metadata: { decision, reason: cleanReason || null, status: nextStatus },
+        },
+      });
+    });
+    const recipientRows = scope.registrationId
+      ? await this.prisma.$queryRaw<Array<{ userId: string }>>`SELECT u."id" AS "userId" FROM "User" u JOIN "Member" m ON (u."email"=m."email" OR u."phone"=m."phone") JOIN "Registration" r ON r."memberId"=m."id" WHERE r."id"=${scope.registrationId}::uuid LIMIT 1`
+      : await this.prisma.$queryRaw<Array<{ userId: string }>>`SELECT u."id" AS "userId" FROM "User" u JOIN "Institution" i ON u."institutionId"=i."id" JOIN "InstitutionApplication" ia ON ia."institutionId"=i."id" WHERE ia."id"=${scope.institutionApplicationId}::uuid LIMIT 1`;
+    return {
+      ...(await this.detail(id, user)),
+      notificationTargetFound: Boolean(recipientRows[0]),
+      notificationAction: decision === 'VERIFY' ? 'Payment verified' : decision === 'REJECT' ? 'Payment rejected' : 'Clarification requested',
+    };
+  }
   async assertPaid(kind: RegistrationKind, applicationId: string) {
     const rows = kind === 'INDIVIDUAL'
       ? await this.prisma.$queryRaw<Array<{ status: string }>>`SELECT "status" FROM "RegistrationPayment" WHERE "registrationId"=${applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`
