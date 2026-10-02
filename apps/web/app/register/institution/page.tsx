@@ -40,7 +40,9 @@ export default function InstitutionRegistrationPage() {
   const [result, setResult] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [application, setApplication] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [paying, setPaying] = useState(false);\n  const [supportingDocument, setSupportingDocument] = useState<File | null>(null);\n  const [otherAttachments, setOtherAttachments] = useState<File[]>([]);
+  const [paying, setPaying] = useState(false);
+  const [supportingDocument, setSupportingDocument] = useState<File | null>(null);
+  const [otherAttachments, setOtherAttachments] = useState<File[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
   const [form, setForm] = useState({
@@ -263,7 +265,21 @@ export default function InstitutionRegistrationPage() {
       setPaying(false);
     }
   }
-  async function uploadSupportingDocuments(trackingCode: string, phone: string, applicantName: string) {\n    const files: Array<{ file: File; type: string }> = [];\n    if (supportingDocument) files.push({ file: supportingDocument, type: "SUPPORTING_DOCUMENT" });\n    for (const file of otherAttachments) files.push({ file, type: "OTHER" });\n    for (const item of files) {\n      const body = new FormData();\n      body.append("file", item.file);\n      const response = await fetch(`${API}/registrations/institution/${encodeURIComponent(trackingCode)}/documents/${item.type}?phone=${encodeURIComponent(phone)}&firstName=${encodeURIComponent(applicantName)}`, { method: "POST", body });\n      const data = await response.json().catch(() => null);\n      if (!response.ok) throw new Error(extractErrorMessage(data, `Unable to upload ${item.file.name}.`));\n    }\n  }\n\n  async function saveApplication() {\n    if (application) { setLoading(true); try { await uploadSupportingDocuments(application.trackingCode, application.phone, form.applicantName || form.leaderName); setStep(3); } catch (e) { reportError(e instanceof Error ? e.message : "Unable to upload supporting documents."); } finally { setLoading(false); } return; }
+  async function uploadSupportingDocuments(trackingCode: string, phone: string, applicantName: string) {
+    const files: Array<{ file: File; type: string }> = [];
+    if (supportingDocument) files.push({ file: supportingDocument, type: "SUPPORTING_DOCUMENT" });
+    for (const file of otherAttachments) files.push({ file, type: "OTHER" });
+    for (const item of files) {
+      const body = new FormData();
+      body.append("file", item.file);
+      const response = await fetch(`${API}/registrations/institution/${encodeURIComponent(trackingCode)}/documents/${item.type}?phone=${encodeURIComponent(phone)}&firstName=${encodeURIComponent(applicantName)}`, { method: "POST", body });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(extractErrorMessage(data, `Unable to upload ${item.file.name}.`));
+    }
+  }
+
+  async function saveApplication() {
+    if (application) { setLoading(true); try { await uploadSupportingDocuments(application.trackingCode, application.phone, form.applicantName || form.leaderName); setStep(3); } catch (e) { reportError(e instanceof Error ? e.message : "Unable to upload supporting documents."); } finally { setLoading(false); } return; }
     if (!step1Valid() || !step2Valid()) {
       reportError(validationReason());
       return;
@@ -279,7 +295,8 @@ export default function InstitutionRegistrationPage() {
       });
       const data = await r.json();
       if (!r.ok) throw new Error(extractErrorMessage(data, "The institution application could not be saved."));
-      setApplication({ trackingCode: data.trackingCode, phone: data.phone });\n      await uploadSupportingDocuments(data.trackingCode, data.phone, form.applicantName || form.leaderName);
+      setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      await uploadSupportingDocuments(data.trackingCode, data.phone, form.applicantName || form.leaderName);
       setLocationVerified(typeof data.locationVerified === "boolean" ? data.locationVerified : null);
       setStep(3);
     } catch (err) {
@@ -776,7 +793,8 @@ export default function InstitutionRegistrationPage() {
                 disabled={!step2Valid() || loading}
                 onClick={saveApplication}
               >
-            <section className="workflow-panel"><p className="eyebrow">SUPPORTING DOCUMENTS</p><h3>Attach supporting document</h3><p className="lead" style={{ fontSize: 14 }}>Optional. Upload one main supporting document and add other attachments if needed. PDF, JPEG, PNG or WebP; maximum 10 MB per file.</p><label>Supporting document<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setSupportingDocument(e.target.files?.[0] ?? null)} /></label>{supportingDocument && <p><small>{supportingDocument.name}</small></p>}<label>Other attachments (optional)<input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setOtherAttachments(Array.from(e.target.files ?? []))} /></label>{otherAttachments.length > 0 && <ul>{otherAttachments.map((file) => <li key={file.name + file.size}>{file.name}</li>)}</ul>}</section>\n                {loading ? "Saving application…" : "Save application & continue to payment"}
+            <section className="workflow-panel"><p className="eyebrow">SUPPORTING DOCUMENTS</p><h3>Attach supporting document</h3><p className="lead" style={{ fontSize: 14 }}>Optional. Upload one main supporting document and add other attachments if needed. PDF, JPEG, PNG or WebP; maximum 10 MB per file.</p><label>Supporting document<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setSupportingDocument(e.target.files?.[0] ?? null)} /></label>{supportingDocument && <p><small>{supportingDocument.name}</small></p>}<label>Other attachments (optional)<input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setOtherAttachments(Array.from(e.target.files ?? []))} /></label>{otherAttachments.length > 0 && <ul>{otherAttachments.map((file) => <li key={file.name + file.size}>{file.name}</li>)}</ul>}</section>
+                {loading ? "Saving application…" : "Save application & continue to payment"}
               </button>
             </div>
           </section>
