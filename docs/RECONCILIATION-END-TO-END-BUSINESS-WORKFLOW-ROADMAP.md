@@ -410,3 +410,20 @@ The reconciliation is complete when payment state is authoritative; both individ
 Implement in small, recoverable commits in this order: payment state reconciliation → applicant Pay Now and automatic checks → Finance/Registrar queue and decision UI → application review workspace → individual/institution workflow closure → role-specific UI → membership integrity → licensing closure → durable events/notifications → queue/reporting hardening → full E2E and production gates.
 
 Do not remove an existing valid workflow merely to make a test pass. Preserve existing functionality, reconcile conflicting paths explicitly, add migrations for durable business rules, and add acceptance tests for every newly closed transition.
+
+## Phase 3 — Application review and correction loop
+
+Implemented on `reconciliation/phase-3-application-review` from the Phase 2 branch.
+
+- Individual and institution applications have explicit reviewer detail/review workflows.
+- Reviewers can start review, request correction with a reason, or reject with a reason.
+- Individual reviewer detail includes payment state and amendment history.
+- Institution reviewer detail includes payment state, amendment history and submitted documents.
+- Individual approval is gated by verified payment through the existing approval path.
+- Institution approval is now gated by verified payment and verified location.
+- Institution review transitions now write status history and audit records with actor identity.
+- Individual review start/correction/rejection transitions write audit records.
+- Resubmitted applications remain distinct from the original review state and can re-enter review.
+- The applicant amendment workflow from the previous increment feeds directly back into the Phase 3 reviewer queue.
+
+Validation is still pending because CI remains intentionally suspended; no claim of build/typecheck/E2E success is made until those checks are executed.
