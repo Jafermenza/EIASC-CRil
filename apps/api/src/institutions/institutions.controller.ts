@@ -32,7 +32,11 @@ export class InstitutionsController {
 
   @Get('registrations/institution/:trackingCode') track(@Param('trackingCode') code: string, @Query('phone') phone?: string) { return this.institutions.trackApplication(code, phone); }
   @Patch('registrations/institution/:id') updateApplication(@Param('id') id: string, @Body() body: InstitutionApplicationUpdateInput) { return this.institutions.updateApplication(id, body); }
-  @Post('registrations/institution/:id/resubmit') resubmit(@Param('id') id: string) { return this.institutions.resubmit(id); }
+  @Post('registrations/institution/:id/resubmit') async resubmit(@Param('id') id: string, @Body() body: { payment?: InstitutionApplicationInput['payment'] }) {
+    if (!body?.payment) throw new BadRequestException('Registration payment is required before resubmission');
+    await this.payments.validateForSubmission('INSTITUTION', body.payment);
+    return this.institutions.resubmit(id, body.payment);
+  }
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
