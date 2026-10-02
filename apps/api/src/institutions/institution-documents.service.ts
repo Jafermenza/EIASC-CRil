@@ -1,10 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { InstitutionApplicationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DOCUMENT_TYPES } from './institution.types';
+import { AuthorizationService } from '../auth/authorization.service';
+import { AuthenticatedUser } from '../auth/auth.types';
 
 const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const MAX_SIZE = 10 * 1024 * 1024;
@@ -15,7 +17,7 @@ const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [
 
 @Injectable()
 export class InstitutionDocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
   async upload(trackingCode: string, documentType: string, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
     if (!DOCUMENT_TYPES.includes(documentType as any)) throw new BadRequestException('Invalid document type');
@@ -32,5 +34,26 @@ export class InstitutionDocumentsService {
     await mkdir(join(root, String(new Date().getUTCFullYear())), { recursive: true });
     await writeFile(path, file.buffer, { flag: 'wx' });
     return this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } });
+  }
+}
+
+  async download(id: string, user: AuthenticatedUser) {
+    const document = await this.prisma.institutionDocument.findUnique({
+      where: { id },
+      include: { application: { select: { regionId: true, zoneId: true, subcityId: true, districtId: true } } },
+    });
+    if (!document) throw new NotFoundException('Document not found');
+    if (!document.application) throw new NotFoundException('Application document is no longer available');
+    await this.authorization.assertCanAccess(user, {
+      regionId: document.application.regionId,
+      zoneId: document.application.zoneId,
+      subcityId: document.application.subcityId,
+      districtId: document.application.districtId,
+    });
+    const root = process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
+    if (!root) throw new BadRequestException('Institution document storage is not configured');
+    const path = join(root, document.storageKey);
+    const buffer = await readFile(path).catch(() => { throw new NotFoundException('Stored document file not found'); });
+    return { buffer, fileName: document.fileName, mimeType: document.mimeType };
   }
 }
