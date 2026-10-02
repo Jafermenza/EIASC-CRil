@@ -195,7 +195,7 @@ export class InstitutionsService {
     const amendmentInput = input ?? {};
     await this.validateInput(amendmentInput, false);
     if (payment) await this.payments.attachToApplication('INSTITUTION', id, payment);
-    else await this.payments.assertPaid('INSTITUTION', id);
+    await this.payments.assertPaid('INSTITUTION', id);
     const snapshot = await this.prisma.institutionApplication.findUnique({ where: { id }, include: { leaders: true, staffSummary: true, education: true, documents: { select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } } } });
     if (!snapshot) throw new NotFoundException('Application not found');
     const versionRow = await this.prisma.institutionApplicationAmendment.aggregate({ where: { applicationId: id }, _max: { version: true } });
