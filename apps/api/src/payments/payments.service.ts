@@ -249,6 +249,18 @@ export class PaymentsService {
     return { payment, application, attachments, history, auditHistory: audits };
   }
 
+  async detailForReview(kind: 'INDIVIDUAL' | 'INSTITUTION', applicationId: string) {
+    const payments = kind === 'INDIVIDUAL'
+      ? await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT * FROM "RegistrationPayment" WHERE "registrationId"=${applicationId}::uuid ORDER BY "createdAt" DESC`
+      : await this.prisma.$queryRaw<Array<Record<string, unknown>>>`SELECT * FROM "RegistrationPayment" WHERE "institutionApplicationId"=${applicationId}::uuid ORDER BY "createdAt" DESC`;
+    const paymentIds = payments.map((p) => String(p.id));
+    const audits = paymentIds.length ? await this.prisma.auditLog.findMany({ where: { entityType: 'RegistrationPayment', entityId: { in: paymentIds } }, orderBy: { createdAt: 'desc' }, take: 200 }) : [];
+    const attachments = kind === 'INDIVIDUAL'
+      ? await this.prisma.registrationDocument.findMany({ where: { registrationId: applicationId }, orderBy: { createdAt: 'asc' } })
+      : await this.prisma.institutionDocument.findMany({ where: { institutionApplicationId: applicationId }, orderBy: { createdAt: 'asc' } });
+    return { payments, latest: payments[0] ?? null, attachments, auditHistory: audits };
+  }
+
   async review(id: string, user: AuthenticatedUser, decision: 'VERIFY' | 'REJECT' | 'CLARIFICATION', reason?: string) {
     if (!user.roles.some((role) => role === 'REGISTRAR' || role === 'FINANCE_OFFICER')) throw new ForbiddenException('Only Registrar or Finance Officer can decide payment verification');
     const scope = await this.paymentScope(id);
