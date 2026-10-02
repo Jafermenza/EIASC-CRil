@@ -40,13 +40,24 @@ export class PaymentsService {
     if (!process.env.CHAPA_SECRET_KEY) throw new BadRequestException('Chapa API is not configured');
     const amount = await this.fee(input.kind);
     if (amount <= 0) throw new BadRequestException('Chapa checkout requires a positive registration fee');
-    const returnPath = `/register/${input.kind === 'INDIVIDUAL' ? 'individual' : 'institution'}`;
+    const returnPath = input.applicationId
+      ? `/track?code=${encodeURIComponent(input.applicationId)}`
+      : `/register/${input.kind === 'INDIVIDUAL' ? 'individual' : 'institution'}`;
+    if (input.applicationId) {
+      const existing = input.kind === 'INDIVIDUAL'
+        ? await this.prisma.$queryRaw<Array<{ status: string; referenceNumber: string; metadata: JsonObject | null }>>`SELECT "status","referenceNumber","metadata" FROM "RegistrationPayment" WHERE "registrationId"=${input.applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`
+        : await this.prisma.$queryRaw<Array<{ status: string; referenceNumber: string; metadata: JsonObject | null }>>`SELECT "status","referenceNumber","metadata" FROM "RegistrationPayment" WHERE "institutionApplicationId"=${input.applicationId}::uuid ORDER BY "createdAt" DESC LIMIT 1`;
+      const payment = existing[0];
+      const checkoutUrl = typeof payment?.metadata?.checkoutUrl === 'string' ? payment.metadata.checkoutUrl : undefined;
+      if (payment?.status === 'PAID') return { alreadyPaid: true, status: await this.statusForApplication(input.kind, input.applicationId) };
+      if (payment?.status === 'INITIATED' && checkoutUrl) return { method: 'CHAPA', referenceNumber: payment.referenceNumber, amount, currency: 'ETB', checkoutUrl };
+    }
     const txRef = `EIASC-${input.kind === 'INDIVIDUAL' ? 'MEM' : 'INST'}-${Date.now()}-${createOpaqueToken(5).toUpperCase()}`;
     const response = await fetch('https://api.chapa.co/v1/transaction/initialize', { method: 'POST', headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ amount: String(amount), currency: 'ETB', email: input.email, first_name: input.firstName ?? input.name ?? 'EIASC', last_name: input.lastName ?? 'Applicant', phone_number: input.phone, tx_ref: txRef, callback_url: `${this.apiBase()}/api/v1/payments/chapa/callback`, return_url: `${this.webBase()}${returnPath}?payment_ref=${encodeURIComponent(txRef)}`, customization: { title: 'EIASC Registration', description: `${input.kind === 'INDIVIDUAL' ? 'Individual' : 'Institution'} registration fee` } }) });
     const data: JsonObject = await response.json().catch(() => ({}));
     const responseData = data.data as { checkout_url?: string } | undefined;
     if (!response.ok || data.status !== 'success' || !responseData?.checkout_url) throw new BadRequestException(typeof data.message === 'string' ? data.message : 'Chapa payment could not be initialized');
-    await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("registrationId","institutionApplicationId","method","amount","currency","referenceNumber","status","intentToken","metadata","updatedAt") VALUES (${input.kind === 'INDIVIDUAL' && input.applicationId ? input.applicationId : null}::uuid, ${input.kind === 'INSTITUTION' && input.applicationId ? input.applicationId : null}::uuid, 'CHAPA', ${amount}, 'ETB', ${txRef}, 'INITIATED', ${createOpaqueToken(24)}, ${JSON.stringify({ kind: input.kind, returnPath })}::jsonb, CURRENT_TIMESTAMP)`;
+    await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("registrationId","institutionApplicationId","method","amount","currency","referenceNumber","status","intentToken","metadata","updatedAt") VALUES (${input.kind === 'INDIVIDUAL' && input.applicationId ? input.applicationId : null}::uuid, ${input.kind === 'INSTITUTION' && input.applicationId ? input.applicationId : null}::uuid, 'CHAPA', ${amount}, 'ETB', ${txRef}, 'INITIATED', ${createOpaqueToken(24)}, ${JSON.stringify({ kind: input.kind, returnPath, checkoutUrl: responseData.checkout_url })}::jsonb, CURRENT_TIMESTAMP)`;
     return { method: 'CHAPA', referenceNumber: txRef, amount, currency: 'ETB', checkoutUrl: responseData.checkout_url };
   }
 
@@ -57,10 +68,19 @@ export class PaymentsService {
     const response = await fetch(`https://api.chapa.co/v1/transaction/verify/${encodeURIComponent(ref)}`, { headers: { Authorization: `Bearer ${process.env.CHAPA_SECRET_KEY}` } });
     const data: JsonObject = await response.json().catch(() => ({}));
     const paymentData = data.data as { status?: string; amount?: string | number; reference?: string } | undefined;
-    if (!response.ok || data.status !== 'success' || paymentData?.status !== 'success') return { paid: false, data };
-    if (expectedAmount !== undefined && Number(paymentData.amount) !== Number(expectedAmount)) throw new ConflictException('Chapa payment amount does not match the required registration fee');
-    await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='PAID', "providerReference"=${paymentData.reference ?? null}, "verifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
-    return { paid: true, data: paymentData };
+    if (!response.ok || data.status !== 'success') return { paid: false, data };
+    const providerStatus = String(paymentData?.status ?? '').toLowerCase();
+    if (providerStatus === 'success') {
+      if (expectedAmount !== undefined && Number(paymentData?.amount) !== Number(expectedAmount)) throw new ConflictException('Chapa payment amount does not match the required registration fee');
+      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='PAID', "providerReference"=${paymentData.reference ?? null}, "verifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
+      return { paid: true, data: paymentData };
+    }
+    if (['failed', 'cancelled', 'canceled', 'expired'].includes(providerStatus)) {
+      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='FAILED', "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
+    } else if (['pending', 'processing', 'initiated'].includes(providerStatus)) {
+      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='PENDING', "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
+    }
+    return { paid: false, data: paymentData };
   }
 
   async callback(referenceNumber: string) {
@@ -88,7 +108,10 @@ export class PaymentsService {
 
   async attachToApplication(kind: RegistrationKind, applicationId: string, input: PaymentInput) {
     const payment = await this.validateForSubmission(kind, input);
-    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string }>>`SELECT "id","status" FROM "RegistrationPayment" WHERE "referenceNumber"=${payment.referenceNumber} LIMIT 1`;
+    const existing = await this.prisma.$queryRaw<Array<{ id: string; status: string; registrationId: string | null; institutionApplicationId: string | null }>>`SELECT "id","status","registrationId","institutionApplicationId" FROM "RegistrationPayment" WHERE "referenceNumber"=${payment.referenceNumber} LIMIT 1`;
+    if (existing[0] && ((kind === 'INDIVIDUAL' && existing[0].institutionApplicationId && existing[0].institutionApplicationId !== applicationId) || (kind === 'INSTITUTION' && existing[0].registrationId && existing[0].registrationId !== applicationId))) {
+      throw new ConflictException('This payment reference is already linked to another application');
+    }
     if (existing[0]) {
       if (existing[0].status === 'PAID') {
         if (kind === 'INSTITUTION') await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "institutionApplicationId"=${applicationId}::uuid,"receiptUrl"=${payment.receiptUrl},"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${existing[0].id}::uuid`;
@@ -124,53 +147,6 @@ export class PaymentsService {
       status: payment?.status ?? (amount > 0 ? 'REQUIRED' : 'NOT_REQUIRED'),
       payment: payment ?? null,
       nextAction: payment?.status === 'PAID' ? 'Payment verified. Continue with the application.' : payment?.status === 'PENDING' || payment?.status === 'INITIATED' ? 'Payment is awaiting verification.' : payment?.status === 'REJECTED' ? 'Payment was rejected. Pay again or submit a new payment reference.' : amount > 0 ? 'Payment is required. Use Pay Now to continue.' : 'No payment is required.'
-    };
-  }
-
-  async initializeForApplication(kind: RegistrationKind, trackingCode: string) {
-    const code = trackingCode.trim().toUpperCase();
-    if (kind === 'INDIVIDUAL') {
-      const app = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
-      if (!app) throw new NotFoundException('Application not found');
-      const status = await this.statusForApplication(kind, app.id);
-      if (status.status === 'PAID') return { alreadyPaid: true, status };
-      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone });
-    }
-    const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, institutionName: true, email: true, phone: true } });
-    if (!app) throw new NotFoundException('Application not found');
-    const status = await this.statusForApplication(kind, app.id);
-    if (status.status === 'PAID') return { alreadyPaid: true, status };
-    return this.initializeChapa({ kind, applicationId: app.id, name: app.institutionName, email: app.email, phone: app.phone });
-  }
-
-  async refreshForApplication(kind: RegistrationKind, applicationId: string) {
-    const payment = await this.getForApplication(kind, applicationId);
-    if (payment && payment.status === 'INITIATED' && payment.method === 'CHAPA') {
-      await this.verifyChapa(String(payment.referenceNumber), Number(payment.amount));
-      return this.getForApplication(kind, applicationId);
-    }
-    return payment;
-  }
-
-  async statusForApplication(kind: RegistrationKind, applicationId: string) {
-    const payment = await this.refreshForApplication(kind, applicationId);
-    const amount = await this.fee(kind);
-    const status = payment?.status ?? (amount > 0 ? 'REQUIRED' : 'NOT_REQUIRED');
-    return {
-      required: amount > 0,
-      amount,
-      currency: 'ETB',
-      status,
-      payment: payment ?? null,
-      nextAction: status === 'PAID'
-        ? 'Payment verified. Continue with the application.'
-        : status === 'PENDING' || status === 'INITIATED'
-          ? 'Payment is awaiting verification.'
-          : status === 'REJECTED'
-            ? 'Payment was rejected. Pay again or submit a new payment reference.'
-            : amount > 0
-              ? 'Payment is required. Use Pay Now to continue.'
-              : 'No payment is required.',
     };
   }
 
