@@ -34,9 +34,7 @@ export class InstitutionsController {
   @Patch('registrations/institution/:id') updateApplication(@Param('id') id: string, @Body() body: InstitutionApplicationUpdateInput) { return this.institutions.updateApplication(id, body); }
   @Post('registrations/institution/:id/resubmit') async resubmit(@Param('id') id: string, @Body() body: { payment?: InstitutionApplicationInput['payment'] }) {
     if (!body?.payment) throw new BadRequestException('Registration payment is required before resubmission');
-    await this.payments.validateForSubmission('INSTITUTION', body.payment);
-    await this.payments.attachToApplication('INSTITUTION', id, body.payment);
-    return this.institutions.resubmit(id);
+    return this.institutions.resubmit(id, body.payment);
   }
 
   @UseGuards(AuthGuard, RolesGuard)
