@@ -40,6 +40,11 @@ export class RegistrationsController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Get('admin/application/:id')
+  applicationDetail(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.registrations.applicationDetail(req.user!, id); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
   @Get('admin/members')
   members(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
     return this.registrations.listMembers(req.user!, query);
