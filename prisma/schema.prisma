@@ -363,7 +363,6 @@ model Institution {
   district            District           @relation("DistrictInstitutions", fields: [districtId], references: [id], onDelete: Restrict)
   registrations       Registration[]     @relation("InstitutionRegistration")
   applications        InstitutionApplication[]
-  registrationDocuments RegistrationDocument[]
   memberLinks         MemberInstitution[]
   leaders             InstitutionLeader[]
   staffSummary        InstitutionStaffSummary?
