@@ -116,17 +116,102 @@ export class InstitutionsService {
     return { id: updated.id, trackingCode: updated.trackingCode, status: updated.status, phone: updated.phone, submittedAt: updated.submittedAt };
   }
 
-  async trackApplication(trackingCode: string, phone?: string) { const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required'); const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, correctionReason: true, rejectionReason: true, decisionAt: true } }); if (!app || (phone && app.phone !== phone.trim() && app.applicantPhone !== phone.trim())) throw new NotFoundException('Application not found'); return { trackingCode: app.trackingCode, status: app.status, submittedAt: app.submittedAt, createdAt: app.createdAt, updatedAt: app.updatedAt, nextAction: app.status === 'CORRECTION_REQUIRED' ? 'Update the requested information and resubmit' : app.status === 'APPROVED' ? 'Application approved' : app.status === 'REJECTED' ? 'Review the decision information' : 'Wait for EIASC review', correctionRequirement: app.status === 'CORRECTION_REQUIRED' ? app.correctionReason : undefined, decisionInformation: app.status === 'REJECTED' ? app.rejectionReason : undefined, decisionAt: app.decisionAt }; }
+  private applicantFirstNameMatches(expected: string | null | undefined, supplied?: string) {
+    if (!supplied?.trim() || !expected?.trim()) return false;
+    return expected.trim().split(/\s+/)[0].toLowerCase() === supplied.trim().toLowerCase();
+  }
 
-  async updateApplication(id: string, input: InstitutionApplicationUpdateInput) { const app = await this.prisma.institutionApplication.findUnique({ where: { id } }); if (!app) throw new NotFoundException('Application not found'); if (!ACTIVE_APP.slice(0, 1).concat([InstitutionApplicationStatus.CORRECTION_REQUIRED]).includes(app.status)) throw new ConflictException('Application cannot be edited in its current status'); await this.validateInput(input, false); const data: any = {}; for (const key of ['institutionName','alternativeName','institutionTypeId','phone','email','secondaryPhone','website','regionId','zoneId','subcityId','districtId','address','mission','description','services','communityActivities','applicantName','applicantPhone','applicantEmail'] as const) if (input[key] !== undefined) data[key] = typeof input[key] === 'string' ? this.clean(input[key]) : input[key]; if (input.establishmentDate) data.establishmentDate = new Date(input.establishmentDate);
-    if (input.latitude !== undefined) data.latitude = input.latitude; if (input.longitude !== undefined) data.longitude = input.longitude;
+  private async assertApplicantAccess(trackingCode: string, phone?: string, firstName?: string) {
+    const code = trackingCode.trim().toUpperCase();
+    if (!code || (!phone?.trim() && !firstName?.trim())) throw new BadRequestException('Tracking code and phone number or first name are required');
+    const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code } });
+    if (!app) throw new NotFoundException('Application not found');
+    const phoneMatches = !!phone?.trim() && (app.phone === phone.trim() || app.applicantPhone === phone.trim());
+    const firstNameMatches = this.applicantFirstNameMatches(app.applicantName, firstName);
+    if (!phoneMatches && !firstNameMatches) throw new NotFoundException('Application not found');
+    if (![InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.CORRECTION_REQUIRED].includes(app.status)) {
+      throw new ConflictException('Application amendments are only available while the application is under review or correction is requested');
+    }
+    return app;
+  }
+
+  async amendment(trackingCode: string, phone?: string, firstName?: string) {
+    const app = await this.assertApplicantAccess(trackingCode, phone, firstName);
+    const full = await this.prisma.institutionApplication.findUnique({
+      where: { id: app.id },
+      include: { institutionType: true, leaders: true, staffSummary: true, education: true, documents: { select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } } },
+    });
+    if (!full) throw new NotFoundException('Application not found');
+    return { type: 'INSTITUTION', application: full, correctionRequirement: full.correctionReason ?? undefined };
+  }
+
+  async trackApplication(trackingCode: string, phone?: string, firstName?: string) {
+    const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
+    const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, applicantName: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
+    if (!app || (phone && app.phone !== phone.trim() && app.applicantPhone !== phone.trim()) || (firstName && !this.applicantFirstNameMatches(app.applicantName, firstName))) throw new NotFoundException('Application not found');
+    return { trackingCode: app.trackingCode, status: app.status, submittedAt: app.submittedAt, createdAt: app.createdAt, updatedAt: app.updatedAt, nextAction: app.status === 'CORRECTION_REQUIRED' || app.status === 'UNDER_REVIEW' ? 'Review your submitted application; you may amend and resubmit while it is under review' : app.status === 'APPROVED' ? 'Application approved' : app.status === 'REJECTED' ? 'Review the decision information' : 'Wait for EIASC review', correctionRequirement: app.status === 'CORRECTION_REQUIRED' ? app.correctionReason : undefined, decisionInformation: app.status === 'REJECTED' ? app.rejectionReason : undefined, decisionAt: app.decisionAt };
+  }
+
+  async updateApplication(id: string, input: InstitutionApplicationUpdateInput) {
+    const app = await this.prisma.institutionApplication.findUnique({ where: { id }, include: { leaders: true, staffSummary: true, education: true } });
+    if (!app) throw new NotFoundException('Application not found');
+    if (![InstitutionApplicationStatus.DRAFT, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.CORRECTION_REQUIRED].includes(app.status)) throw new ConflictException('Application cannot be edited in its current status');
+    await this.validateInput(input, false);
+    const data: any = {};
+    for (const key of ['institutionName','alternativeName','institutionTypeId','phone','email','secondaryPhone','website','regionId','zoneId','subcityId','districtId','address','mission','description','services','communityActivities','applicantName','applicantPhone','applicantEmail'] as const) if (input[key] !== undefined) data[key] = typeof input[key] === 'string' ? this.clean(input[key]) : input[key];
+    if (input.establishmentDate) data.establishmentDate = new Date(input.establishmentDate);
+    if (input.latitude !== undefined) data.latitude = input.latitude;
+    if (input.longitude !== undefined) data.longitude = input.longitude;
     if (input.latitude !== undefined || input.longitude !== undefined || input.regionId !== undefined || input.zoneId !== undefined || input.subcityId !== undefined || input.districtId !== undefined) {
       const latitude = data.latitude !== undefined ? data.latitude : app.latitude; const longitude = data.longitude !== undefined ? data.longitude : app.longitude;
       data.locationVerified = await this.verifyLocation(latitude, longitude, { regionId: data.regionId ?? app.regionId, zoneId: data.zoneId ?? app.zoneId, subcityId: data.subcityId ?? app.subcityId ?? undefined, districtId: data.districtId ?? app.districtId });
     }
-    const updated = await this.prisma.institutionApplication.update({ where: { id }, data }); return { id: updated.id, trackingCode: updated.trackingCode, status: updated.status, updatedAt: updated.updatedAt, latitude: updated.latitude, longitude: updated.longitude, locationVerified: updated.locationVerified }; }
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.institutionApplication.update({ where: { id }, data });
+      if (input.leaders) {
+        await tx.institutionApplicationLeader.deleteMany({ where: { applicationId: id } });
+        await tx.institutionApplicationLeader.createMany({ data: input.leaders.map((l) => ({ applicationId: id, fullName: this.require(l.fullName, 'leader.fullName'), role: this.require(l.role, 'leader.role'), phone: this.require(l.phone, 'leader.phone'), email: this.clean(l.email) })) });
+      }
+      if (input.staff) {
+        await tx.institutionApplicationStaffSummary.upsert({ where: { applicationId: id }, update: { imamCount: input.staff.imamCount ?? 0, teacherCount: input.staff.teacherCount ?? 0, administrativeStaffCount: input.staff.administrativeStaffCount ?? 0, otherStaffCount: input.staff.otherStaffCount ?? 0 }, create: { applicationId: id, imamCount: input.staff.imamCount ?? 0, teacherCount: input.staff.teacherCount ?? 0, administrativeStaffCount: input.staff.administrativeStaffCount ?? 0, otherStaffCount: input.staff.otherStaffCount ?? 0 } });
+      }
+      if (input.education) {
+        await tx.institutionApplicationEducation.upsert({ where: { applicationId: id }, update: { studentCount: input.education.studentCount ?? 0, teacherCount: input.education.teacherCount ?? 0, educationLevels: input.education.educationLevels ?? [] }, create: { applicationId: id, studentCount: input.education.studentCount ?? 0, teacherCount: input.education.teacherCount ?? 0, educationLevels: input.education.educationLevels ?? [] } });
+      }
+      return next;
+    });
+    await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_APPLICATION_AMENDED', entityType: 'InstitutionApplication', entityId: id, metadata: { fields: Object.keys(input).filter((k) => k !== 'payment') } } });
+    return { id: updated.id, trackingCode: updated.trackingCode, status: updated.status, updatedAt: updated.updatedAt, latitude: updated.latitude, longitude: updated.longitude, locationVerified: updated.locationVerified };
+  }
 
-  async resubmit(id: string, payment: InstitutionApplicationInput['payment']) { const app = await this.prisma.institutionApplication.findUnique({ where: { id } }); if (!app) throw new NotFoundException('Application not found'); if (app.status !== InstitutionApplicationStatus.CORRECTION_REQUIRED) throw new ConflictException('Application is not awaiting correction'); if (!payment) throw new BadRequestException('Registration payment is required before resubmission'); await this.payments.attachToApplication('INSTITUTION', id, payment); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.RESUBMITTED, correctionReason: null, submittedAt: new Date() } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: 'Applicant resubmitted' } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_APPLICATION_RESUBMITTED', entityType: 'InstitutionApplication', entityId: id } }); return { id, trackingCode: updated.trackingCode, status: updated.status }; }
+  async resubmit(id: string, payment: InstitutionApplicationInput['payment'], phone?: string, firstName?: string, input?: InstitutionApplicationUpdateInput) {
+    const app = await this.assertApplicantAccessById(id, phone, firstName);
+    const amendmentInput = input ?? {};
+    await this.validateInput(amendmentInput, false);
+    if (payment) await this.payments.attachToApplication('INSTITUTION', id, payment);
+    else await this.payments.assertPaid('INSTITUTION', id);
+    const snapshot = await this.prisma.institutionApplication.findUnique({ where: { id }, include: { leaders: true, staffSummary: true, education: true, documents: { select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } } } });
+    if (!snapshot) throw new NotFoundException('Application not found');
+    const versionRow = await this.prisma.institutionApplicationAmendment.aggregate({ where: { applicationId: id }, _max: { version: true } });
+    const nextVersion = (versionRow._max.version ?? 0) + 1;
+    await this.updateApplication(id, amendmentInput);
+    const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.RESUBMITTED, correctionReason: null, submittedAt: new Date() } });
+    await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: 'Applicant amended and resubmitted' } });
+    await this.prisma.institutionApplicationAmendment.create({ data: { applicationId: id, version: nextVersion, statusBefore: app.status, statusAfter: InstitutionApplicationStatus.RESUBMITTED, snapshot: snapshot as any, changedFields: Object.keys(amendmentInput).filter((k) => k !== 'payment') } });
+    await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_APPLICATION_AMENDED_AND_RESUBMITTED', entityType: 'InstitutionApplication', entityId: id, metadata: { trackingCode: updated.trackingCode, version: nextVersion, changedFields: Object.keys(amendmentInput).filter((k) => k !== 'payment') } } });
+    return { id, trackingCode: updated.trackingCode, status: updated.status, submittedAt: updated.submittedAt };
+  }
+
+  private async assertApplicantAccessById(id: string, phone?: string, firstName?: string) {
+    const app = await this.prisma.institutionApplication.findUnique({ where: { id } });
+    if (!app) throw new NotFoundException('Application not found');
+    const phoneMatches = !!phone?.trim() && (app.phone === phone.trim() || app.applicantPhone === phone.trim());
+    const firstNameMatches = this.applicantFirstNameMatches(app.applicantName, firstName);
+    if (!phoneMatches && !firstNameMatches) throw new NotFoundException('Application not found');
+    if (![InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.CORRECTION_REQUIRED].includes(app.status)) throw new ConflictException('Application amendments are only available while the application is under review or correction is requested');
+    return app;
+  }
+
 
   async queue(user: AuthenticatedUser, query: InstitutionListQuery) { const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 25))); const where: any = {}; if (query.applicationStatus) where.status = query.applicationStatus; if (query.institutionTypeId) where.institutionTypeId = query.institutionTypeId; if (query.regionId) where.regionId = query.regionId; if (query.zoneId) where.zoneId = query.zoneId; if (query.subcityId) where.subcityId = query.subcityId; if (query.districtId) where.districtId = query.districtId; if (query.search) where.OR = [{ institutionName: { contains: query.search.trim(), mode: 'insensitive' } }, { trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }]; if (query.institutionStatus) where.institution = { status: query.institutionStatus }; if (!user.roles.some((r) => ADMIN_ROLES.includes(r))) { if (!user.jurisdictionId) throw new ForbiddenException('No jurisdiction assigned'); const scope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId }; if (!(await this.authorization.canAccess(user, scope))) { switch (user.jurisdictionLevel) { case 'REGION': where.regionId = user.jurisdictionId; break; case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break; case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break; case 'DISTRICT': where.districtId = user.jurisdictionId; break; default: break; } } } const [items, total] = await this.prisma.$transaction([this.prisma.institutionApplication.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { institutionType: true, institution: { select: { institutionCode: true, status: true } } } }), this.prisma.institutionApplication.count({ where })]); return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) }; }
 
