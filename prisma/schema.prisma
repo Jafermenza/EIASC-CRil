@@ -728,6 +728,7 @@ model Registration {
   decisionAt          DateTime?
   memberId            String?             @unique @db.Uuid
   documents            RegistrationDocument[]
+  amendments           RegistrationAmendment[]
   reviewSnapshots      ApplicationReviewSnapshot[]
   correctionRequests   ApplicationCorrection[]
   inspections          Inspection[]
