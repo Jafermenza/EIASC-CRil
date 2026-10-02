@@ -92,7 +92,7 @@ export class RegistrationsService {
     const existing = await this.assertApplicantAccess(code, phone, firstName);
     const { birthDate, age, phone: normalizedPhone, email, nationalIdentity } = await this.validateIndividual(input, existing.id);
     if (input.payment) await this.payments.attachToApplication('INDIVIDUAL', existing.id, input.payment);
-    else await this.payments.assertPaid('INDIVIDUAL', existing.id);
+    await this.payments.assertPaid('INDIVIDUAL', existing.id);
     const now = new Date();
     const changedFields = Object.keys({
       firstName: input.firstName, middleName: input.middleName, lastName: input.lastName, birthDate: input.birthDate,
