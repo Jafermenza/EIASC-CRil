@@ -142,7 +142,7 @@ export class InstitutionsService {
       include: { institutionType: true, leaders: true, staffSummary: true, education: true, documents: { select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } } },
     });
     if (!full) throw new NotFoundException('Application not found');
-    return { type: 'INSTITUTION', application: full, correctionRequirement: full.correctionReason ?? undefined };
+    return { type: 'INSTITUTION', application: full, correctionRequirement: full.correctionReason ?? undefined, payment: await this.payments.statusForApplication('INSTITUTION', full.id) };
   }
 
   async trackApplication(trackingCode: string, phone?: string, firstName?: string) {
