@@ -58,15 +58,71 @@ export class RegistrationsService {
     return this.toRecord(updated, this.calculateAge(updated.birthDate!));
   }
 
-  async resubmitIndividual(trackingCode: string, input: IndividualRegistrationInput): Promise<IndividualRegistrationRecord> {
-    const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
-    if (!input.payment) throw new BadRequestException('Registration payment is required before resubmission');
-    const existing = await this.prisma.registration.findUnique({ where: { trackingCode: code } }); if (!existing) throw new NotFoundException('Application not found'); if (existing.type !== RegistrationType.INDIVIDUAL) throw new BadRequestException('Only individual applications can be resubmitted here'); if (existing.status !== RegistrationStatus.CORRECTION) throw new ConflictException('Application is not awaiting correction');
-    const { birthDate, age, phone, email, nationalIdentity } = await this.validateIndividual(input, existing.id); const now = new Date();
-    const record = await this.prisma.registration.update({ where: { id: existing.id }, data: { status: RegistrationStatus.RESUBMITTED, declarationAccepted: true, firstName: this.clean(input.firstName), middleName: this.clean(input.middleName), lastName: this.clean(input.lastName), birthDate, gender: this.clean(input.gender), maritalStatus: this.clean(input.maritalStatus), phone, email, educationLevel: this.clean(input.educationLevel), fieldOfStudy: this.clean(input.fieldOfStudy), employmentStatus: this.clean(input.employmentStatus), careerRole: this.clean(input.careerRole), regionId: input.regionId, zoneId: input.zoneId, subcityId: input.subcityId || undefined, districtId: input.districtId || undefined, currentAddress: this.clean(input.currentAddress), nationalIdentity, institutionId: this.clean(input.institutionId), familyRelationship: this.clean(input.familyRelationship), familyMemberName: this.clean(input.familyMemberName), familyMemberPhone: this.clean(input.familyMemberPhone), correctionReason: null, submittedAt: now } });
-    await this.payments.attachToApplication('INDIVIDUAL', record.id, input.payment);
-    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_RESUBMITTED', entityType: 'Registration', entityId: record.id, metadata: { type: 'INDIVIDUAL', trackingCode: code, paymentReference: input.payment.referenceNumber } } }); return this.toRecord(record, age);
+  private applicantFirstNameMatches(expected: string | null | undefined, supplied?: string) {
+    if (!supplied?.trim() || !expected?.trim()) return false;
+    return expected.trim().split(/\\s+/)[0].toLowerCase() === supplied.trim().toLowerCase();
   }
+
+  private async assertApplicantAccess(trackingCode: string, phone?: string, firstName?: string) {
+    const code = trackingCode.trim().toUpperCase();
+    if (!code || (!phone?.trim() && !firstName?.trim())) throw new BadRequestException('Tracking code and phone number or first name are required');
+    const record = await this.prisma.registration.findUnique({ where: { trackingCode: code } });
+    if (!record) throw new NotFoundException('Application not found');
+    const phoneMatches = !!phone?.trim() && record.phone === phone.trim();
+    const firstNameMatches = this.applicantFirstNameMatches(record.firstName, firstName);
+    if (!phoneMatches && !firstNameMatches) throw new NotFoundException('Application not found');
+    if (![RegistrationStatus.UNDER_REVIEW, RegistrationStatus.CORRECTION].includes(record.status)) {
+      throw new ConflictException('Application amendments are only available while the application is under review or correction is requested');
+    }
+    return record;
+  }
+
+  async amendment(trackingCode: string, phone?: string, firstName?: string) {
+    const record = await this.assertApplicantAccess(trackingCode, phone, firstName);
+    return {
+      type: 'INDIVIDUAL',
+      application: this.toRecord(record, this.calculateAge(record.birthDate!)),
+      correctionRequirement: record.correctionReason ?? undefined,
+    };
+  }
+
+  async resubmitIndividual(trackingCode: string, input: IndividualRegistrationInput, phone?: string, firstName?: string): Promise<IndividualRegistrationRecord> {
+    const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
+    const existing = await this.assertApplicantAccess(code, phone, firstName);
+    const { birthDate, age, phone: normalizedPhone, email, nationalIdentity } = await this.validateIndividual(input, existing.id);
+    if (input.payment) await this.payments.attachToApplication('INDIVIDUAL', existing.id, input.payment);
+    else await this.payments.assertPaid('INDIVIDUAL', existing.id);
+    const now = new Date();
+    const changedFields = Object.keys({
+      firstName: input.firstName, middleName: input.middleName, lastName: input.lastName, birthDate: input.birthDate,
+      gender: input.gender, maritalStatus: input.maritalStatus, phone: normalizedPhone, email, educationLevel: input.educationLevel,
+      fieldOfStudy: input.fieldOfStudy, employmentStatus: input.employmentStatus, careerRole: input.careerRole, regionId: input.regionId,
+      zoneId: input.zoneId, subcityId: input.subcityId, districtId: input.districtId, currentAddress: input.currentAddress,
+      nationalIdentity, institutionId: input.institutionId, familyRelationship: input.familyRelationship, familyMemberName: input.familyMemberName,
+      familyMemberPhone: input.familyMemberPhone,
+    }).filter((key) => JSON.stringify((existing as any)[key]) !== JSON.stringify((input as any)[key]));
+    const versionRow = await this.prisma.registrationAmendment.aggregate({ where: { registrationId: existing.id }, _max: { version: true } });
+    const nextVersion = (versionRow._max.version ?? 0) + 1;
+    const record = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.registration.update({ where: { id: existing.id }, data: {
+        status: RegistrationStatus.RESUBMITTED, declarationAccepted: true, firstName: this.clean(input.firstName), middleName: this.clean(input.middleName),
+        lastName: this.clean(input.lastName), birthDate, gender: this.clean(input.gender), maritalStatus: this.clean(input.maritalStatus), phone: normalizedPhone,
+        email, educationLevel: this.clean(input.educationLevel), fieldOfStudy: this.clean(input.fieldOfStudy), employmentStatus: this.clean(input.employmentStatus),
+        careerRole: this.clean(input.careerRole), regionId: input.regionId, zoneId: input.zoneId, subcityId: input.subcityId || undefined,
+        districtId: input.districtId || undefined, currentAddress: this.clean(input.currentAddress), nationalIdentity, institutionId: this.clean(input.institutionId),
+        familyRelationship: this.clean(input.familyRelationship), familyMemberName: this.clean(input.familyMemberName), familyMemberPhone: this.clean(input.familyMemberPhone),
+        correctionReason: null, submittedAt: now,
+      }});
+      await tx.registrationAmendment.create({ data: {
+        registrationId: existing.id, version: nextVersion, statusBefore: existing.status, statusAfter: RegistrationStatus.RESUBMITTED,
+        snapshot: existing as any, changedFields, submittedAt: now,
+      }});
+      await tx.auditLog.create({ data: { action: 'REGISTRATION_AMENDED_AND_RESUBMITTED', entityType: 'Registration', entityId: existing.id, metadata: { type: 'INDIVIDUAL', trackingCode: code, version: nextVersion, changedFields } } });
+      return updated;
+    });
+    return this.toRecord(record, age);
+  }
+
 
   async track(trackingCode: string, phone?: string, firstName?: string): Promise<ApplicationTrackingResult> {
     const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
