@@ -40,7 +40,7 @@ export default function InstitutionRegistrationPage() {
   const [result, setResult] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [application, setApplication] = useState<{ trackingCode: string; phone: string } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [paying, setPaying] = useState(false);
+  const [paying, setPaying] = useState(false);\n  const [supportingDocument, setSupportingDocument] = useState<File | null>(null);\n  const [otherAttachments, setOtherAttachments] = useState<File[]>([]);
   const [showMap, setShowMap] = useState(false);
   const [locationVerified, setLocationVerified] = useState<boolean | null>(null);
   const [form, setForm] = useState({
@@ -263,7 +263,7 @@ export default function InstitutionRegistrationPage() {
       setPaying(false);
     }
   }
-  async function saveApplication() {
+  async function uploadSupportingDocuments(trackingCode: string, phone: string, applicantName: string) {\n    const files: Array<{ file: File; type: string }> = [];\n    if (supportingDocument) files.push({ file: supportingDocument, type: "SUPPORTING_DOCUMENT" });\n    for (const file of otherAttachments) files.push({ file, type: "OTHER" });\n    for (const item of files) {\n      const body = new FormData();\n      body.append("file", item.file);\n      const response = await fetch(`${API}/registrations/institution/${encodeURIComponent(trackingCode)}/documents/${item.type}?phone=${encodeURIComponent(phone)}&firstName=${encodeURIComponent(applicantName)}`, { method: "POST", body });\n      const data = await response.json().catch(() => null);\n      if (!response.ok) throw new Error(extractErrorMessage(data, `Unable to upload ${item.file.name}.`));\n    }\n  }\n\n  async function saveApplication() {
     if (!step1Valid() || !step2Valid()) {
       reportError(validationReason());
       return;
