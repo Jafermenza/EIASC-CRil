@@ -83,6 +83,7 @@ export class RegistrationsService {
       type: 'INDIVIDUAL',
       application: this.toRecord(record, this.calculateAge(record.birthDate!)),
       correctionRequirement: record.correctionReason ?? undefined,
+      payment: await this.payments.statusForApplication('INDIVIDUAL', record.id),
     };
   }
 
