@@ -46,7 +46,7 @@ export class PaymentsService {
     const data: JsonObject = await response.json().catch(() => ({}));
     const responseData = data.data as { checkout_url?: string } | undefined;
     if (!response.ok || data.status !== 'success' || !responseData?.checkout_url) throw new BadRequestException(typeof data.message === 'string' ? data.message : 'Chapa payment could not be initialized');
-    await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("method","amount","currency","referenceNumber","status","intentToken","metadata","updatedAt") VALUES ('CHAPA', ${amount}, 'ETB', ${txRef}, 'INITIATED', ${createOpaqueToken(24)}, ${JSON.stringify({ kind: input.kind, returnPath })}::jsonb, CURRENT_TIMESTAMP)`;
+    await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("registrationId","institutionApplicationId","method","amount","currency","referenceNumber","status","intentToken","metadata","updatedAt") VALUES (${input.kind === 'INDIVIDUAL' && input.applicationId ? input.applicationId : null}::uuid, ${input.kind === 'INSTITUTION' && input.applicationId ? input.applicationId : null}::uuid, 'CHAPA', ${amount}, 'ETB', ${txRef}, 'INITIATED', ${createOpaqueToken(24)}, ${JSON.stringify({ kind: input.kind, returnPath })}::jsonb, CURRENT_TIMESTAMP)`;
     return { method: 'CHAPA', referenceNumber: txRef, amount, currency: 'ETB', checkoutUrl: responseData.checkout_url };
   }
 
@@ -103,6 +103,44 @@ export class PaymentsService {
       await this.prisma.$executeRaw`INSERT INTO "RegistrationPayment" ("registrationId","method","amount","currency","referenceNumber","status","receiptUrl","updatedAt") VALUES (${applicationId}::uuid,${payment.method}::"RegistrationPaymentMethod",${payment.amount},'ETB',${payment.referenceNumber},'PENDING',${payment.receiptUrl},CURRENT_TIMESTAMP)`;
     }
     return this.getForApplication(kind, applicationId);
+  }
+
+  async refreshForApplication(kind: RegistrationKind, applicationId: string) {
+    const payment = await this.getForApplication(kind, applicationId);
+    if (payment && payment.status === 'INITIATED' && payment.method === 'CHAPA') {
+      await this.verifyChapa(String(payment.referenceNumber), Number(payment.amount));
+      return this.getForApplication(kind, applicationId);
+    }
+    return payment;
+  }
+
+  async statusForApplication(kind: RegistrationKind, applicationId: string) {
+    const payment = await this.refreshForApplication(kind, applicationId);
+    const amount = await this.fee(kind);
+    return {
+      required: amount > 0,
+      amount,
+      currency: 'ETB',
+      status: payment?.status ?? (amount > 0 ? 'REQUIRED' : 'NOT_REQUIRED'),
+      payment: payment ?? null,
+      nextAction: payment?.status === 'PAID' ? 'Payment verified. Continue with the application.' : payment?.status === 'PENDING' || payment?.status === 'INITIATED' ? 'Payment is awaiting verification.' : payment?.status === 'REJECTED' ? 'Payment was rejected. Pay again or submit a new payment reference.' : amount > 0 ? 'Payment is required. Use Pay Now to continue.' : 'No payment is required.'
+    };
+  }
+
+  async initializeForApplication(kind: RegistrationKind, trackingCode: string) {
+    const code = trackingCode.trim().toUpperCase();
+    if (kind === 'INDIVIDUAL') {
+      const app = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
+      if (!app) throw new NotFoundException('Application not found');
+      const status = await this.statusForApplication(kind, app.id);
+      if (status.status === 'PAID') return { alreadyPaid: true, status };
+      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone });
+    }
+    const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, institutionName: true, email: true, phone: true } });
+    if (!app) throw new NotFoundException('Application not found');
+    const status = await this.statusForApplication(kind, app.id);
+    if (status.status === 'PAID') return { alreadyPaid: true, status };
+    return this.initializeChapa({ kind, applicationId: app.id, name: app.institutionName, email: app.email, phone: app.phone });
   }
 
   async getForApplication(kind: RegistrationKind, applicationId: string) {
