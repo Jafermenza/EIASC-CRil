@@ -422,6 +422,7 @@ model InstitutionApplication {
   education           InstitutionApplicationEducation?
   documents           InstitutionDocument[]
   history             InstitutionStatusHistory[]
+  amendments          InstitutionApplicationAmendment[]
   @@index([status])
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([institutionName])
@@ -615,6 +616,37 @@ model Registration {
   @@index([phone])
   @@index([email])
   @@index([nationalIdentity])
+}
+
+
+model RegistrationAmendment {
+  id             String       @id @default(uuid()) @db.Uuid
+  registrationId String       @db.Uuid
+  version        Int
+  statusBefore   RegistrationStatus
+  statusAfter    RegistrationStatus
+  snapshot       Json
+  changedFields  String[]
+  submittedAt    DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  @@unique([registrationId, version])
+  @@index([registrationId, submittedAt])
+}
+
+model InstitutionApplicationAmendment {
+  id                    String                  @id @default(uuid()) @db.Uuid
+  applicationId         String                  @db.Uuid
+  version               Int
+  statusBefore          InstitutionApplicationStatus
+  statusAfter           InstitutionApplicationStatus
+  snapshot              Json
+  changedFields         String[]
+  submittedAt           DateTime                @default(now())
+  createdAt             DateTime                @default(now())
+  application           InstitutionApplication  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  @@unique([applicationId, version])
+  @@index([applicationId, submittedAt])
 }
 
 model License {
