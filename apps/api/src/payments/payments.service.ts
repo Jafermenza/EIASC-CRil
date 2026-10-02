@@ -41,7 +41,7 @@ export class PaymentsService {
     const amount = await this.fee(input.kind);
     if (amount <= 0) throw new BadRequestException('Chapa checkout requires a positive registration fee');
     const returnPath = input.applicationId
-      ? `/track?code=${encodeURIComponent(input.applicationId)}`
+      ? `/track?code=${encodeURIComponent(input.trackingCode ?? '')}`
       : `/register/${input.kind === 'INDIVIDUAL' ? 'individual' : 'institution'}`;
     if (input.applicationId) {
       const existing = input.kind === 'INDIVIDUAL'
@@ -157,13 +157,13 @@ export class PaymentsService {
       if (!app) throw new NotFoundException('Application not found');
       const status = await this.statusForApplication(kind, app.id);
       if (status.status === 'PAID') return { alreadyPaid: true, status };
-      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone });
+      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone, trackingCode: code });
     }
     const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, institutionName: true, email: true, phone: true } });
     if (!app) throw new NotFoundException('Application not found');
     const status = await this.statusForApplication(kind, app.id);
     if (status.status === 'PAID') return { alreadyPaid: true, status };
-    return this.initializeChapa({ kind, applicationId: app.id, name: app.institutionName, email: app.email, phone: app.phone });
+    return this.initializeChapa({ kind, applicationId: app.id, name: app.institutionName, email: app.email, phone: app.phone, trackingCode: code });
   }
 
   async getForApplication(kind: RegistrationKind, applicationId: string) {
