@@ -190,7 +190,6 @@ model User {
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
   notifications       Notification[]
-  amendments           RegistrationAmendment[]
   reviewSnapshots      ApplicationReviewSnapshot[]
   correctionRequests   ApplicationCorrection[]
   assignedInspections  Inspection[]
@@ -443,6 +442,10 @@ model InstitutionApplication {
   staffSummary        InstitutionApplicationStaffSummary?
   education           InstitutionApplicationEducation?
   documents           InstitutionDocument[]
+  amendments          InstitutionApplicationAmendment[]
+  reviewSnapshots     ApplicationReviewSnapshot[]
+  correctionRequests  ApplicationCorrection[]
+  inspections         Inspection[]
   history             InstitutionStatusHistory[]
   @@index([status])
   @@index([regionId, zoneId, subcityId, districtId])
