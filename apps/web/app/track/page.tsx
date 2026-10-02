@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { FormEvent, useEffect, useState } from 'react';
 
 const API = '/api/v1';
-type TrackingResult = { type: string; trackingCode: string; status: string; submittedAt: string | null; nextAction: string; correctionRequirement?: string; decisionInformation?: string };
+type TrackingResult = { type: string; trackingCode: string; status: string; submittedAt: string | null; nextAction: string; correctionRequirement?: string; decisionInformation?: string; payment?: { required: boolean; amount: number; currency: string; status: string; nextAction: string; payment: Record<string, unknown> | null } };
 const stages = ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED'];
 
 export default function TrackPage() {
@@ -15,6 +15,17 @@ export default function TrackPage() {
     try { const params = new URLSearchParams(); if (phone.trim()) params.set('phone', phone.trim()); if (firstName.trim()) params.set('firstName', firstName.trim()); const query = params.toString(); const response = await fetch(`${API}/registrations/${encodeURIComponent(code.trim())}${query ? `?${query}` : ''}`); const data = await response.json(); if (!response.ok) throw new Error(data.message ?? 'The tracking code was not found or could not be verified.'); setResult(data); }
     catch (e) { setError(e instanceof Error ? e.message : 'The tracking service could not complete the request.'); }
     finally { setLoading(false); }
+  }
+  async function payNow() {
+    if (!result?.payment?.required) return;
+    setError(''); setLoading(true);
+    try {
+      const response = await fetch(`${API}/payments/chapa/initialize-for-application`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind: result.type, trackingCode: result.trackingCode }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message ?? 'Unable to start payment. Please try again or use the payment instructions on the registration page.');
+      if (data.checkoutUrl) window.location.assign(data.checkoutUrl);
+      else if (data.alreadyPaid) await submit({ preventDefault() {} } as FormEvent);
+    } catch (e) { setError(e instanceof Error ? e.message : 'Unable to start payment.'); setLoading(false); }
   }
   const current = result?.status || '';
   const activeStage = current === 'CORRECTION_REQUIRED' || current === 'RESUBMITTED' ? 1 : stages.indexOf(current);
