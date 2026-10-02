@@ -14,6 +14,7 @@ describe('PaymentsService', () => {
     assertCanAccess: jest.fn(),
     canAccess: jest.fn().mockResolvedValue(true),
   } as any;
+  const notifications = { notifyEvent: jest.fn() } as any;
   let service: PaymentsService;
 
   beforeEach(() => {
