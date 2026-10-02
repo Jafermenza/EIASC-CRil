@@ -19,12 +19,15 @@ const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [
 export class InstitutionDocumentsService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
-  async upload(trackingCode: string, documentType: string, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
+  async upload(trackingCode: string, documentType: string, phone: string | undefined, firstName: string | undefined, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
     if (!DOCUMENT_TYPES.includes(documentType as any)) throw new BadRequestException('Invalid document type');
     if (!file || !file.buffer || file.size <= 0 || file.size > MAX_SIZE) throw new BadRequestException('File is missing or exceeds the 10 MB limit');
     if (!ALLOWED_MIME.has(file.mimetype)) throw new BadRequestException('Unsupported document MIME type');
-    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true } });
+    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true, phone: true, applicantPhone: true, applicantName: true } });
     if (!application) throw new NotFoundException('Application not found');
+    if (!phone && !firstName) throw new BadRequestException('Registered phone number or first name is required');
+    if (phone && application.phone !== phone.trim() && application.applicantPhone !== phone.trim()) throw new NotFoundException('Application not found');
+    if (firstName && application.applicantName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
     if (!DOCUMENT_EDITABLE_STATUSES.includes(application.status)) throw new BadRequestException('Documents cannot be changed in the current application status');
     const root = process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
     if (!root) throw new BadRequestException('Institution document storage is not configured');
@@ -33,7 +36,7 @@ export class InstitutionDocumentsService {
     const path = join(root, storageKey);
     await mkdir(join(root, String(new Date().getUTCFullYear())), { recursive: true });
     await writeFile(path, file.buffer, { flag: 'wx' });
-    return this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } });
+    return this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, storageUrl: `/api/v1/registrations/institution/${encodeURIComponent(trackingCode.trim().toUpperCase())}/documents/file`, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } });
   }
 }
 
