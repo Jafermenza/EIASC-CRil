@@ -30,11 +30,15 @@ export class InstitutionsController {
     return { ...application, payment: await this.payments.getForApplication('INSTITUTION', application.id) };
   }
 
-  @Get('registrations/institution/:trackingCode') track(@Param('trackingCode') code: string, @Query('phone') phone?: string) { return this.institutions.trackApplication(code, phone); }
-  @Patch('registrations/institution/:id') updateApplication(@Param('id') id: string, @Body() body: InstitutionApplicationUpdateInput) { return this.institutions.updateApplication(id, body); }
-  @Post('registrations/institution/:id/resubmit') async resubmit(@Param('id') id: string, @Body() body: { payment?: InstitutionApplicationInput['payment'] }) {
-    if (!body?.payment) throw new BadRequestException('Registration payment is required before resubmission');
-    return this.institutions.resubmit(id, body.payment);
+  @Get('registrations/institution/:trackingCode/amend')
+  amend(@Param('trackingCode') code: string, @Query('phone') phone?: string, @Query('firstName') firstName?: string) { return this.institutions.amendment(code, phone, firstName); }
+
+  @Get('registrations/institution/:trackingCode') track(@Param('trackingCode') code: string, @Query('phone') phone?: string, @Query('firstName') firstName?: string) { return this.institutions.trackApplication(code, phone, firstName); }
+
+  @Post('registrations/institution/:trackingCode/resubmit')
+  async resubmit(@Param('trackingCode') trackingCode: string, @Body() body: InstitutionApplicationUpdateInput & { payment?: InstitutionApplicationInput['payment']; accessPhone?: string; accessFirstName?: string }) {
+    const { payment, accessPhone, accessFirstName, ...application } = body ?? {};
+    return this.institutions.resubmitByTrackingCode(trackingCode, application, payment, accessPhone, accessFirstName);
   }
 
   @UseGuards(AuthGuard, RolesGuard)
