@@ -17,7 +17,7 @@ export class RegistrationDocumentsService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
   private async getApplication(trackingCode: string, phone?: string, firstName?: string) {
-    const application = await this.prisma.registration.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, type: true, status: true, phone: true, firstName: true, regionId: true, zoneId: true, subcityId: true, districtId: true } });
+    const application = await this.prisma.registration.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, trackingCode: true, type: true, status: true, phone: true, firstName: true, regionId: true, zoneId: true, subcityId: true, districtId: true } });
     if (!application || application.type !== 'INDIVIDUAL') throw new NotFoundException('Application not found');
     if (phone && application.phone !== phone.trim()) throw new NotFoundException('Application not found');
     if (firstName && application.firstName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
@@ -37,7 +37,7 @@ export class RegistrationDocumentsService {
     await mkdir(join(root, 'individual', String(new Date().getUTCFullYear())), { recursive: true });
     await writeFile(join(root, storageKey), file.buffer, { flag: 'wx' });
     const cleanType = (documentType || 'OTHER').trim().slice(0, 80) || 'OTHER';
-    const created = await this.prisma.registrationDocument.create({ data: { registrationId: application.id, documentType: cleanType, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, storageUrl: `/api/v1/registrations/individual/${encodeURIComponent(application.id)}/documents/file`, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } });
+    const created = await this.prisma.registrationDocument.create({ data: { registrationId: application.id, documentType: cleanType, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, storageUrl: `/api/v1/registrations/individual/${encodeURIComponent(application.trackingCode)}/documents/${encodeURIComponent(created.id)}/file`, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } });
     await this.prisma.auditLog.create({ data: { action: 'INDIVIDUAL_SUPPORTING_DOCUMENT_UPLOADED', entityType: 'Registration', entityId: application.id, metadata: { documentId: created.id, documentType: cleanType, fileName: created.fileName, mimeType: created.mimeType, size: created.size } } });
     return created;
   }
