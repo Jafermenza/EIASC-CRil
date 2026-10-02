@@ -20,12 +20,15 @@ const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [
 export class InstitutionDocumentsService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
-  async upload(trackingCode: string, documentType: string, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
+  async upload(trackingCode: string, documentType: string, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }, phone?: string, firstName?: string) {
     if (!DOCUMENT_TYPES.includes(documentType as any)) throw new BadRequestException('Invalid document type');
     if (!file || !file.buffer || file.size <= 0 || file.size > MAX_SIZE) throw new BadRequestException('File is missing or exceeds the 10 MB limit');
     if (!ALLOWED_MIME.has(file.mimetype)) throw new BadRequestException('Unsupported document MIME type');
-    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true } });
+    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true, phone: true, applicantPhone: true, applicantName: true } });
     if (!application) throw new NotFoundException('Application not found');
+    const phoneMatches = !!phone?.trim() && (application.phone === phone.trim() || application.applicantPhone === phone.trim());
+    const firstNameMatches = !!firstName?.trim() && !!application.applicantName?.trim() && application.applicantName.trim().split(/\s+/)[0].toLowerCase() === firstName.trim().toLowerCase();
+    if (!phoneMatches && !firstNameMatches) throw new NotFoundException('Application not found');
     if (!DOCUMENT_EDITABLE_STATUSES.includes(application.status)) throw new BadRequestException('Documents cannot be changed in the current application status');
     const root = process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
     if (!root) throw new BadRequestException('Institution document storage is not configured');
