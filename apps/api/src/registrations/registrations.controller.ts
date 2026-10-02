@@ -45,6 +45,21 @@ export class RegistrationsController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/application/:id/review')
+  reviewApplication(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.registrations.reviewApplication(req.user!, id); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/application/:id/request-correction')
+  requestApplicationCorrection(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('reason is required'); return this.registrations.requestApplicationCorrection(req.user!, id, body.reason); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/application/:id/reject')
+  rejectApplication(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('reason is required'); return this.registrations.rejectApplication(req.user!, id, body.reason); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
   @Get('admin/members')
   members(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
     return this.registrations.listMembers(req.user!, query);
