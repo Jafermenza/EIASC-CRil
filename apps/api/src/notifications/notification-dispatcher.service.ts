@@ -133,7 +133,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
       } catch (error) {
         const attempts = delivery.attempts + 1;
         await this.prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: NotificationDeliveryStatus.FAILED, processingStartedAt: null, lastError: error instanceof Error ? error.message : String(error), nextAttemptAt: new Date(Date.now() + Math.min(60 * 60 * 1000, 30_000 * Math.pow(2, Math.max(0, attempts - 1)))) } });
-        if (attempts >= MAX_ATTEMPTS) await this.prisma.notification.updateMany({ where: { id: delivery.id }, data: { status: 'FAILED' } });
+        if (attempts >= MAX_ATTEMPTS && delivery.notificationId) await this.prisma.notification.updateMany({ where: { id: delivery.notificationId }, data: { status: 'FAILED' } });
       }
     }
   }
