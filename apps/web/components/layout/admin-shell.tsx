@@ -70,7 +70,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }, [pathname]);
 
   const visibleSections = useMemo(() => sections.filter((section) => section.roles.some((role) => roles.includes(role))), [roles]);
-  const canSeeUsers = roles.includes('SUPER_ADMIN') || roles.includes('NATIONAL_ADMIN');
+  const canSeeUsers = roles.includes('SUPER_ADMIN');
+  const canManageChecklists = roles.includes('SUPER_ADMIN') || roles.includes('NATIONAL_ADMIN');
   const canReview = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR'].includes(role));
   const canAccessPath = roles.some((role) => ALL_ADMIN_ROLES.includes(role)) && (
     pathname === '/admin/dashboard' ||
@@ -81,7 +82,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     pathname.startsWith('/admin/licenses') ||
     pathname.startsWith('/admin/directory') ||
     pathname.startsWith('/admin/payments') ||
-    (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings') ? canSeeUsers : true)
+    (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings/platform') || pathname.startsWith('/admin/settings/institution-types') ? canSeeUsers : pathname.startsWith('/admin/settings/inspection-checklists') ? canManageChecklists : true)
   );
 
   async function signOut() {
