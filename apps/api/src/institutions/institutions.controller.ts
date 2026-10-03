@@ -1,5 +1,5 @@
 import { BadRequestException, Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { InstitutionStatus, RoleCode } from '@prisma/client';
+import { InstitutionRelationshipType, InstitutionStatus, RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -81,7 +81,7 @@ export class InstitutionsController {
   @Get('institutions/:id/members') members(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.members(req.user!, id); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
-  @Post('institutions/:id/members/:memberId') addMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('memberId') memberId: string, @Body() body: { relationshipType?: any }) { return this.institutions.addMember(req.user!, id, memberId, body ?? {}); }
+  @Post('institutions/:id/members/:memberId') addMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('memberId') memberId: string, @Body() body: { relationshipType?: InstitutionRelationshipType }) { return this.institutions.addMember(req.user!, id, memberId, body ?? {}); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Delete('institutions/:id/members/:memberId') removeMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('memberId') memberId: string) { return this.institutions.removeMember(req.user!, id, memberId); }
