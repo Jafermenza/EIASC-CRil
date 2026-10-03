@@ -1,25 +1,19 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-
-type Dashboard = Record<string, number>;
-const ROLE_LABELS: Record<string, string> = { SUPER_ADMIN: 'Super Administrator', NATIONAL_ADMIN: 'National Administrator', REGIONAL_ADMIN: 'Regional Administrator', ZONE_ADMIN: 'Zone / City Administrator', DISTRICT_ADMIN: 'District Administrator', REGISTRAR: 'Registrar', INSPECTOR: 'Inspector', FINANCE_OFFICER: 'Finance Officer' };
+import { useEffect, useState } from 'react';
+import RoleDashboard from '../../../components/dashboard/role-dashboard';
 
 export default function DashboardPage() {
-  const [data, setData] = useState<Dashboard | null>(null); const [error, setError] = useState(''); const [loading, setLoading] = useState(true); const [roles, setRoles] = useState<string[]>([]);
-  async function load(){setLoading(true);setError('');try{const token=localStorage.getItem('accessToken')||'';const response=await fetch('/api/v1/reports/dashboard',{headers:{authorization:`Bearer ${token}`}});const body=await response.json();if(!response.ok)throw new Error(body.message||'The dashboard service rejected this request.');setData(body);}catch(reason){setError(reason instanceof Error?reason.message:'The dashboard service could not be reached.');}finally{setLoading(false);}}
-  useEffect(()=>{try{const parsed=JSON.parse(localStorage.getItem('authUser')||'{}') as {roles?:string[]};setRoles(parsed.roles||[]);}catch{setRoles([]);}void load();},[]);
-  const labels: Record<string,string>={members:'Members',activeMembers:'Active members',institutions:'Institutions',activeInstitutions:'Active institutions',pendingApplications:'Pending applications',approvedApplications:'Approved applications',activeLicenses:'Active licenses',expiredLicenses:'Expired licenses',suspendedLicenses:'Suspended licenses'};
-  const links: Record<string,string>={members:'/admin/directory/members',activeMembers:'/admin/directory/members?status=ACTIVE',institutions:'/admin/directory/institutions',activeInstitutions:'/admin/directory/institutions?status=ACTIVE',pendingApplications:'/admin/registrations?status=SUBMITTED',approvedApplications:'/admin/directory/members?status=ACTIVE',activeLicenses:'/admin/licenses?status=ACTIVE',expiredLicenses:'/admin/licenses?status=EXPIRED',suspendedLicenses:'/admin/licenses?status=SUSPENDED'};
-  const primaryRole = roles[0] || 'ADMIN'; const roleLabel = ROLE_LABELS[primaryRole] || 'Authorized administrator';
-  const actions = useMemo(() => {
-    const result: {label:string; href:string}[] = [];
-    if (roles.some((role) => ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR'].includes(role))) result.push({label:'Review institution applications',href:'/admin/institutions'});
-    if (roles.some((role) => ['SUPER_ADMIN','NATIONAL_ADMIN','REGIONAL_ADMIN','ZONE_ADMIN','DISTRICT_ADMIN','REGISTRAR'].includes(role))) result.push({label:'Open licensing registry',href:'/admin/licenses'});
-    if (roles.includes('SUPER_ADMIN')) result.push({label:'Manage users & roles',href:'/admin/users'});
-    if (roles.some((role) => ['SUPER_ADMIN','NATIONAL_ADMIN','FINANCE_OFFICER'].includes(role))) result.push({label:'Open notifications',href:'/notifications'});
-    return result;
-  }, [roles]);
-  return <main className="shell"><div className="hero"><p className="eyebrow">EIASC · {roleLabel.toUpperCase()}</p><h1>{roleLabel} dashboard</h1><p className="lead">Your workspace is limited to the functions and jurisdiction assigned to your authenticated role.</p><div className="action-row">{roles.map((role)=><span className="status-badge" key={role}>{role}</span>)}</div></div>{error&&<section className="error-reason" role="alert"><strong>Dashboard could not be loaded</strong><span>{error}</span><button className="button button-secondary" onClick={()=>void load()}>Try again</button></section>}{loading?<section className="grid" aria-label="Loading dashboard"><article><div className="skeleton skeleton-title"/><div className="skeleton skeleton-line short"/></article><article><div className="skeleton skeleton-title"/><div className="skeleton skeleton-line short"/></article><article><div className="skeleton skeleton-title"/><div className="skeleton skeleton-line short"/></article><article><div className="skeleton skeleton-title"/><div className="skeleton skeleton-line short"/></article></section>:<section className="grid">{data&&Object.entries(labels).map(([key,label])=><Link className="dashboard-stat" href={links[key]||'/admin/dashboard'} key={key}><article><p className="eyebrow">{label}</p><h2>{data[key]??0}</h2><span className="dashboard-stat-cta">View list →</span></article></Link>)}</section>}{!loading&&<section className="workflow-panel"><div className="section-heading compact"><div><p className="eyebrow">AUTHORIZED ACTIONS</p><h2>Continue administration</h2></div></div><div className="action-row">{actions.map((action)=><Link className="button button-primary" href={action.href} key={action.href}>{action.label}</Link>)}{!actions.length&&<p>Your role currently has no additional administrative actions assigned.</p>}</div></section>}</main>;
+  const [roles, setRoles] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem('authUser') || '{}') as { roles?: string[] };
+      setRoles(parsed.roles || []);
+    } catch {
+      setRoles([]);
+    }
+  }, []);
+
+  return <RoleDashboard roles={roles} />;
 }
