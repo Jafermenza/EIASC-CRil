@@ -124,10 +124,21 @@ export class ReviewWorkflowService {
 
   async listChecklistTemplates(user: AuthenticatedUser) {
     this.assertRole(user, [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGISTRAR]);
-    const rows = await this.prisma.inspectionChecklistTemplate.findMany({ where: { active: true }, include: { institutionType: true }, orderBy: [{ institutionType: { name: 'asc' } }, { version: 'desc' }] });
+    const types = await this.prisma.institutionType.findMany({ where: { active: true }, orderBy: { name: 'asc' } });
+    const rows = await this.prisma.inspectionChecklistTemplate.findMany({ where: { active: true }, include: { institutionType: true }, orderBy: { version: 'desc' } });
     const latest = new Map<string, typeof rows[number]>();
     for (const row of rows) if (!latest.has(row.institutionTypeId)) latest.set(row.institutionTypeId, row);
-    return [...latest.values()];
+    return types.map((type) => latest.get(type.id) ?? {
+      id: null,
+      institutionTypeId: type.id,
+      version: 0,
+      name: '',
+      description: null,
+      inspectionRequired: false,
+      items: [],
+      active: false,
+      institutionType: type,
+    });
   }
 
   async saveChecklistTemplate(user: AuthenticatedUser, institutionTypeId: string, input: { name: string; description?: string; inspectionRequired: boolean; items: unknown[] }) {
