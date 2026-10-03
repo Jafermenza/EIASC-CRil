@@ -15,7 +15,7 @@ export class ReviewWorkflowController {
 
   @Roles(...REVIEW_ROLES)
   @Get('workspace')
-  queue(@Req() req: AuthenticatedRequest, @Query() query: { type?: 'INDIVIDUAL'|'INSTITUTION'; status?: string; search?: string }) { return this.workflow.queue(req.user!, query); }
+  queue(@Req() req: AuthenticatedRequest, @Query() query: { type?: 'INDIVIDUAL'|'INSTITUTION'; status?: string; search?: string; page?: string; pageSize?: string; slaHours?: string }) { return this.workflow.queue(req.user!, query); }
 
   @Roles(...REVIEW_ROLES)
   @Get(':type/:id')
