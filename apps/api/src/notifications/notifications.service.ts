@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { NotificationChannel, NotificationStatus, Prisma, RoleCode } from '@prisma/client';
+import { NotificationChannel, NotificationDeliveryStatus, NotificationStatus, Prisma, RoleCode } from '@prisma/client';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
 import { DEFAULT_EVENT_TOGGLES, NotificationEventType } from './notification-events';
@@ -29,6 +29,45 @@ export class NotificationsService {
   async testEmail(user: AuthenticatedUser) { if (!this.emailProvider) throw new ServiceUnavailableException('Resend email provider is not configured. Set RESEND_API_KEY and RESEND_FROM_EMAIL.'); const recipient = await this.prisma.user.findUnique({ where: { id: user.id }, select: { email: true } }); if (!recipient?.email) throw new ServiceUnavailableException('The authenticated user does not have an email address.'); const notification = await this.create(user.id, { type: 'EMAIL_PROVIDER_TEST', title: 'EIASC CRil email delivery test', message: 'This is a live production email delivery test from EIASC CRil.', channel: NotificationChannel.EMAIL }); if (!notification || notification.status !== NotificationStatus.SENT) throw new ServiceUnavailableException('Resend rejected or failed the test delivery. Check notification delivery metadata.'); return { delivered: true, notificationId: notification.id, recipient: recipient.email }; }
   async testSms(user: AuthenticatedUser) { if (!this.smsProvider) throw new ServiceUnavailableException('AfroMessage SMS provider is not configured. Set AFRO_MESSAGE_TOKEN, AFRO_MESSAGE_IDENTIFIER_ID and AFRO_MESSAGE_SENDER_NAME.'); if (!(await this.smsEnabled())) throw new ServiceUnavailableException('SMS notifications are disabled in platform settings.'); const recipient = await this.prisma.user.findUnique({ where: { id: user.id }, select: { phone: true } }); if (!recipient?.phone) throw new ServiceUnavailableException('The authenticated user does not have a phone number.'); const notification = await this.create(user.id, { type: 'SMS_PROVIDER_TEST', title: 'EIASC CRil SMS delivery test', message: 'This is a live production SMS delivery test from EIASC CRil.', channel: NotificationChannel.SMS, metadata: { recipientName: 'Administrator' } }); if (!notification || notification.status !== NotificationStatus.SENT) throw new ServiceUnavailableException('AfroMessage rejected or failed the test delivery. Check notification delivery metadata.'); return { delivered: true, notificationId: notification.id, recipient: recipient.phone }; }
   async notifyEvent(recipientId: string, event: NotificationEvent, channel: NotificationChannel = NotificationChannel.IN_APP) { return this.create(recipientId, { ...event, channel }); }
+  async deliverPersistedDelivery(deliveryId: string) {
+    const delivery = await this.prisma.notificationDelivery.findUnique({ where: { id: deliveryId }, include: { outboxEvent: true, recipient: { select: { id: true, email: true, phone: true } }, notification: true } });
+    if (!delivery) return null;
+    const claimed = await this.prisma.notificationDelivery.updateMany({ where: { id: deliveryId, status: { in: [NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED] }, nextAttemptAt: { lte: new Date() }, attempts: { lt: 8 } }, data: { status: NotificationDeliveryStatus.PROCESSING, attempts: { increment: 1 }, processingStartedAt: new Date(), lastError: null } });
+    if (!claimed.count) return this.prisma.notificationDelivery.findUnique({ where: { id: deliveryId } });
+    const attempts = delivery.attempts + 1;
+    try {
+      const recipient = delivery.recipient;
+      if (delivery.channel === NotificationChannel.IN_APP) {
+        const notification = delivery.notification ?? await this.prisma.notification.create({ data: { recipientId: recipient.id, channel: NotificationChannel.IN_APP, type: String(delivery.outboxEvent.payload.type ?? delivery.outboxEvent.eventType), title: String(delivery.outboxEvent.payload.title ?? delivery.outboxEvent.eventType), message: String(delivery.outboxEvent.payload.message ?? ''), status: NotificationStatus.SENT, sentAt: new Date(), metadata: delivery.outboxEvent.payload as Prisma.InputJsonValue } });
+        await this.prisma.$transaction([
+          this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: notification.sentAt ?? new Date() } }),
+          this.prisma.notificationDelivery.update({ where: { id: deliveryId }, data: { notificationId: notification.id, status: NotificationDeliveryStatus.SENT, sentAt: new Date(), processingStartedAt: null } }),
+        ]);
+        return notification;
+      }
+      const provider = delivery.channel === NotificationChannel.EMAIL ? this.emailProvider : this.smsProvider;
+      const destination = delivery.channel === NotificationChannel.EMAIL ? recipient.email : recipient.phone;
+      if (!provider || !destination || (delivery.channel === NotificationChannel.SMS && !(await this.smsEnabled()))) throw new Error('Notification provider or recipient destination is not configured');
+      const payload = delivery.outboxEvent.payload as Record<string, unknown>;
+      const type = String(payload.type ?? delivery.outboxEvent.eventType);
+      const template = (await this.templates())[type];
+      const event: NotificationEvent = { type, title: String(payload.title ?? type), message: String(payload.message ?? ''), metadata: payload };
+      const message = template ? this.render(template, event) : event.message;
+      const notification = delivery.notification ?? await this.prisma.notification.create({ data: { recipientId: recipient.id, channel: delivery.channel, type, title: event.title, message, status: NotificationStatus.PENDING, metadata: payload as Prisma.InputJsonValue } });
+      await provider.send({ to: destination, subject: event.title, message });
+      await this.prisma.$transaction([
+        this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: new Date() } }),
+        this.prisma.notificationDelivery.update({ where: { id: deliveryId }, data: { notificationId: notification.id, status: NotificationDeliveryStatus.SENT, sentAt: new Date(), processingStartedAt: null } }),
+      ]);
+      return notification;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Notification delivery failed';
+      const delayMinutes = Math.min(24 * 60, 2 ** Math.min(attempts, 10));
+      await this.prisma.notificationDelivery.update({ where: { id: deliveryId }, data: { status: NotificationDeliveryStatus.FAILED, nextAttemptAt: new Date(Date.now() + delayMinutes * 60_000), processingStartedAt: null, lastError: message } });
+      if (delivery.notificationId) await this.prisma.notification.update({ where: { id: delivery.notificationId }, data: { status: NotificationStatus.FAILED, metadata: { ...(delivery.notification?.metadata as Record<string, unknown> ?? {}), deliveryError: message, attempts } as Prisma.InputJsonValue } });
+      return null;
+    }
+  }
   async list(user: AuthenticatedUser, unreadOnly = false) { return this.prisma.notification.findMany({ where: { recipientId: user.id, ...(unreadOnly ? { readAt: null } : {}) }, orderBy: { createdAt: 'desc' }, take: 100 }); }
   async markRead(user: AuthenticatedUser, id: string) { const notification = await this.prisma.notification.findFirst({ where: { id, recipientId: user.id } }); if (!notification) throw new NotFoundException('Notification not found'); return this.prisma.notification.update({ where: { id }, data: { readAt: new Date(), status: NotificationStatus.READ } }); }
 }
