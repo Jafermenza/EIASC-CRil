@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
+  Bell,
   ArrowRight,
   Building2,
   CheckCircle2,
@@ -129,13 +130,9 @@ export default function RoleDashboard({ roles }: RoleDashboardProps) {
         <div className="dashboard-quick-grid">
           <Link className="dashboard-quick-card" href="/admin/review"><ClipboardCheck size={20} /><div><strong>Review applications</strong><span>Open submitted records, corrections, documents and decisions.</span></div><ArrowRight size={17} /></Link>
           <Link className="dashboard-quick-card" href="/admin/reports"><Globe2 size={20} /><div><strong>See reports & trends</strong><span>Understand activity inside the jurisdiction you are authorized to see.</span></div><ArrowRight size={17} /></Link>
-          <Link className="dashboard-quick-card" href="/notifications"><BellIcon /><div><strong>Check notifications</strong><span>See new messages and workflow updates.</span></div><ArrowRight size={17} /></Link>
+          <Link className="dashboard-quick-card" href="/notifications"><Bell size={20} /><div><strong>Check notifications</strong><span>See new messages and workflow updates.</span></div><ArrowRight size={17} /></Link>
         </div>
       </section>
     </main>
   );
-}
-
-function BellIcon() {
-  return <span aria-hidden="true" className="dashboard-inline-icon">●</span>;
 }
