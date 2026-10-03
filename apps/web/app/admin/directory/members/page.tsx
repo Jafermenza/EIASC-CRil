@@ -78,12 +78,12 @@ export default function MembersDirectoryPage() {
     } finally { setResetting(''); }
   }
 
-  function exportCsv() {
-    const rows = [['Name', 'Phone', 'Email', 'Membership number', 'Status', 'Location', 'Registered'], ...items.map((m) => [`${m.firstName} ${m.lastName}`, m.phone, m.email || '', m.membershipNumber || '', m.status, formatLocation(geography, m), new Date(m.createdAt).toLocaleDateString()])];
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'eiasc-members.csv'; anchor.click(); URL.revokeObjectURL(url);
+  async function exportCsv() {
+    const query = new URLSearchParams();
+    if (status) query.set('status', status); if (search.trim()) query.set('search', search.trim()); if (regionId) query.set('regionId', regionId); if (zoneId) query.set('zoneId', zoneId); if (subcityId) query.set('subcityId', subcityId); if (districtId) query.set('districtId', districtId); if (from) query.set('from', from); if (to) query.set('to', to);
+    const response = await fetch(`${API}/registrations/admin/members/export?${query}`, { headers: auth() });
+    if (!response.ok) { const body = await response.json().catch(() => ({})); push({ type: 'error', title: 'Export failed', message: extractErrorMessage(body, 'Unable to export the member catalog.') }); return; }
+    const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'eiasc-members.csv'; anchor.click(); URL.revokeObjectURL(url);
   }
 
   return (
