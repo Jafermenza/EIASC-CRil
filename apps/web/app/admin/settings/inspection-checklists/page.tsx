@@ -10,7 +10,6 @@ type Template = { id: string; institutionTypeId: string; version: number; name: 
 export default function InspectionChecklistsPage() {
   const [items, setItems] = useState<Template[]>([]);
   const [selected, setSelected] = useState<Template | null>(null);
-  const [types, setTypes] = useState<Type[]>([]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [required, setRequired] = useState(true);
@@ -29,9 +28,8 @@ export default function InspectionChecklistsPage() {
   async function load() {
     try {
       setError('');
-      const [templates, institutionTypes] = await Promise.all([call('/admin/review/checklists'), call('/institution-types')]);
+      const templates = await call('/admin/review/checklists');
       setItems(templates);
-      setTypes(institutionTypes);
     } catch (e) { setError(e instanceof Error ? e.message : 'Unable to load checklists.'); }
   }
 
