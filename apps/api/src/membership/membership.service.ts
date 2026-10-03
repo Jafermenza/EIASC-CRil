@@ -11,6 +11,7 @@ const REQUEST_ROLES: RoleCode[] = [
   RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR,
 ];
 const LIST_ROLES: RoleCode[] = [...REQUEST_ROLES, RoleCode.INSTITUTION_ADMIN];
+const DIRECT_ADD_ROLES: RoleCode[] = [...LIST_ROLES];
 const APPROVE_ROLES: RoleCode[] = [...REQUEST_ROLES];
 
 type MembershipInput = {
@@ -195,7 +196,7 @@ export class MembershipService {
   }
 
   async directAdd(user: AuthenticatedUser, body: MembershipInput & { reason?: string }) {
-    this.assertRole(user, [RoleCode.INSTITUTION_ADMIN]);
+    this.assertRole(user, DIRECT_ADD_ROLES);
     const memberId = body.memberId?.trim();
     const institutionId = body.institutionId?.trim();
     if (!memberId || !institutionId) throw new BadRequestException('memberId and institutionId are required');
