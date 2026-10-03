@@ -39,6 +39,10 @@ export class NotificationsController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN)
   adminDeliveryFailures(@Query('limit') limit?: string) { return this.dispatcher.listDeliveryFailures(Number(limit ?? 100)); }
+  @Get('admin/deliveries')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN)
+  adminDeliveries(@Req() req: AuthenticatedRequest, @Query('status') status?: string) { return this.notifications.listAdminDeliveries(req.user!.roles, status); }
   @Get('settings/admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN)
