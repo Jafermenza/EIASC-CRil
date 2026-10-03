@@ -124,13 +124,21 @@ export class ReviewWorkflowService {
 
   async listChecklistTemplates(user: AuthenticatedUser) {
     this.assertRole(user, [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGISTRAR]);
-    return this.prisma.inspectionChecklistTemplate.findMany({ where: { active: true }, include: { institutionType: true }, orderBy: [{ institutionType: { name: 'asc' } }, { version: 'desc' }] });
+    const rows = await this.prisma.inspectionChecklistTemplate.findMany({ where: { active: true }, include: { institutionType: true }, orderBy: [{ institutionType: { name: 'asc' } }, { version: 'desc' }] });
+    const latest = new Map<string, typeof rows[number]>();
+    for (const row of rows) if (!latest.has(row.institutionTypeId)) latest.set(row.institutionTypeId, row);
+    return [...latest.values()];
   }
 
   async saveChecklistTemplate(user: AuthenticatedUser, institutionTypeId: string, input: { name: string; description?: string; inspectionRequired: boolean; items: unknown[] }) {
     this.assertRole(user, [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN]);
     if (!input.name?.trim()) throw new BadRequestException('Checklist name is required');
     if (!Array.isArray(input.items) || input.items.length < 1) throw new BadRequestException('Checklist must contain at least one item');
+    for (const item of input.items as Array<Record<string, unknown>>) {
+      if (typeof item.code !== 'string' || !item.code.trim() || typeof item.label !== 'string' || !item.label.trim() || typeof item.required !== 'boolean' || !['BOOLEAN','TEXT','NUMBER'].includes(String(item.type))) {
+        throw new BadRequestException('Each checklist item requires code, label, required and type (BOOLEAN, TEXT or NUMBER)');
+      }
+    }
     const type = await this.prisma.institutionType.findUnique({ where: { id: institutionTypeId }, select: { id: true, active: true, name: true } });
     if (!type?.active) throw new BadRequestException('Institution type is not active');
     const latest = await this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId }, orderBy: { version: 'desc' } });
