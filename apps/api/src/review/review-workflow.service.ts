@@ -45,10 +45,8 @@ export class ReviewWorkflowService {
         this.prisma.registration.count({ where }),
       ]);
       for (const row of rows) result.push({ type: 'INDIVIDUAL', id: row.id, trackingCode: row.trackingCode, status: row.status, name: [row.firstName,row.middleName,row.lastName].filter(Boolean).join(' '), updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), payment: await this.payments.getForApplication('INDIVIDUAL', row.id) });
-      if (institution) {
-        // institution branch below is independently paginated; combined queues use the same requested page size.
-      }
       if (!institution) return { items: result, page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
+      (result as any).__individualTotal = total;
     }
     if (institution) {
       const where: any = { status: { in: [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED, InstitutionApplicationStatus.CORRECTION_REQUIRED] }, ...jurisdictionWhere };
@@ -59,9 +57,15 @@ export class ReviewWorkflowService {
         this.prisma.institutionApplication.count({ where }),
       ]);
       for (const row of rows) { const template = await this.activeChecklist(row.institutionTypeId); result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, organizationType: row.institutionType.name, organizationTypeCode: row.institutionType.code, updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), inspectionRequired: Boolean(template?.inspectionRequired), payment: await this.payments.getForApplication('INSTITUTION', row.id) }); }
-      return { items: result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime()), page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
+      (result as any).__institutionTotal = total;
     }
-    return { items: result, page, pageSize, total: result.length, totalPages: Math.ceil(result.length/pageSize) };
+    const individualTotal = Number((result as any).__individualTotal ?? 0);
+    const institutionTotal = Number((result as any).__institutionTotal ?? 0);
+    delete (result as any).__individualTotal;
+    delete (result as any).__institutionTotal;
+    const total = individualTotal + institutionTotal;
+    const items = result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime()).slice(0, pageSize);
+    return { items, page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
   }
 
   private queueJurisdictionWhere(user: AuthenticatedUser) {
