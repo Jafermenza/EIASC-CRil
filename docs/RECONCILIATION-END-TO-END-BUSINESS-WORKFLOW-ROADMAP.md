@@ -1,7 +1,7 @@
 # EIASC-CRil — Reconciliation: End-to-End Business Workflow & Implementation Roadmap
 
 Repository: Jafermenza/EIASC-CRil
-Branch: reconciliation/phase-1-payment
+Branch: reconciliation/phase-4b-organization-inspection-certification
 Assessment date: 2026-10-03
 
 Purpose: Reconcile the executable business workflows found in the current implementation with the intended end-to-end operating model, identify workflow gaps, and define the implementation sequence required to close them without weakening existing functionality.
@@ -567,3 +567,30 @@ Phase 5 validation status: implementation is committed on the current Phase 4B b
 - CSV exports are server-side and use the same filters and authorization boundary as the visible catalog.
 - Catalog navigation is exposed only to roles already permitted to view user/account administration; institution users remain within the institution portal.
 - Directory filters use the authoritative geography hierarchy and cascading Region → Zone/City → Subcity/Town → District selectors.
+
+
+### Phase 6 — Membership integrity implementation progress
+
+Started directly on the existing Phase 4B engine branch; no separate Phase 6 branch was created.
+
+Implemented:
+- **One active PRIMARY institution invariant** is now enforced at the database layer with a partial unique index on `MemberInstitution(memberId)` for `status = ACTIVE` and `relationshipType = PRIMARY`.
+- **Request/approval path** is explicit: `POST /memberships` creates a PENDING relationship and can only be approved through the authorized status-transition endpoint.
+- **Direct-add path** is explicit: `POST /memberships/direct` is a separately authorized action and activates the relationship immediately. Institution member management is routed through this centralized membership service rather than maintaining a second mutation implementation.
+- **Status transitions are constrained**: PENDING → ACTIVE; ACTIVE → SUSPENDED/ENDED; SUSPENDED → ACTIVE/ENDED; ENDED is terminal.
+- **Reasons are mandatory** for suspension and ending.
+- **Effective lifecycle dates** are recorded on the membership record: activation resets `startedAt`, ending records `endedAt`; historical transition records additionally carry `effectiveFrom` / `effectiveTo`.
+- **Membership history** is now first-class in `MemberInstitutionHistory`, recording previous/new status, relationship type, effective dates, actor, reason and timestamp.
+- **Audit coverage** records request, direct activation, approval, suspension and ending actions with actor identity and relationship context.
+- **Notifications** use the existing notification event system for MEMBERSHIP_REQUESTED, MEMBERSHIP_APPROVED, MEMBERSHIP_SUSPENDED and MEMBERSHIP_ENDED. Where a member has a matching active user account, both the member account and institution users are notified.
+- **Institution and membership UIs** now distinguish request/approval from explicit direct addition and collect a reason for suspension/ending.
+- **Unit acceptance coverage** was expanded for primary-relationship conflicts, direct activation, lifecycle reasons, effective history and notifications.
+- **M6 E2E coverage** now exercises the request → approve → display → suspend → end lifecycle and an explicit direct-add path.
+
+Migration:
+- `prisma/migrations/20261003160000_phase6_membership_integrity/migration.sql`
+
+Validation status:
+- Code and migration changes are recorded on the current engine branch.
+- Prisma validation/generation, migration deployment, typecheck, lint, build and Playwright execution have **not** been run in this environment after the Phase 6 changes, so Phase 6 is not marked CI/build/E2E validated yet.
+- The migration intentionally does not auto-select a winner if pre-existing duplicate active PRIMARY relationships exist; the unique index will expose such data as a migration/data-integrity issue rather than silently changing affiliation records.
