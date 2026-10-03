@@ -66,7 +66,7 @@ export default function RoleDashboard({ roles }: RoleDashboardProps) {
         const metricBody = await metricResponse.json();
         if (!metricResponse.ok) throw new Error(metricBody?.message || 'Unable to load dashboard metrics.');
         let actionCount = Number(metricBody.pendingApplications || 0);
-        if (['FINANCE_OFFICER', 'REGISTRAR'].includes(role)) {
+        if (role === 'FINANCE_OFFICER') {
           const response = await fetch('/api/v1/payments/admin/queue', { headers, cache: 'no-store' });
           const body = await response.json();
           if (response.ok && Array.isArray(body)) actionCount = body.length;
