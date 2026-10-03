@@ -73,16 +73,20 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const canSeeUsers = roles.includes('SUPER_ADMIN');
   const canManageChecklists = roles.includes('SUPER_ADMIN') || roles.includes('NATIONAL_ADMIN');
   const canReview = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR'].includes(role));
+  const canReviewApplications = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'].includes(role));
+  const canViewDirectory = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'].includes(role));
+  const canViewPayments = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'FINANCE_OFFICER'].includes(role));
+  const canViewLicensing = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR'].includes(role));
   const canAccessPath = roles.some((role) => ALL_ADMIN_ROLES.includes(role)) && (
     pathname === '/admin/dashboard' ||
     pathname.startsWith('/admin/reports') ||
-    pathname.startsWith('/admin/review') ||
-    pathname.startsWith('/admin/registrations') ||
-    pathname.startsWith('/admin/institutions') ||
-    pathname.startsWith('/admin/licenses') ||
-    pathname.startsWith('/admin/directory') ||
-    pathname.startsWith('/admin/payments') ||
-    (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings/platform') || pathname.startsWith('/admin/settings/institution-types') ? canSeeUsers : pathname.startsWith('/admin/settings/inspection-checklists') ? canManageChecklists : true)
+    (pathname.startsWith('/admin/review') ? canReviewApplications || roles.includes('INSPECTOR') : false) ||
+    (pathname.startsWith('/admin/registrations') || pathname.startsWith('/admin/institutions') ? canReviewApplications : false) ||
+    (pathname.startsWith('/admin/licenses') ? canViewLicensing : false) ||
+    (pathname.startsWith('/admin/directory') ? canViewDirectory : false) ||
+    (pathname.startsWith('/admin/payments') ? canViewPayments : false) ||
+    (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings/platform') || pathname.startsWith('/admin/settings/institution-types') ? canSeeUsers : false) ||
+    (pathname.startsWith('/admin/settings/inspection-checklists') ? canManageChecklists : false)
   );
 
   async function signOut() {
