@@ -60,6 +60,14 @@ export class RegistrationsController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Get('admin/members/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="eiasc-members.csv"')
+  membersExport(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
+    return this.registrations.exportMembers(req.user!, query);
+  }
+
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
   @Get('admin/members')
   members(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
     return this.registrations.listMembers(req.user!, query);
