@@ -61,11 +61,7 @@ UPDATE "Inspection"
 SET "checklistSnapshot" = '{"items":[]}'::jsonb
 WHERE "checklistSnapshot" IS NULL;
 
-ALTER TABLE "Inspection" ALTER COLUMN "institutionTypeId" SET NOT NULL;
 ALTER TABLE "Inspection" ALTER COLUMN "checklistTemplateId" DROP NOT NULL;
-ALTER TABLE "Inspection" ALTER COLUMN "institutionTypeCode" SET NOT NULL;
-ALTER TABLE "Inspection" ALTER COLUMN "institutionTypeName" SET NOT NULL;
-ALTER TABLE "Inspection" ALTER COLUMN "checklistSnapshot" SET NOT NULL;
 
 ALTER TABLE "Inspection" ADD CONSTRAINT "Inspection_institutionTypeId_fkey" FOREIGN KEY ("institutionTypeId") REFERENCES "InstitutionType"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "Inspection" ADD CONSTRAINT "Inspection_inspectorAssignmentId_fkey" FOREIGN KEY ("inspectorAssignmentId") REFERENCES "InspectorAssignment"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
