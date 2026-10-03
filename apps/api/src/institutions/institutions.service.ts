@@ -276,7 +276,6 @@ export class InstitutionsService {
       memberId,
       institutionId: id,
       relationshipType: input.relationshipType,
-      reason: input.reason,
     });
   }
 
