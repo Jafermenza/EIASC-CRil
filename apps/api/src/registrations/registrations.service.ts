@@ -150,21 +150,69 @@ export class RegistrationsService {
     return this.approve(user, id);
   }
 
-  async listMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; page?: string; pageSize?: string }) {
-    this.assertReviewRole(user);
-    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
+  private csvCell(value: unknown): string {
+    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  private memberDirectoryWhere(query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; from?: string; to?: string }) {
     const where: any = {};
     if (query.status) where.status = query.status;
     for (const key of ['regionId', 'zoneId', 'subcityId', 'districtId'] as const) if (query[key]) where[key] = query[key];
-    if (query.search?.trim()) where.OR = [{ firstName: { contains: query.search.trim(), mode: 'insensitive' } }, { lastName: { contains: query.search.trim(), mode: 'insensitive' } }, { phone: { contains: query.search.trim() } }, { membershipNumber: { contains: query.search.trim(), mode: 'insensitive' } }];
-    if (!(await this.authorization.canAccess(user, { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId }))) {
-      switch (user.jurisdictionLevel) { case 'REGION': where.regionId = user.jurisdictionId; break; case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break; case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break; case 'DISTRICT': where.districtId = user.jurisdictionId; break; default: break; }
+    if (query.search?.trim()) where.OR = [
+      { firstName: { contains: query.search.trim(), mode: 'insensitive' } },
+      { lastName: { contains: query.search.trim(), mode: 'insensitive' } },
+      { phone: { contains: query.search.trim() } },
+      { membershipNumber: { contains: query.search.trim(), mode: 'insensitive' } },
+      { email: { contains: query.search.trim(), mode: 'insensitive' } },
+    ];
+    const createdAt: { gte?: Date; lt?: Date } = {};
+    if (query.from) { const d = new Date(query.from); if (!Number.isNaN(d.getTime())) createdAt.gte = d; }
+    if (query.to) { const d = new Date(query.to); if (!Number.isNaN(d.getTime())) { d.setUTCDate(d.getUTCDate() + 1); createdAt.lt = d; } }
+    if (createdAt.gte || createdAt.lt) where.createdAt = createdAt;
+    return where;
+  }
+
+  async listMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
+    this.assertReviewRole(user);
+    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
+    const where = this.memberDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      switch (user.jurisdictionLevel) {
+        case 'REGION': where.regionId = user.jurisdictionId; break;
+        case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break;
+        case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break;
+        case 'DISTRICT': where.districtId = user.jurisdictionId; break;
+        default: break;
+      }
     }
     const [items, total] = await this.prisma.$transaction([
       this.prisma.member.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.member.count({ where }),
     ]);
     return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  async exportMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; from?: string; to?: string }) {
+    this.assertReviewRole(user);
+    const where = this.memberDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      switch (user.jurisdictionLevel) {
+        case 'REGION': where.regionId = user.jurisdictionId; break;
+        case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break;
+        case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break;
+        case 'DISTRICT': where.districtId = user.jurisdictionId; break;
+      }
+    }
+    const items = await this.prisma.member.findMany({ where, orderBy: [{ regionId: 'asc' }, { zoneId: 'asc' }, { subcityId: 'asc' }, { districtId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }] });
+    const lines = [
+      ['Member ID', 'Membership number', 'First name', 'Last name', 'Phone', 'Email', 'Status', 'Region ID', 'Zone/City ID', 'Subcity/Town ID', 'District ID', 'Registered'].map(this.csvCell).join(','),
+      ...items.map((m) => [m.id, m.membershipNumber, m.firstName, m.lastName, m.phone, m.email, m.status, m.regionId, m.zoneId, m.subcityId, m.districtId, m.createdAt.toISOString()].map(this.csvCell).join(',')),
+    ];
+    return lines.join('\n');
   }
 
   async memberDetail(user: AuthenticatedUser, id: string) {
