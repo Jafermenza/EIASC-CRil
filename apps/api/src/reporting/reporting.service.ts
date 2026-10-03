@@ -121,6 +121,71 @@ export class ReportingService {
     }));
   }
 
+  private csvCell(value: unknown) {
+    const raw = String(value ?? '');
+    return /[",\n\r]/.test(raw) || /^[=+@-]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+  }
+
+  async queueSla(user: AuthenticatedUser, scope: Scope, slaHours = 48) {
+    const { applicationWhere } = await this.scopedWhere(user, scope);
+    const cutoff = new Date(Date.now() - Math.max(1, Math.min(720, slaHours)) * 3600000);
+    const [institution, individual] = await Promise.all([
+      this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION_REQUIRED'] } }, _count: { _all: true } }),
+      this.prisma.registration.groupBy({ by: ['status'], where: { regionId: applicationWhere.regionId, zoneId: applicationWhere.zoneId, subcityId: applicationWhere.subcityId, districtId: applicationWhere.districtId, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] } }, _count: { _all: true } }),
+    ]);
+    const overdueInstitution = await this.prisma.institutionApplication.count({ where: { ...applicationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION_REQUIRED'] }, updatedAt: { lt: cutoff } } });
+    const overdueIndividual = await this.prisma.registration.count({ where: { regionId: applicationWhere.regionId, zoneId: applicationWhere.zoneId, subcityId: applicationWhere.subcityId, districtId: applicationWhere.districtId, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] }, updatedAt: { lt: cutoff } } });
+    return { slaHours, cutoff, totals: { institution: institution.reduce((n, x) => n + x._count._all, 0), individual: individual.reduce((n, x) => n + x._count._all, 0) }, overdue: { institution: overdueInstitution, individual: overdueIndividual }, byStatus: { institution, individual } };
+  }
+
+  async applicationThroughput(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
+    const { applicationWhere, memberWhere } = await this.scopedWhere(user, scope);
+    const createdAt = this.dateWhere(range);
+    const [institution, individual] = await Promise.all([
+      this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
+      this.prisma.registration.groupBy({ by: ['status'], where: { regionId: memberWhere.regionId, zoneId: memberWhere.zoneId, subcityId: memberWhere.subcityId, districtId: memberWhere.districtId, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
+    ]);
+    const [corrections, rejections] = await Promise.all([
+      this.prisma.applicationCorrection.count({ where: { ...(Object.keys(createdAt).length ? { createdAt } : {}), OR: [{ institutionApplication: applicationWhere }, { registration: { regionId: memberWhere.regionId, zoneId: memberWhere.zoneId, subcityId: memberWhere.subcityId, districtId: memberWhere.districtId } }] } }),
+      this.prisma.auditLog.count({ where: { action: { in: ['APPLICATION_CORRECTION_BUILT','APPLICATION_REJECTED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) } }),
+    ]);
+    return { range, institution, individual, corrections, rejections };
+  }
+
+  async reviewerWorkload(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
+    const { effectiveScope } = await this.scopedWhere(user, scope);
+    await this.authorization.assertCanAccess(user, effectiveScope);
+    const createdAt = this.dateWhere(range);
+    const rows = await this.prisma.auditLog.groupBy({ by: ['actorUserId','action'], where: { actorUserId: { not: null }, action: { in: ['APPLICATION_SNAPSHOT_CAPTURED','APPLICATION_CORRECTION_BUILT','APPLICATION_APPROVED','APPLICATION_REJECTED','INSPECTION_UPDATED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } });
+    const ids = [...new Set(rows.map(r => r.actorUserId).filter((id): id is string => Boolean(id)))];
+    const users = await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true, phone: true } });
+    return rows.map(row => ({ reviewer: users.find(u => u.id === row.actorUserId) ?? { id: row.actorUserId }, action: row.action, count: row._count._all }));
+  }
+
+  async paymentReconciliation(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
+    const { effectiveScope } = await this.scopedWhere(user, scope);
+    await this.authorization.assertCanAccess(user, effectiveScope);
+    const rows = await this.prisma.$queryRaw<Array<{ status: string; method: string; count: bigint; amount: number }>>`
+      SELECT p."status", p."method", COUNT(*)::bigint AS "count", COALESCE(SUM(p."amount"),0)::numeric AS "amount"
+      FROM "RegistrationPayment" p
+      LEFT JOIN "Registration" r ON r."id"=p."registrationId"
+      LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
+      WHERE (${effectiveScope.regionId ? `COALESCE(r."regionId",ia."regionId") = '${effectiveScope.regionId}'` : 'TRUE'})
+        AND (${effectiveScope.zoneId ? `COALESCE(r."zoneId",ia."zoneId") = '${effectiveScope.zoneId}'` : 'TRUE'})
+        AND (${effectiveScope.subcityId ? `COALESCE(r."subcityId",ia."subcityId") = '${effectiveScope.subcityId}'` : 'TRUE'})
+        AND (${effectiveScope.districtId ? `COALESCE(r."districtId",ia."districtId") = '${effectiveScope.districtId}'` : 'TRUE'})
+        AND (${effectiveScope.institutionId ? `ia."institutionId" = '${effectiveScope.institutionId}'` : 'TRUE'})
+      GROUP BY p."status", p."method" ORDER BY p."status", p."method"`;
+    return rows.map(row => ({ ...row, count: Number(row.count), amount: Number(row.amount) }));
+  }
+
+  async auditExport(user: AuthenticatedUser, filters: { action?: string; entityType?: string; from?: string; to?: string }) {
+    if (!user.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Super Admin permission required');
+    const createdAt = this.dateWhere(filters);
+    const rows = await this.prisma.auditLog.findMany({ where: { action: filters.action?.trim() ? { contains: filters.action.trim(), mode: 'insensitive' } : undefined, entityType: filters.entityType?.trim() ? { contains: filters.entityType.trim(), mode: 'insensitive' } : undefined, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, orderBy: { createdAt: 'desc' }, take: 10000, include: { actor: { select: { id: true, email: true, phone: true } } } });
+    return ['timestamp,actor,action,entityType,entityId,metadata', ...rows.map(row => [row.createdAt.toISOString(),row.actor?.email ?? row.actor?.phone ?? row.actorUserId,row.action,row.entityType,row.entityId,row.metadata ? JSON.stringify(row.metadata) : ''].map(this.csvCell).join(','))].join('\n');
+  }
+
   async exportCsv(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
     const [dashboard, trend] = await Promise.all([this.dashboard(user, scope, range), this.trend(user, scope, 12)]);
     const lines = ['section,metric,value', ...Object.entries(dashboard).map(([metric, value]) => `dashboard,${metric},${value}`), ...trend.flatMap((row) => Object.entries(row).filter(([key]) => key !== 'month').map(([metric, value]) => `trend_${row.month},${metric},${value}`))];
