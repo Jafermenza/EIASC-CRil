@@ -518,3 +518,24 @@ Validation:
 
 Next action:
 - Run Prisma validation/generation and migration deployment first; then typecheck/lint/unit tests, production build and the dedicated Phase 8 E2E. Fix only actual gate failures and record each remediation before moving to Phase 9.
+
+
+## 2026-10-03 — Phase 9 Queue/Reporting Hardening — IN PROGRESS / VALIDATION PENDING
+
+Implemented in this increment:
+- Review queue jurisdiction filtering is now applied directly to the database `where` clause for region, zone/city, subcity/town, district and institution scopes instead of fetching a broad queue and filtering each row afterward.
+- Review queue pagination now has explicit `page`, `pageSize`, `total` and `totalPages` semantics.
+- Combined individual/institution queues use per-source database pagination and a deterministic age ordering before the final page slice; source totals are combined for the reported count.
+- Queue records expose `ageHours`, and the reviewer workspace displays a queue-age/SLA indicator.
+- Review workspace consumes the new pagination contract and exposes Previous/Next controls.
+
+Still required before Phase 9 can be marked complete:
+- harden the payment queue with the same database-side jurisdiction predicate and correct count semantics;
+- add payment reconciliation reporting;
+- add application throughput and correction/rejection reports;
+- add reviewer workload reporting;
+- add authorized, auditable audit-log exports;
+- add report/queue acceptance coverage;
+- run Prisma/typecheck/lint/build/E2E validation.
+
+Phase 9 remains **implemented in part, not release-ready**.
