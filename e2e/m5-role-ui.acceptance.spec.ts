@@ -76,3 +76,11 @@ for (const item of roleCases) {
     }
   });
 }
+
+
+test('Phase 5 applicant workspace: tracking dashboard exposes plain-language next actions', async ({ page }) => {
+  await page.goto('/track');
+  await expect(page.getByText('APPLICANT DASHBOARD')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Track your application' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Check status/ })).toBeVisible();
+});
