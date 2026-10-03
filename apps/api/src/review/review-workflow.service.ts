@@ -44,8 +44,8 @@ export class ReviewWorkflowService {
       const where: any = { status: { in: [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED, InstitutionApplicationStatus.CORRECTION_REQUIRED] } };
       if (query.status) where.status = query.status;
       if (query.search?.trim()) where.OR = [{ trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }, { institutionName: { contains: query.search.trim(), mode: 'insensitive' } }];
-      const rows = await this.prisma.institutionApplication.findMany({ where, orderBy: { updatedAt: 'asc' }, take: 250 });
-      for (const row of rows) if (await this.authorization.canAccess(user, row)) result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, updatedAt: row.updatedAt, inspectionRequired: row.inspectionRequired, payment: await this.payments.getForApplication('INSTITUTION', row.id) });
+      const rows = await this.prisma.institutionApplication.findMany({ where, include: { institutionType: true }, orderBy: { updatedAt: 'asc' }, take: 250 });
+      for (const row of rows) if (await this.authorization.canAccess(user, row)) { const template = await this.activeChecklist(row.institutionTypeId); result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, organizationType: row.institutionType.name, organizationTypeCode: row.institutionType.code, updatedAt: row.updatedAt, inspectionRequired: Boolean(template?.inspectionRequired), payment: await this.payments.getForApplication('INSTITUTION', row.id) }); }
     }
     return result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime());
   }
@@ -135,6 +135,7 @@ export class ReviewWorkflowService {
     if (!type?.active) throw new BadRequestException('Institution type is not active');
     const latest = await this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId }, orderBy: { version: 'desc' } });
     const version = (latest?.version ?? 0) + 1;
+    await this.prisma.inspectionChecklistTemplate.updateMany({ where: { institutionTypeId, active: true }, data: { active: false } });
     const record = await this.prisma.inspectionChecklistTemplate.create({ data: { institutionTypeId, version, name: input.name.trim(), description: input.description?.trim(), inspectionRequired: Boolean(input.inspectionRequired), items: input.items } });
     await this.audit(user, 'INSTITUTION', institutionTypeId, 'INSPECTION_CHECKLIST_UPDATED', { templateId: record.id, version, inspectionRequired: record.inspectionRequired, institutionType: type.name });
     return record;
@@ -145,6 +146,7 @@ export class ReviewWorkflowService {
     const app = await this.prisma.institutionApplication.findUnique({ where: { id }, include: { institutionType: true } });
     if (!app) throw new NotFoundException('Application not found');
     await this.scope(user, app);
+    if (app.status !== InstitutionApplicationStatus.UNDER_REVIEW) throw new ConflictException('Inspection can only be assigned after the application enters review');
     const template = await this.activeChecklist(app.institutionTypeId);
     if (!template) throw new ConflictException('No active inspection checklist exists for this organization type');
     if (!template.inspectionRequired) throw new ConflictException('Inspection is not required for this organization type');
@@ -172,6 +174,7 @@ export class ReviewWorkflowService {
 
   async updateInspection(user: AuthenticatedUser, id: string, input: { status?: InspectionStatus; findings?: unknown; decision?: InspectionDecision; decisionReason?: string; checklistResponses?: Array<{ code: string; value: unknown; note?: string }> }) {
     const inspection = await this.inspectionDetail(user, id);
+    if (inspection.status === InspectionStatus.COMPLETED || inspection.status === InspectionStatus.CANCELLED) throw new ConflictException('Completed or cancelled inspections are immutable; create a new inspection for reassessment');
     if (inspection.assignedToUserId !== user.id && user.roles.includes(RoleCode.INSPECTOR)) throw new ForbiddenException('Inspection is not assigned to you');
     const data: any = {};
     if (input.status) data.status = input.status;
