@@ -579,8 +579,8 @@ Implemented:
 - **Direct-add path** is explicit: `POST /memberships/direct` is a separately authorized action and activates the relationship immediately. Institution member management is routed through this centralized membership service rather than maintaining a second mutation implementation.
 - **Status transitions are constrained**: PENDING → ACTIVE; ACTIVE → SUSPENDED/ENDED; SUSPENDED → ACTIVE/ENDED; ENDED is terminal.
 - **Reasons are mandatory** for suspension and ending.
-- **Effective lifecycle dates** are recorded on the membership record: activation resets `startedAt`, ending records `endedAt`; historical transition records additionally carry `effectiveFrom` / `effectiveTo`.
-- **Membership history** is now first-class in `MemberInstitutionHistory`, recording previous/new status, relationship type, effective dates, actor, reason and timestamp.
+- **Effective lifecycle dates** are recorded on each membership episode: activation sets `startedAt`, ending records `endedAt`; historical transition records additionally carry `effectiveFrom` / `effectiveTo`.
+- **Membership history** is now first-class in `MemberInstitutionHistory`, recording previous/new status, relationship type, effective dates, actor, reason and timestamp. Ended episodes remain historical records; a later re-affiliation creates a new episode rather than reopening the ended record.
 - **Audit coverage** records request, direct activation, approval, suspension and ending actions with actor identity and relationship context.
 - **Notifications** use the existing notification event system for MEMBERSHIP_REQUESTED, MEMBERSHIP_APPROVED, MEMBERSHIP_SUSPENDED and MEMBERSHIP_ENDED. Where a member has a matching active user account, both the member account and institution users are notified.
 - **Institution and membership UIs** now distinguish request/approval from explicit direct addition and collect a reason for suspension/ending.
