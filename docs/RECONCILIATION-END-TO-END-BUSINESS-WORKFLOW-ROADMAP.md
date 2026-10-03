@@ -617,3 +617,29 @@ Remaining Phase 7 gap:
 - **Licensing-specific payment collection/gating** is not yet wired. The current payment subsystem is registration-oriented (`RegistrationPayment`), so this increment does not falsely reuse a registration payment record as a license payment. A dedicated license-payment flow remains for the next licensing/payment increment.
 - Required licensing document checklists and a richer license-specific reviewer workspace also remain to be expanded beyond the existing institution document viewer.
 - Prisma validation/generation, migration deployment, typecheck, lint, build and Playwright execution have not been run after this increment; Phase 7 is therefore implementation-recorded but not build/CI validated.
+
+
+## Phase 8 — Durable events and notifications
+
+The notification boundary now has durable persistence and retry state rather than depending on a best-effort in-process send.
+
+### Implemented on the reconciliation branch
+
+- Durable `OutboxEvent` records with stable event IDs derived from the durable audit event.
+- Explicit processing state, attempts, scheduling, lock/completion timestamps and failure details.
+- Idempotent event materialization and per-recipient/per-channel `NotificationDelivery` uniqueness.
+- Persisted retry state for in-app, email and SMS delivery.
+- Bounded exponential retry scheduling.
+- Notification history for recipients and Super Admin delivery/outbox monitoring.
+- Existing Resend and AfroMessage adapters reused by the asynchronous delivery worker.
+- Unit coverage for event identity, idempotent materialization and persisted delivery processing.
+
+### Acceptance requirements before Phase 8 closure
+
+- Prisma migration and generated client succeed.
+- API typecheck and lint succeed.
+- Notification unit/API tests succeed, including retry and duplicate-event cases.
+- Acceptance test proves an audit business event produces exactly one stable outbox event and at most one delivery record per recipient/channel.
+- Provider failure leaves durable FAILED delivery state with a future retry time and subsequent processing can retry it.
+- Recipient notification history and Super Admin monitoring expose the resulting state.
+- No Phase 8 release-complete claim is made until these gates are executed on the integrated branch.
