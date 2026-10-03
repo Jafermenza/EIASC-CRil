@@ -32,6 +32,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
     if (this.running) return;
     this.running = true;
     try {
+      await this.recoverStaleWork();
       await this.materializeAuditEvents();
       await this.createPendingDeliveries();
       await this.processDeliveries();
@@ -39,6 +40,13 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
     } finally {
       this.running = false;
     }
+  }
+
+
+  private async recoverStaleWork() {
+    const cutoff = new Date(Date.now() - 10 * 60 * 1000);
+    await this.prisma.outboxEvent.updateMany({ where: { status: OutboxEventStatus.PROCESSING, lockedAt: { lt: cutoff } }, data: { status: OutboxEventStatus.PENDING, lockedAt: null, availableAt: new Date() } });
+    await this.prisma.notificationDelivery.updateMany({ where: { status: NotificationDeliveryStatus.PROCESSING, processingStartedAt: { lt: cutoff } }, data: { status: NotificationDeliveryStatus.PENDING, processingStartedAt: null, nextAttemptAt: new Date() } });
   }
 
   private async materializeAuditEvents() {
@@ -90,9 +98,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
       const payload = { ...notification, eventId: event.eventId, sourceAuditLogId: event.sourceAuditLogId };
       await this.prisma.notificationDelivery.createMany({
         data: recipients.flatMap((recipientId) => [
-          { outboxEventId: event.id, recipientId, channel: NotificationChannel.IN_APP },
-          { outboxEventId: event.id, recipientId, channel: NotificationChannel.EMAIL },
-          { outboxEventId: event.id, recipientId, channel: NotificationChannel.SMS },
+          ...((await this.recipientChannels(recipientId)).map((channel) => ({ outboxEventId: event.id, recipientId, channel, notification: { create: { recipientId, channel, type: notification.type, title: notification.title, message: notification.message, metadata: notification.metadata } } }))),
         ]),
         skipDuplicates: true,
       });
@@ -101,13 +107,18 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
   }
 
   private async processDeliveries() {
-    const deliveries = await this.prisma.notificationDelivery.findMany({
-      where: { status: { in: [NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED] }, nextAttemptAt: { lte: new Date() }, attempts: { lt: MAX_ATTEMPTS } },
-      orderBy: { createdAt: 'asc' },
-      take: 100,
-      select: { id: true },
-    });
-    for (const delivery of deliveries) await this.notifications.deliverPersistedDelivery(delivery.id);
+    const deliveries = await this.prisma.notificationDelivery.findMany({ where: { status: { in: [NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED] }, nextAttemptAt: { lte: new Date() }, attempts: { lt: MAX_ATTEMPTS } }, orderBy: { createdAt: 'asc' }, take: 100, select: { id: true, status: true, attempts: true } });
+    for (const delivery of deliveries) {
+      const claimed = await this.prisma.notificationDelivery.updateMany({ where: { id: delivery.id, status: delivery.status, attempts: delivery.attempts }, data: { status: NotificationDeliveryStatus.PROCESSING, processingStartedAt: new Date(), attempts: { increment: 1 } } });
+      if (!claimed.count) continue;
+      try {
+        await this.notifications.deliverDelivery(delivery.id);
+      } catch (error) {
+        const attempts = delivery.attempts + 1;
+        await this.prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: NotificationDeliveryStatus.FAILED, processingStartedAt: null, lastError: error instanceof Error ? error.message : String(error), nextAttemptAt: new Date(Date.now() + Math.min(60 * 60 * 1000, 30_000 * Math.pow(2, Math.max(0, attempts - 1)))) } });
+        if (attempts >= MAX_ATTEMPTS) await this.prisma.notification.updateMany({ where: { id: delivery.id }, data: { status: 'FAILED' } });
+      }
+    }
   }
 
   private async reconcileOutbox() {
@@ -147,6 +158,12 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
 
   async listDeliveryFailures(limit = 100) {
     return this.prisma.notificationDelivery.findMany({ where: { status: NotificationDeliveryStatus.FAILED }, orderBy: { updatedAt: 'desc' }, take: Math.min(Math.max(limit, 1), 500), include: { outboxEvent: { select: { eventId: true, eventType: true, aggregateType: true, aggregateId: true } }, recipient: { select: { id: true, email: true, phone: true } } } });
+  }
+
+
+  private async recipientChannels(recipientId: string): Promise<NotificationChannel[]> {
+    const user = await this.prisma.user.findUnique({ where: { id: recipientId }, select: { email: true, phone: true } });
+    return [NotificationChannel.IN_APP, ...(user?.email ? [NotificationChannel.EMAIL] : []), ...(user?.phone ? [NotificationChannel.SMS] : [])];
   }
 
   private async resolveRecipients(entityType: string, entityId: string): Promise<string[]> {
