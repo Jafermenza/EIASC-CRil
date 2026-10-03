@@ -124,7 +124,7 @@ export class MembershipService {
         relationshipType: membership.relationshipType,
         memberName: member ? `${member.firstName} ${member.lastName}`.trim() : undefined,
       },
-    })));
+    }))).catch(() => undefined);
   }
 
   async list(user: AuthenticatedUser, institutionId: string) {
