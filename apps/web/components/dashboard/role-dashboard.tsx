@@ -84,6 +84,12 @@ export default function RoleDashboard({ roles }: RoleDashboardProps) {
     return () => { active = false; };
   }, [role]);
 
+  const visibleMetricCards = useMemo(() => {
+    if (role === 'FINANCE_OFFICER') return metricCards.filter(([key]) => ['members', 'institutions', 'pendingApplications'].includes(key));
+    if (role === 'INSPECTOR') return metricCards.filter(([key]) => ['institutions', 'activeInstitutions', 'activeLicenses'].includes(key));
+    return metricCards;
+  }, [role]);
+
   const action = useMemo(() => {
     if (role === 'FINANCE_OFFICER') return { label: 'Review payment queue', href: '/admin/payments', icon: CreditCard, text: queueCount === null ? 'Checking payment evidence…' : `${queueCount} payment record${queueCount === 1 ? '' : 's'} need attention` };
     if (role === 'INSPECTOR') return { label: 'Open inspections', href: '/admin/review', icon: ClipboardCheck, text: 'Review your assigned organization-type inspections.' };
@@ -114,7 +120,7 @@ export default function RoleDashboard({ roles }: RoleDashboardProps) {
       <section className="dashboard-section">
         <div className="section-heading compact"><div><p className="eyebrow">AT A GLANCE</p><h2>Your operational picture</h2></div><span className="dashboard-live"><span />Live from authorized records</span></div>
         <div className="dashboard-stat-grid">
-          {metricCards.map(([key, label, MetricIcon, href]) => (
+          {visibleMetricCards.map(([key, label, MetricIcon, href]) => (
             <Link href={href} className="dashboard-stat-card" key={key}>
               <span className="dashboard-card-icon"><MetricIcon size={19} /></span>
               <span className="dashboard-stat-label">{label}</span>
@@ -128,7 +134,7 @@ export default function RoleDashboard({ roles }: RoleDashboardProps) {
       <section className="dashboard-section">
         <div className="section-heading compact"><div><p className="eyebrow">QUICK WORKFLOWS</p><h2>Plain-language shortcuts</h2></div></div>
         <div className="dashboard-quick-grid">
-          <Link className="dashboard-quick-card" href="/admin/review"><ClipboardCheck size={20} /><div><strong>Review applications</strong><span>Open submitted records, corrections, documents and decisions.</span></div><ArrowRight size={17} /></Link>
+          {role === 'FINANCE_OFFICER' ? <Link className="dashboard-quick-card" href="/admin/payments"><CreditCard size={20} /><div><strong>Review payments</strong><span>Verify payment evidence, reject exceptions or request clarification.</span></div><ArrowRight size={17} /></Link> : role === 'INSPECTOR' ? <Link className="dashboard-quick-card" href="/admin/review"><ClipboardCheck size={20} /><div><strong>Open inspections</strong><span>Work only on inspections assigned to your authorized scope.</span></div><ArrowRight size={17} /></Link> : <Link className="dashboard-quick-card" href="/admin/review"><ClipboardCheck size={20} /><div><strong>Review applications</strong><span>Open submitted records, corrections, documents and decisions.</span></div><ArrowRight size={17} /></Link>}
           <Link className="dashboard-quick-card" href="/admin/reports"><Globe2 size={20} /><div><strong>See reports & trends</strong><span>Understand activity inside the jurisdiction you are authorized to see.</span></div><ArrowRight size={17} /></Link>
           <Link className="dashboard-quick-card" href="/notifications"><Bell size={20} /><div><strong>Check notifications</strong><span>See new messages and workflow updates.</span></div><ArrowRight size={17} /></Link>
         </div>
