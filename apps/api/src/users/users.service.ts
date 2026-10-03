@@ -68,7 +68,7 @@ export class UsersService {
       if ((await this.authorization.canAccess(actor, resource)) && this.userMatchesFilters(resource, requestedScope)) scoped.push(candidate);
     }
     const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
-    const start = (page - 1) * pageSize;
+    if (query.unpaged) return { items: scoped.map((user) => this.present(user)), page: 1, pageSize: scoped.length, total: scoped.length, totalPages: 1 };\n    const start = (page - 1) * pageSize;
     return { items: scoped.slice(start, start + pageSize).map((user) => this.present(user)), page, pageSize, total: scoped.length, totalPages: Math.max(1, Math.ceil(scoped.length / pageSize)) };
   }
 
