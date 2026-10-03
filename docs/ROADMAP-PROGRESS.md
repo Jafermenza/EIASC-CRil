@@ -450,3 +450,18 @@ Implementation recorded on the existing engine branch:
 - Phase 7 migration: `20261003170000_phase7_license_inspection`.
 
 Still open: dedicated licensing payment flow/gate, configurable licensing document checklist, richer license-specific reviewer workspace, and full post-change validation.
+
+
+### Phase 7 organization-type inspection extensibility hardening
+
+Before Phase 8, inspection policy was hardened so the workflow is extensible beyond the initially seeded organization types:
+
+- The Super Admin can create/activate a new InstitutionType from the existing Institution Types administration screen without a code deployment.
+- The inspection checklist administration API now returns **every active institution type**, including newly created types that do not yet have a checklist.
+- A newly added type appears in Inspection Checklists as **No checklist configured — create one now** rather than disappearing because it has no template yet.
+- Super Admin/National Admin can create the first checklist version for that new type, choose whether inspection is required, and define the BOOLEAN/TEXT/NUMBER checklist items.
+- The inspection assignment workflow already resolves the active checklist by InstitutionType ID, so the newly configured type automatically participates in inspection assignment, checklist snapshotting, required-response validation, findings and PASS/FAIL/CONDITIONAL decisions.
+- License inspection reuses the same organization-type policy, so licensing for a newly configured type follows its checklist requirement as well.
+- Existing inspections retain their immutable checklist snapshot/version when a new checklist version is published.
+
+This closes the previously identified extensibility gap: adding a new institution type no longer requires adding a hard-coded inspection checklist to the application.
