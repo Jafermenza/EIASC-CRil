@@ -30,9 +30,16 @@ function service() {
 }
 
 describe('LicensingService', () => {
-  it('rejects licensing decisions by institution administrators', async () => {
-    const { instance } = service();
-    await expect(instance.create(institutionAdmin, { institutionId: 'institution-1' })).rejects.toBeInstanceOf(ForbiddenException);
+  it('allows an institution administrator to create only its own license application', async () => {
+    const { instance, prisma } = service();
+    prisma.institution.findUnique.mockResolvedValue({
+      id: 'institution-1', name: 'Test Mosque', institutionCode: 'I-1', status: 'ACTIVE',
+      regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1',
+    });
+    prisma.license.findFirst.mockResolvedValue(null);
+    prisma.license.create.mockResolvedValue({ id: 'license-1', institutionId: 'institution-1', status: LicenseStatus.PENDING, applicationStatus: LicenseApplicationStatus.SUBMITTED });
+    await expect(instance.create(institutionAdmin, { institutionId: 'institution-1' })).resolves.toMatchObject({ id: 'license-1' });
+    await expect(instance.create(institutionAdmin, { institutionId: 'other-institution' })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rejects licensing an institution that is not active', async () => {
