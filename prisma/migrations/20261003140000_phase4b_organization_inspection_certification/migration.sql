@@ -19,6 +19,7 @@ CREATE TABLE "InspectionChecklistTemplate" (
 );
 CREATE UNIQUE INDEX "InspectionChecklistTemplate_institutionTypeId_version_key" ON "InspectionChecklistTemplate"("institutionTypeId","version");
 CREATE INDEX "InspectionChecklistTemplate_institutionTypeId_active_idx" ON "InspectionChecklistTemplate"("institutionTypeId","active");
+CREATE UNIQUE INDEX "InspectionChecklistTemplate_one_active_per_type_key" ON "InspectionChecklistTemplate"("institutionTypeId") WHERE "active" = true;
 
 CREATE TABLE "InspectorAssignment" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
