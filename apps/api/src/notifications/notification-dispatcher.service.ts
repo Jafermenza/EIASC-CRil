@@ -96,12 +96,29 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
         continue;
       }
       const payload = { ...notification, eventId: event.eventId, sourceAuditLogId: event.sourceAuditLogId };
-      await this.prisma.notificationDelivery.createMany({
-        data: recipients.flatMap((recipientId) => [
-          ...((await this.recipientChannels(recipientId)).map((channel) => ({ outboxEventId: event.id, recipientId, channel, notification: { create: { recipientId, channel, type: notification.type, title: notification.title, message: notification.message, metadata: notification.metadata } } }))),
-        ]),
-        skipDuplicates: true,
-      });
+      for (const recipientId of recipients) {
+        for (const channel of await this.recipientChannels(recipientId)) {
+          await this.prisma.notificationDelivery.upsert({
+            where: { outboxEventId_recipientId_channel: { outboxEventId: event.id, recipientId, channel } },
+            create: {
+              outboxEventId: event.id,
+              recipientId,
+              channel,
+              notification: {
+                create: {
+                  recipientId,
+                  channel,
+                  type: notification.type,
+                  title: notification.title,
+                  message: notification.message,
+                  metadata: notification.metadata,
+                },
+              },
+            },
+            update: {},
+          });
+        }
+      }
       await this.prisma.outboxEvent.update({ where: { id: event.id }, data: { payload } });
     }
   }
