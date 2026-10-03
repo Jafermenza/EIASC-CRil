@@ -28,46 +28,49 @@ export class ReviewWorkflowService {
     await this.authorization.assertCanAccess(user, resource);
   }
 
-  async queue(user: AuthenticatedUser, query: { type?: 'INDIVIDUAL'|'INSTITUTION'; status?: string; search?: string; page?: string; pageSize?: string }) {
+  async queue(user: AuthenticatedUser, query: { type?: 'INDIVIDUAL'|'INSTITUTION'; status?: string; search?: string; page?: string; pageSize?: string; slaHours?: string }) {
     this.assertRole(user, REVIEW_ROLES);
     const page = Math.max(1, Number(query.page ?? 1));
     const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
+    const fetchSize = page * pageSize;
     const individual = !query.type || query.type === 'INDIVIDUAL';
     const institution = !query.type || query.type === 'INSTITUTION';
     const result: any[] = [];
     const jurisdictionWhere = this.queueJurisdictionWhere(user);
+    const slaHours = Math.min(720, Math.max(1, Number(query.slaHours ?? 48)));
+    const slaCutoff = Date.now() - slaHours * 3600000;
+    let individualTotal = 0;
+    let institutionTotal = 0;
+
     if (individual) {
       const where: any = { status: { in: [RegistrationStatus.SUBMITTED, RegistrationStatus.UNDER_REVIEW, RegistrationStatus.RESUBMITTED, RegistrationStatus.CORRECTION] }, ...jurisdictionWhere };
       if (query.status) where.status = query.status;
       if (query.search?.trim()) where.OR = [{ trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }, { firstName: { contains: query.search.trim(), mode: 'insensitive' } }, { lastName: { contains: query.search.trim(), mode: 'insensitive' } }];
       const [rows,total] = await this.prisma.$transaction([
-        this.prisma.registration.findMany({ where, orderBy: { updatedAt: 'asc' }, skip: (page-1)*pageSize, take: pageSize }),
+        this.prisma.registration.findMany({ where, orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }], take: fetchSize }),
         this.prisma.registration.count({ where }),
       ]);
-      for (const row of rows) result.push({ type: 'INDIVIDUAL', id: row.id, trackingCode: row.trackingCode, status: row.status, name: [row.firstName,row.middleName,row.lastName].filter(Boolean).join(' '), updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), payment: await this.payments.getForApplication('INDIVIDUAL', row.id) });
-      if (!institution) return { items: result, page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
-      (result as any).__individualTotal = total;
+      individualTotal = total;
+      for (const row of rows) result.push({ type: 'INDIVIDUAL', id: row.id, trackingCode: row.trackingCode, status: row.status, name: [row.firstName,row.middleName,row.lastName].filter(Boolean).join(' '), updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), sla: { hours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), overdue: row.updatedAt.getTime() < slaCutoff }, payment: await this.payments.getForApplication('INDIVIDUAL', row.id) });
     }
+
     if (institution) {
       const where: any = { status: { in: [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED, InstitutionApplicationStatus.CORRECTION_REQUIRED] }, ...jurisdictionWhere };
       if (query.status) where.status = query.status;
       if (query.search?.trim()) where.OR = [{ trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }, { institutionName: { contains: query.search.trim(), mode: 'insensitive' } }];
       const [rows,total] = await this.prisma.$transaction([
-        this.prisma.institutionApplication.findMany({ where, include: { institutionType: true }, orderBy: { updatedAt: 'asc' }, skip: (page-1)*pageSize, take: pageSize }),
+        this.prisma.institutionApplication.findMany({ where, include: { institutionType: true }, orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }], take: fetchSize }),
         this.prisma.institutionApplication.count({ where }),
       ]);
-      for (const row of rows) { const template = await this.activeChecklist(row.institutionTypeId); result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, organizationType: row.institutionType.name, organizationTypeCode: row.institutionType.code, updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), inspectionRequired: Boolean(template?.inspectionRequired), payment: await this.payments.getForApplication('INSTITUTION', row.id) }); }
-      (result as any).__institutionTotal = total;
+      institutionTotal = total;
+      for (const row of rows) { const template = await this.activeChecklist(row.institutionTypeId); result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, organizationType: row.institutionType.name, organizationTypeCode: row.institutionType.code, updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), sla: { hours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), overdue: row.updatedAt.getTime() < slaCutoff }, inspectionRequired: Boolean(template?.inspectionRequired), payment: await this.payments.getForApplication('INSTITUTION', row.id) }); }
     }
-    const individualTotal = Number((result as any).__individualTotal ?? 0);
-    const institutionTotal = Number((result as any).__institutionTotal ?? 0);
-    delete (result as any).__individualTotal;
-    delete (result as any).__institutionTotal;
-    const total = individualTotal + institutionTotal;
-    const items = result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime()).slice(0, pageSize);
-    return { items, page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
-  }
 
+    result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime() || a.id.localeCompare(b.id));
+    const total = individualTotal + institutionTotal;
+    const items = result.slice((page - 1) * pageSize, page * pageSize);
+    return { items, page, pageSize, total, totalPages: Math.ceil(total/pageSize), slaHours };
+  }
   private queueJurisdictionWhere(user: AuthenticatedUser) {
     if (user.roles.includes(RoleCode.SUPER_ADMIN) || user.roles.includes(RoleCode.NATIONAL_ADMIN) || user.jurisdictionLevel === 'NATIONAL') return {};
     if (!user.jurisdictionId) throw new ForbiddenException('A jurisdiction is required for queue access');
