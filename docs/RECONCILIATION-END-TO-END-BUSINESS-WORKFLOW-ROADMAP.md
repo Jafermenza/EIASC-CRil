@@ -643,3 +643,19 @@ The notification boundary now has durable persistence and retry state rather tha
 - Provider failure leaves durable FAILED delivery state with a future retry time and subsequent processing can retry it.
 - Recipient notification history and Super Admin monitoring expose the resulting state.
 - No Phase 8 release-complete claim is made until these gates are executed on the integrated branch.
+
+
+### Phase 8 — Durable events and notifications — implementation progress
+
+Implemented on the current reconciliation branch:
+
+- audit-backed durable OutboxEvent materialization with stable event IDs;
+- outbox processing/retry state and stale-worker recovery;
+- unique event/recipient/channel NotificationDelivery records for idempotent job creation;
+- persisted in-app/email/SMS delivery state and bounded retry/backoff;
+- recipient notification history linked to durable delivery records;
+- Super Admin notification delivery monitoring and recent sent-history views;
+- provider-aware delivery handling, including stable Resend email idempotency keys;
+- existing registration, institution, licensing, membership and credential notification events retained on the durable pipeline.
+
+Validation is intentionally still pending. Prisma validation/generation, migration deployment, typecheck, lint, build and the Phase 8 acceptance suite must pass before this phase is considered release-ready.
