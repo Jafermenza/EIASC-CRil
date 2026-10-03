@@ -40,9 +40,8 @@ test.beforeAll(async () => {
     },
   });
 
-  // The schema intentionally keeps one member/institution row unique even after END.
-  // Reset only this dedicated M6 fixture so the acceptance test is repeatable and
-  // cannot collide with a prior CI attempt or another milestone's fixture.
+  // Reset only these dedicated M6 fixtures so the acceptance test is repeatable
+  // and cannot collide with a prior CI attempt or another milestone's fixture.
   await prisma.memberInstitution.deleteMany({ where: { memberId: member.id, institutionId: institution.id } });
   await prisma.member.upsert({
     where: { membershipNumber: M6_DIRECT_MEMBER_NUMBER },
