@@ -560,12 +560,12 @@ model Inspection {
   registrationId             String?            @db.Uuid
   institutionApplicationId  String?            @db.Uuid
   assignedToUserId           String             @db.Uuid
-  institutionTypeId          String             @db.Uuid
+  institutionTypeId          String?            @db.Uuid
   inspectorAssignmentId      String?            @db.Uuid
-  checklistTemplateId        String             @db.Uuid
-  institutionTypeCode       String
-  institutionTypeName       String
-  checklistSnapshot         Json
+  checklistTemplateId        String?            @db.Uuid
+  institutionTypeCode       String?
+  institutionTypeName       String?
+  checklistSnapshot         Json?
   checklistResponses        Json?
   report                    Json?
   status                     InspectionStatus   @default(ASSIGNED)
@@ -580,8 +580,8 @@ model Inspection {
   registration              Registration?      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
   assignedTo                User               @relation(fields: [assignedToUserId], references: [id], onDelete: Restrict)
-  institutionType            InstitutionType    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
-  checklistTemplate          InspectionChecklistTemplate @relation(fields: [checklistTemplateId], references: [id], onDelete: Restrict)
+  institutionType            InstitutionType?    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
+  checklistTemplate          InspectionChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id], onDelete: Restrict)
   inspectorAssignment       InspectorAssignment? @relation(fields: [inspectorAssignmentId], references: [id], onDelete: Restrict)
   @@index([registrationId, status])
   @@index([institutionApplicationId, status])
