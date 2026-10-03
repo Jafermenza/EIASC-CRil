@@ -594,3 +594,26 @@ Validation status:
 - Code and migration changes are recorded on the current engine branch.
 - Prisma validation/generation, migration deployment, typecheck, lint, build and Playwright execution have **not** been run in this environment after the Phase 6 changes, so Phase 6 is not marked CI/build/E2E validated yet.
 - The migration intentionally does not auto-select a winner if pre-existing duplicate active PRIMARY relationships exist; the unique index will expose such data as a migration/data-integrity issue rather than silently changing affiliation records.
+
+
+### Phase 7 — Licensing closure implementation progress
+
+Implemented on the existing engine branch; no separate branch created.
+
+Completed in this increment:
+- **Institution self-service license application**: institution administrators can create a licensing application for their own institution from the institution portal. Cross-institution creation is rejected.
+- **Licensing inspection linkage**: `Inspection` now supports a first-class `licenseId` relationship, preserving inspection reports directly against the license rather than only against registration/application records.
+- **Organization-type inspection reuse**: licensing inspection assignment uses the institution's active organization-type checklist and the same inspector-role/jurisdiction assignment model established in Phase 4B.
+- **Inspection assignment endpoint**: `POST /licenses/:id/inspection` assigns an authorized inspector while the license application is under review.
+- **Approval gate**: when the active organization-type checklist requires inspection, license approval is blocked until there is a completed inspection using the current checklist template with a PASS or CONDITIONAL decision.
+- **Lifecycle remains explicit**: issue, suspend, restore, revoke and renew retain their existing transition guards and audit records.
+- **Institution UI** now provides an explicit “Apply for institutional license” entry when no license record exists.
+- **Unit coverage** added for self-service licensing and the inspection-required approval gate.
+
+Migration:
+- `prisma/migrations/20261003170000_phase7_license_inspection/migration.sql`
+
+Remaining Phase 7 gap:
+- **Licensing-specific payment collection/gating** is not yet wired. The current payment subsystem is registration-oriented (`RegistrationPayment`), so this increment does not falsely reuse a registration payment record as a license payment. A dedicated license-payment flow remains for the next licensing/payment increment.
+- Required licensing document checklists and a richer license-specific reviewer workspace also remain to be expanded beyond the existing institution document viewer.
+- Prisma validation/generation, migration deployment, typecheck, lint, build and Playwright execution have not been run after this increment; Phase 7 is therefore implementation-recorded but not build/CI validated.
