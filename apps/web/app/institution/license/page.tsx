@@ -6,7 +6,7 @@ const API = '/api/v1';
 
 export default function InstitutionLicensePage() {
   const [license, setLicense] = useState<any>(null);
-  const [error, setError] = useState(''); const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [applying, setApplying] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('accessToken') || '';
@@ -17,6 +17,16 @@ export default function InstitutionLicensePage() {
       .then((data) => setLicense(data.items?.[0] ?? null))
       .catch((err) => setError(err instanceof Error ? err.message : 'Unable to load license'));
   }, []);
+
+  async function apply() {
+    setError(''); setApplying(true);
+    try {
+      const token = localStorage.getItem('accessToken') || '';
+      const institutionId = localStorage.getItem('institutionId') || '';
+      const response = await fetch(`${API}/licenses`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ institutionId, licenseType: 'INSTITUTIONAL' }) });
+      const data = await response.json(); if (!response.ok) throw new Error(data.message || 'Unable to create license application'); setLicense(data);
+    } catch (err) { setError(err instanceof Error ? err.message : 'Unable to create license application'); } finally { setApplying(false); }
+  }
 
   async function resubmit() {
     if (!license) return; setError(''); setBusy(true);
@@ -35,7 +45,7 @@ export default function InstitutionLicensePage() {
         <p className="lead">View the current institutional licensing record available to your authorized account.</p>
       </div>
       {error && <article className="grid"><div>{error}</div></article>}
-      {!error && !license && <article className="grid"><div><h2>No license record</h2><p>Your institution does not currently have a licensing record.</p></div></article>}
+      {!error && !license && <article className="grid"><div><h2>No license record</h2><p>Your institution does not currently have a licensing record.</p><button className="button button-primary" disabled={applying} onClick={() => void apply()}>{applying ? 'Starting application…' : 'Apply for institutional license'}</button></div></article>}
       {license && <section className="grid"><div>
         <h2>{license.licenseNumber || 'License application'}</h2>
         <p><strong>Application:</strong> {license.applicationStatus}</p>
