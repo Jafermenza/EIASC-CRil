@@ -465,3 +465,28 @@ Before Phase 8, inspection policy was hardened so the workflow is extensible bey
 - Existing inspections retain their immutable checklist snapshot/version when a new checklist version is published.
 
 This closes the previously identified extensibility gap: adding a new institution type no longer requires adding a hard-coded inspection checklist to the application.
+
+
+## Phase 8 — Durable events and notifications (2026-10-03)
+
+Implementation started on the existing reconciliation branch.
+
+Implemented:
+- Durable `OutboxEvent` persistence with a stable `eventId` equal to the source audit-log ID and a unique source-audit relationship.
+- Explicit outbox processing state: `PENDING → PROCESSING → PROCESSED/FAILED`, attempt count, availability time, lock time, completion time and last error.
+- `NotificationDelivery` as a first-class per-recipient/per-channel delivery record with a database uniqueness key across event, recipient and channel.
+- Persisted delivery state and retry metadata for IN_APP, EMAIL and SMS, including attempt count, next retry time, processing time, sent time and provider error.
+- Exponential retry backoff with a bounded maximum of eight delivery attempts.
+- Idempotent outbox materialization and delivery creation using database unique constraints and `skipDuplicates`.
+- Existing in-app notification history remains available to the recipient; Super Admin now has delivery summary, outbox history and failed-delivery monitoring endpoints/UI.
+- Existing Resend and AfroMessage adapters are reused by the durable delivery worker rather than introducing a second provider stack.
+- Dispatcher now runs as a durable polling worker instead of relying on an in-memory-only notification send path.
+- Added unit coverage for stable event IDs, idempotent outbox materialization and persisted delivery processing.
+
+Important implementation boundary:
+- Existing business workflows already write durable AuditLog records. Phase 8 materializes the notification-worthy audit records into the durable outbox using the audit-log UUID as the stable event ID. This gives the notification pipeline a persistent replay/retry boundary without changing every existing business transaction in one large migration.
+- Provider delivery remains asynchronous. A provider outage therefore leaves a persisted delivery record and retry state instead of losing the notification request.
+
+Validation status:
+- Prisma migration/type generation, typecheck, lint, unit tests and acceptance tests have **not yet been run after these Phase 8 changes** in the current environment.
+- Phase 8 must not be marked release-complete until those gates are executed and any generated-client/schema issues are corrected.
