@@ -56,7 +56,7 @@ export class NotificationsService {
       });
       await this.prisma.notificationDelivery.update({
         where: { id: delivery.id },
-        data: { notificationId: notification.id, status: 'SENT', sentAt: new Date(), lastError: null },
+        data: { notificationId: notification.id, status: NotificationDeliveryStatus.SENT, sentAt: new Date(), processingStartedAt: null, lastError: null },
       });
       return;
     }
@@ -86,7 +86,7 @@ export class NotificationsService {
     });
     await this.prisma.notificationDelivery.update({
       where: { id: delivery.id },
-      data: { notificationId: notification.id, status: 'SENT', sentAt: new Date(), lastError: null },
+      data: { notificationId: notification.id, status: NotificationDeliveryStatus.SENT, sentAt: new Date(), processingStartedAt: null, lastError: null },
     });
   }
 
