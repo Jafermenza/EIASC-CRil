@@ -754,7 +754,7 @@ model MemberInstitution {
   updatedAt         DateTime                    @updatedAt
   member            Member                      @relation(fields: [memberId], references: [id], onDelete: Cascade)
   institution       Institution                 @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  @@unique([memberId, institutionId])
+  @@index([memberId, institutionId])
   @@index([institutionId, status])
   @@index([memberId, status])
   @@index([memberId, relationshipType, status])
