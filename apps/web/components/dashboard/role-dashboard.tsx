@@ -120,14 +120,10 @@ export default function RoleDashboard({ roles }: RoleDashboardProps) {
       <section className="dashboard-section">
         <div className="section-heading compact"><div><p className="eyebrow">AT A GLANCE</p><h2>Your operational picture</h2></div><span className="dashboard-live"><span />Live from authorized records</span></div>
         <div className="dashboard-stat-grid">
-          {visibleMetricCards.map(([key, label, MetricIcon, href]) => (
-            <Link href={href} className="dashboard-stat-card" key={key}>
-              <span className="dashboard-card-icon"><MetricIcon size={19} /></span>
-              <span className="dashboard-stat-label">{label}</span>
-              <strong>{metrics?.[key] ?? '—'}</strong>
-              <span className="dashboard-stat-link">Open <ArrowRight size={15} /></span>
-            </Link>
-          ))}
+          {visibleMetricCards.map(([key, label, MetricIcon, href]) => {
+            const card = <><span className="dashboard-card-icon"><MetricIcon size={19} /></span><span className="dashboard-stat-label">{label}</span><strong>{metrics?.[key] ?? '—'}</strong><span className="dashboard-stat-link">{role === 'FINANCE_OFFICER' || role === 'INSPECTOR' ? 'Authorized metric' : <>Open <ArrowRight size={15} /></>}</span></>;
+            return role === 'FINANCE_OFFICER' || role === 'INSPECTOR' ? <div className="dashboard-stat-card" key={key}>{card}</div> : <Link href={href} className="dashboard-stat-card" key={key}>{card}</Link>;
+          })}
         </div>
       </section>
 
