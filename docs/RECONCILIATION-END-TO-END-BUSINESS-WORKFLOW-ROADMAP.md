@@ -659,3 +659,17 @@ Implemented on the current reconciliation branch:
 - existing registration, institution, licensing, membership and credential notification events retained on the durable pipeline.
 
 Validation is intentionally still pending. Prisma validation/generation, migration deployment, typecheck, lint, build and the Phase 8 acceptance suite must pass before this phase is considered release-ready.
+
+
+### Phase 9 — Queue/reporting hardening — implementation progress
+
+Implemented on the reconciliation branch:
+- database-scoped reviewer queue queries and corrected unified pagination/count semantics;
+- queue age/SLA indicators and operational SLA reporting;
+- payment reconciliation reporting;
+- application throughput, correction and rejection reporting;
+- reviewer workload reporting;
+- Super Admin-authorized audit CSV export with export auditing;
+- reporting UI for the new operational views.
+
+Validation is pending. Phase 9 is not release-ready until Prisma, typecheck, lint, unit tests, build and E2E gates pass.
