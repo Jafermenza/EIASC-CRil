@@ -8,6 +8,7 @@ import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma.service';
 import { PaymentsService } from '../payments/payments.service';
 import { DOCUMENT_TYPES, EDUCATION_LEVELS, InstitutionApplicationInput, InstitutionApplicationUpdateInput, InstitutionListQuery, InstitutionProfileUpdateInput, MemberRelationshipInput } from './institution.types';
+import { MembershipService } from '../membership/membership.service';
 
 const ACTIVE_APP: InstitutionApplicationStatus[] = [InstitutionApplicationStatus.DRAFT, InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.CORRECTION_REQUIRED, InstitutionApplicationStatus.RESUBMITTED];
 const ADMIN_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN];
@@ -15,7 +16,7 @@ const MAX_TEXT = 5000;
 
 @Injectable()
 export class InstitutionsService {
-  constructor(private readonly prisma: PrismaService, private readonly locations: LocationsService, private readonly authorization: AuthorizationService, private readonly credentials: CredentialProvisioningService, private readonly payments: PaymentsService) {}
+  constructor(private readonly prisma: PrismaService, private readonly locations: LocationsService, private readonly authorization: AuthorizationService, private readonly credentials: CredentialProvisioningService, private readonly payments: PaymentsService, private readonly memberships: MembershipService) {}
 
   private clean(value?: string, max = MAX_TEXT): string | undefined {
     const v = value?.trim();
@@ -269,6 +270,21 @@ export class InstitutionsService {
   async changeStatus(user: AuthenticatedUser, id: string, status: InstitutionStatus, reason: string) { const institution = await this.getInstitution(user, id); if (!Object.values(InstitutionStatus).includes(status)) throw new BadRequestException('Invalid institution status'); if (!reason.trim()) throw new BadRequestException('Reason is required'); const allowed: Record<InstitutionStatus, InstitutionStatus[]> = { PENDING: [InstitutionStatus.ACTIVE], ACTIVE: [InstitutionStatus.SUSPENDED, InstitutionStatus.REVOKED, InstitutionStatus.CLOSED], SUSPENDED: [InstitutionStatus.ACTIVE, InstitutionStatus.REVOKED, InstitutionStatus.CLOSED], REVOKED: [], CLOSED: [] }; if (!allowed[institution.status].includes(status)) throw new ConflictException(`Invalid institution status transition: ${institution.status} -> ${status}`); const updated = await this.prisma.institution.update({ where: { id }, data: { status } }); await this.prisma.institutionStatusHistory.create({ data: { institutionId: id, fromStatus: institution.status, toStatus: status, reason: this.clean(reason) } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_STATUS_CHANGED', entityType: 'Institution', entityId: id, metadata: { from: institution.status, to: status, reason: this.clean(reason) } } }); return updated; }
 
   async members(user: AuthenticatedUser, id: string) { await this.getInstitution(user, id); const [items, total, active, suspended, pending] = await Promise.all([this.prisma.memberInstitution.findMany({ where: { institutionId: id }, include: { member: true }, orderBy: { createdAt: 'desc' } }), this.prisma.memberInstitution.count({ where: { institutionId: id } }), this.prisma.memberInstitution.count({ where: { institutionId: id, status: MembershipStatus.ACTIVE, member: { status: 'ACTIVE' } } }), this.prisma.memberInstitution.count({ where: { institutionId: id, status: MembershipStatus.SUSPENDED } }), this.prisma.memberInstitution.count({ where: { institutionId: id, status: MembershipStatus.PENDING } })]); return { items, counts: { total, active, suspended, pendingRelationships: pending } }; }
-  async addMember(user: AuthenticatedUser, id: string, memberId: string, input: MemberRelationshipInput) { await this.getInstitution(user, id); const target = await this.prisma.member.findUnique({ where: { id: memberId } }); if (!target) throw new NotFoundException('Member not found'); if (target.status !== 'ACTIVE') throw new BadRequestException('Only active members may be associated'); const type = input.relationshipType ?? InstitutionRelationshipType.PRIMARY; if (type === InstitutionRelationshipType.PRIMARY) { const existing = await this.prisma.memberInstitution.findFirst({ where: { memberId, relationshipType: InstitutionRelationshipType.PRIMARY, status: MembershipStatus.ACTIVE } }); if (existing && existing.institutionId !== id) throw new ConflictException('Member already has an active PRIMARY institution'); } const existing = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId: id } } }); if (existing?.status === MembershipStatus.ACTIVE) throw new ConflictException('Member is already associated with this institution'); const relation = existing ? await this.prisma.memberInstitution.update({ where: { id: existing.id }, data: { status: MembershipStatus.ACTIVE, relationshipType: type, startedAt: new Date(), endedAt: null } }) : await this.prisma.memberInstitution.create({ data: { memberId, institutionId: id, relationshipType: type, status: MembershipStatus.ACTIVE } }); await this.prisma.auditLog.create({ data: { action: 'MEMBER_INSTITUTION_ASSOCIATED', entityType: 'MemberInstitution', entityId: relation.id, metadata: { memberId, institutionId: id, relationshipType: type } } }); return relation; }
-  async removeMember(user: AuthenticatedUser, id: string, memberId: string) { await this.getInstitution(user, id); const relation = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId: id } } }); if (!relation || relation.status !== MembershipStatus.ACTIVE) throw new NotFoundException('Active membership relationship not found'); const updated = await this.prisma.memberInstitution.update({ where: { id: relation.id }, data: { status: MembershipStatus.ENDED, endedAt: new Date() } }); await this.prisma.auditLog.create({ data: { action: 'MEMBER_INSTITUTION_DEACTIVATED', entityType: 'MemberInstitution', entityId: relation.id, metadata: { memberId, institutionId: id, relationshipType: relation.relationshipType } } }); return updated; }
+  async addMember(user: AuthenticatedUser, id: string, memberId: string, input: MemberRelationshipInput) {
+    await this.getInstitution(user, id);
+    return this.memberships.directAdd(user, {
+      memberId,
+      institutionId: id,
+      relationshipType: input.relationshipType,
+      reason: input.reason,
+    });
+  }
+
+  async removeMember(user: AuthenticatedUser, id: string, memberId: string) {
+    await this.getInstitution(user, id);
+    const relation = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId: id } } });
+    if (!relation || relation.status !== MembershipStatus.ACTIVE) throw new NotFoundException('Active membership relationship not found');
+    return this.memberships.setStatus(user, relation.id, MembershipStatus.ENDED, 'Institution removed member');
+  }
+
 }
