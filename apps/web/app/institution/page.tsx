@@ -43,7 +43,7 @@ export default function InstitutionDashboard() {
         <div className="section-heading compact"><div><p className="eyebrow">NEEDS ACTION</p><h2>Manage your institution</h2></div></div>
         <div className="dashboard-quick-grid">
           <Link className="dashboard-quick-card" href="/institution/members"><UsersRound size={20}/><div><strong>Manage members</strong><span>Add, review and monitor institutional relationships.</span></div><ArrowRight size={17}/></Link>
-          <Link className="dashboard-quick-card" href="/admin/licenses"><FileCheck2 size={20}/><div><strong>Check licensing</strong><span>Follow institutional license and certification activity.</span></div><ArrowRight size={17}/></Link>
+          <Link className="dashboard-quick-card" href="/institution/license"><FileCheck2 size={20}/><div><strong>Check licensing</strong><span>Follow institutional license and certification activity.</span></div><ArrowRight size={17}/></Link>
           <Link className="dashboard-quick-card" href="/notifications"><Bell size={20}/><div><strong>Read notifications</strong><span>See requests, corrections and workflow updates.</span></div><ArrowRight size={17}/></Link>
         </div>
       </section>
