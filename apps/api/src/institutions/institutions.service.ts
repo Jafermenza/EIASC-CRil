@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InstitutionApplicationStatus, InstitutionRelationshipType, InstitutionStatus, MembershipStatus, RoleCode } from '@prisma/client';
+import { InstitutionApplicationStatus, InstitutionStatus, MembershipStatus, RoleCode } from '@prisma/client';
 import { createOpaqueToken } from '../auth/crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
