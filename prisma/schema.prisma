@@ -192,7 +192,9 @@ model User {
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
-  notifications       Notification[]
+  notifications      Notification[]
+  membershipHistory  MemberInstitutionHistory[]
+  membershipHistory      MemberInstitutionHistory[]
   reviewSnapshots      ApplicationReviewSnapshot[]
   correctionRequests   ApplicationCorrection[]
   assignedInspections  Inspection[]
@@ -732,6 +734,7 @@ model Member {
   subcity            SubcityTown?        @relation("SubcityMembers", fields: [subcityId], references: [id], onDelete: Restrict)
   district            District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
   institutions       MemberInstitution[]
+  membershipHistory MemberInstitutionHistory[]
   registration       Registration?       @relation("MemberRegistration")
   registrationDocuments RegistrationDocument[]
   credentials        Credential[]
@@ -754,6 +757,30 @@ model MemberInstitution {
   @@unique([memberId, institutionId])
   @@index([institutionId, status])
   @@index([memberId, status])
+  @@index([memberId, relationshipType, status])
+  membershipHistory MemberInstitutionHistory[]
+}
+
+model MemberInstitutionHistory {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  memberInstitutionId String                    @db.Uuid
+  memberId            String                    @db.Uuid
+  institutionId       String                    @db.Uuid
+  fromStatus          MembershipStatus?
+  toStatus            MembershipStatus
+  relationshipType    InstitutionRelationshipType
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  reason              String?
+  actorUserId         String?                   @db.Uuid
+  createdAt           DateTime                  @default(now())
+  membership          MemberInstitution         @relation(fields: [memberInstitutionId], references: [id], onDelete: Cascade)
+  member              Member                    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  institution         Institution               @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  actor               User?                     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([memberInstitutionId, createdAt])
+  @@index([memberId, createdAt])
+  @@index([institutionId, createdAt])
 }
 
 model Registration {
