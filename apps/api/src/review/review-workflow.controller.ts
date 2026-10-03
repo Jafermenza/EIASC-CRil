@@ -33,6 +33,22 @@ export class ReviewWorkflowController {
   @Put('institution/:id/inspection-required')
   inspectionRequired(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { required?: boolean }) { return this.workflow.setInspectionRequired(req.user!, id, Boolean(body?.required)); }
 
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGISTRAR)
+  @Get('checklists')
+  checklists(@Req() req: AuthenticatedRequest) { return this.workflow.listChecklistTemplates(req.user!); }
+
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN)
+  @Put('checklists/institution-type/:institutionTypeId')
+  saveChecklist(@Req() req: AuthenticatedRequest, @Param('institutionTypeId') institutionTypeId: string, @Body() body: { name?: string; description?: string; inspectionRequired?: boolean; items?: unknown[] }) {
+    return this.workflow.saveChecklistTemplate(req.user!, institutionTypeId, { name: body?.name ?? '', description: body?.description, inspectionRequired: Boolean(body?.inspectionRequired), items: body?.items ?? [] });
+  }
+
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN)
+  @Post('inspector-assignments')
+  createInspectorAssignment(@Req() req: AuthenticatedRequest, @Body() body: { inspectorUserId?: string; institutionTypeId?: string; jurisdictionLevel?: string; jurisdictionId?: string; expiresAt?: string; notes?: string }) {
+    return this.workflow.createInspectorAssignment(req.user!, { inspectorUserId: body?.inspectorUserId ?? '', institutionTypeId: body?.institutionTypeId, jurisdictionLevel: body?.jurisdictionLevel ?? '', jurisdictionId: body?.jurisdictionId, expiresAt: body?.expiresAt, notes: body?.notes });
+  }
+
   @Roles(...REVIEW_ROLES)
   @Post('institution/:id/inspections')
   assign(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { inspectorUserId?: string; scheduledAt?: string }) { return this.workflow.assignInspection(req.user!, id, body?.inspectorUserId ?? '', body?.scheduledAt); }
@@ -42,6 +58,10 @@ export class ReviewWorkflowController {
   inspection(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.workflow.inspectionDetail(req.user!, id); }
 
   @Roles(...INSPECTION_ROLES)
+  @Get('inspections/:id/report')
+  report(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.workflow.inspectionReport(req.user!, id); }
+
+  @Roles(...INSPECTION_ROLES)
   @Put('inspections/:id')
-  updateInspection(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { status?: InspectionStatus; findings?: unknown; decision?: InspectionDecision; decisionReason?: string }) { return this.workflow.updateInspection(req.user!, id, body); }
+  updateInspection(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { status?: InspectionStatus; findings?: unknown; decision?: InspectionDecision; decisionReason?: string; checklistResponses?: Array<{ code: string; value: unknown; note?: string }> }) { return this.workflow.updateInspection(req.user!, id, body); }
 }
