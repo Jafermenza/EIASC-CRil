@@ -467,3 +467,70 @@ Phase 4 is retained as the reviewer-workspace foundation; **Phase 4B supersedes 
 - Editable checklist administration is available under /admin/settings/inspection-checklists.
 - New migration: 20261003140000_phase4b_organization_inspection_certification.
 - Validation remains pending because CI is intentionally suspended; this branch must not be described as build/typecheck/E2E validated until those checks are executed.
+
+### Phase 5 — Role-specific UI
+
+Implemented directly on the existing Phase 4B engine branch; no separate Phase 5 branch was created.
+
+The role UI now follows the actual authorization model rather than presenting one generic administrator screen.
+
+- Applicant/member dashboard:
+  - personal account and jurisdiction summary;
+  - notification count and recent messages;
+  - digital ID, application tracking and credential verification shortcuts;
+  - plain-language "Continue where you left off" actions;
+  - responsive cards with Lucide icons and accessible labels.
+
+- Institution dashboard:
+  - institution identity and code;
+  - member totals, active members, suspended members and pending relationships;
+  - direct links to member management, licensing and notifications;
+  - recent institutional member activity;
+  - responsive role-focused layout.
+
+- Finance dashboard:
+  - finance-specific title and explanation;
+  - payment queue surfaced as the primary "Needs action" workflow;
+  - payment navigation without exposing unrelated review controls.
+
+- Registrar dashboard:
+  - registration/review workspace as the primary action;
+  - payment and review navigation;
+  - operational metrics scoped through the existing authorization-aware reporting API.
+
+- District reviewer dashboard:
+  - district-specific language;
+  - review queue as the primary action;
+  - reports and local operational metrics;
+  - navigation remains constrained by the authenticated role.
+
+- Regional dashboard:
+  - regional operations language;
+  - review queue, reports and regional-scoped metrics;
+  - no manual jurisdiction override is introduced in the UI.
+
+- National dashboard:
+  - national operations language;
+  - national review queue and cross-region reporting;
+  - policy administration remains limited to the roles already authorized by the API.
+
+- Role-specific navigation:
+  - navigation sections now use Lucide icons and are filtered by role;
+  - review, finance, directory, governance, inspection, reporting, policy and system sections are separated;
+  - national policy users can reach inspection checklist administration without receiving Super Admin-only user/platform settings;
+  - mobile navigation remains available with icon + label states.
+
+- Modern visual system:
+  - polished hero panels, action cards, status pills, live-state indicators and subtle glow/shimmer treatment;
+  - responsive layouts for desktop, tablet and mobile;
+  - consistent empty/loading/error states;
+  - no business authorization is moved into the frontend: API guards remain authoritative.
+
+- Navigation acceptance:
+  - added e2e/m5-role-ui.acceptance.spec.ts;
+  - covers National Admin, Regional Admin, District Admin, Registrar, Finance Officer, Institution Admin and Member login destinations and role-specific navigation/heading expectations.
+
+- UI dependency:
+  - added lucide-react to the web workspace and lockfile for consistent iconography.
+
+Phase 5 validation status: implementation is committed on the current Phase 4B branch, but the repository has not been claimed as CI/typecheck/lint/E2E validated until those checks are actually executed.
