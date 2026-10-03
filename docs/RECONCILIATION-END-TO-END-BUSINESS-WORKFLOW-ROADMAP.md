@@ -447,3 +447,23 @@ Implemented on `reconciliation/phase-4-reviewer-inspection`:
 - Migration: `20261003120000_phase4_reviewer_inspection`.
 
 Validation remains pending because project CI is intentionally suspended; this branch has not been represented as CI/build validated.
+
+
+### Phase 4B — Organization-type-aware inspection and certification
+
+Phase 4 is retained as the reviewer-workspace foundation; **Phase 4B supersedes the earlier generic inspection assumption**.
+
+- Inspection requirement is driven by the active inspection checklist/policy for the application's **InstitutionType**, not by a reviewer manually toggling an application-level flag.
+- Every configured organization type has an editable checklist template. Templates are versioned; an inspection stores the exact checklist snapshot used for that inspection.
+- Initial seeded organization types are MOSQUE, MADRASA, MOSQUE_MADRASA, ISLAMIC_CENTER, ISLAMIC_EDUCATIONAL_INSTITUTION, ISLAMIC_COMMUNITY_ORGANIZATION, YOUTH_ASSOCIATION and OTHER.
+- Initial checklist requirements are editable policy defaults, not hard-coded permanent rules. The Super/National administration can publish a new checklist version and choose whether inspection is required for that organization type.
+- An inspector is **not automatically authorized merely because the user has the INSPECTOR role**. An explicit InspectorAssignment is required and can be constrained by organization type and jurisdiction level/ID.
+- Assignment supports NATIONAL, REGION, ZONE_CITY, SUBCITY_TOWN, DISTRICT and INSTITUTION scopes. The inspection service rejects an inspector whose active assignment does not match both the application's organization type and its jurisdiction.
+- Inspection records persist organization type code/name, checklist template ID, immutable checklist snapshot, responses, findings, decision and a generated organization-type-aware report.
+- Completion requires all required checklist items and a final PASS, FAIL or CONDITIONAL decision with a reason.
+- Institution approval derives the inspection requirement from the active organization-type checklist and blocks approval when a required inspection is absent or is not COMPLETED with PASS/CONDITIONAL.
+- Manual inspectionRequired on the application is no longer the business authority; the type-level policy is authoritative.
+- Institution and license credentials now carry the institution type and certificate titles include the organization type. Public credential verification exposes the organization type so a certificate cannot appear detached from the institution's classification.
+- Editable checklist administration is available under /admin/settings/inspection-checklists.
+- New migration: 20261003140000_phase4b_organization_inspection_certification.
+- Validation remains pending because CI is intentionally suspended; this branch must not be described as build/typecheck/E2E validated until those checks are executed.
