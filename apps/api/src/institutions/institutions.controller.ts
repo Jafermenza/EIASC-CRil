@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { InstitutionStatus, RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -58,6 +58,11 @@ export class InstitutionsController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
+  @Get('institutions/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="eiasc-institutions.csv"')
+  export(@Req() req: AuthenticatedRequest, @Query() query: InstitutionListQuery) { return this.institutions.exportInstitutions(req.user!, query); }
+
   @Get('institutions') list(@Req() req: AuthenticatedRequest, @Query() query: InstitutionListQuery) { return this.institutions.listInstitutions(req.user!, query); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
