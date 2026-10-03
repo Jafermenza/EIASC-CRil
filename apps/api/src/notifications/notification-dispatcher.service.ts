@@ -50,9 +50,8 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
   }
 
   private async materializeAuditEvents() {
-    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     const events = await this.prisma.auditLog.findMany({
-      where: { action: { in: [...EVENT_ACTIONS] }, entityId: { not: null }, createdAt: { gte: since } },
+      where: { action: { in: [...EVENT_ACTIONS] }, entityId: { not: null }, outboxEvent: null },
       orderBy: { createdAt: 'asc' },
       take: 500,
     });
@@ -124,7 +123,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
   }
 
   private async processDeliveries() {
-    const deliveries = await this.prisma.notificationDelivery.findMany({ where: { status: { in: [NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED] }, nextAttemptAt: { lte: new Date() }, attempts: { lt: MAX_ATTEMPTS } }, orderBy: { createdAt: 'asc' }, take: 100, select: { id: true, status: true, attempts: true } });
+    const deliveries = await this.prisma.notificationDelivery.findMany({ where: { status: { in: [NotificationDeliveryStatus.PENDING, NotificationDeliveryStatus.FAILED] }, nextAttemptAt: { lte: new Date() }, attempts: { lt: MAX_ATTEMPTS } }, orderBy: { createdAt: 'asc' }, take: 100, select: { id: true, status: true, attempts: true, notificationId: true } });
     for (const delivery of deliveries) {
       const claimed = await this.prisma.notificationDelivery.updateMany({ where: { id: delivery.id, status: delivery.status, attempts: delivery.attempts }, data: { status: NotificationDeliveryStatus.PROCESSING, processingStartedAt: new Date(), attempts: { increment: 1 } } });
       if (!claimed.count) continue;
