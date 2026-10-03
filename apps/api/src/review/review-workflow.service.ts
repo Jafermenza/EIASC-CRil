@@ -143,8 +143,10 @@ export class ReviewWorkflowService {
     if (!type?.active) throw new BadRequestException('Institution type is not active');
     const latest = await this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId }, orderBy: { version: 'desc' } });
     const version = (latest?.version ?? 0) + 1;
-    await this.prisma.inspectionChecklistTemplate.updateMany({ where: { institutionTypeId, active: true }, data: { active: false } });
-    const record = await this.prisma.inspectionChecklistTemplate.create({ data: { institutionTypeId, version, name: input.name.trim(), description: input.description?.trim(), inspectionRequired: Boolean(input.inspectionRequired), items: input.items } });
+    const record = await this.prisma.$transaction(async (tx) => {
+      await tx.inspectionChecklistTemplate.updateMany({ where: { institutionTypeId, active: true }, data: { active: false } });
+      return tx.inspectionChecklistTemplate.create({ data: { institutionTypeId, version, name: input.name.trim(), description: input.description?.trim(), inspectionRequired: Boolean(input.inspectionRequired), items: input.items, active: true } });
+    });
     await this.audit(user, 'INSTITUTION', institutionTypeId, 'INSPECTION_CHECKLIST_UPDATED', { templateId: record.id, version, inspectionRequired: record.inspectionRequired, institutionType: type.name });
     return record;
   }
