@@ -67,6 +67,17 @@ for (const item of roleCases) {
     } else if ([RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.REGISTRAR].includes(item.role)) {
       await expect(page.getByRole('link', { name: 'Review applications' })).toBeVisible();
       await expect(page.getByRole('link', { name: 'Reports & trends' })).toBeVisible();
+      await page.goto('/admin/directory/members');
+      await expect(page.getByLabel('Region')).toBeVisible();
+      await expect(page.getByLabel('Registered from')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
+      await page.goto('/admin/users');
+      await expect(page.getByText('Users & accounts catalog')).toBeVisible();
+      await expect(page.getByText('Export filtered CSV')).toBeVisible();
+      await page.goto('/admin/directory/institutions');
+      await expect(page.getByLabel('Organization type')).toBeVisible();
+      await expect(page.getByLabel('Zone / City')).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Export CSV' })).toBeVisible();
     } else if (item.role === RoleCode.INSTITUTION_ADMIN) {
       await expect(page.getByText('INSTITUTION PORTAL')).toBeVisible();
       await expect(page.getByRole('link', { name: 'Manage members' })).toBeVisible();
