@@ -534,3 +534,36 @@ The role UI now follows the actual authorization model rather than presenting on
   - added lucide-react to the web workspace and lockfile for consistent iconography.
 
 Phase 5 validation status: implementation is committed on the current Phase 4B branch, but the repository has not been claimed as CI/typecheck/lint/E2E validated until those checks are actually executed.
+
+
+### Phase 5 catalog extension — Hierarchy-oriented Members & Users
+
+- Member directory now supports server-side filtering by:
+  - Region
+  - Zone / City
+  - Subcity / Town
+  - District
+  - registration date range
+  - member status
+  - name / phone / email / membership number search
+- Institution directory now supports server-side filtering by:
+  - organization type
+  - Region
+  - Zone / City
+  - Subcity / Town
+  - District
+  - registration date range
+  - institution status
+  - institution name / code search
+- User/account catalog now supports authorized hierarchical viewing with:
+  - role
+  - account status
+  - jurisdiction level
+  - Region / Zone / Subcity / District
+  - creation date range
+  - email / phone search
+- Authorization is enforced server-side before catalog rows or exports are returned. A user cannot widen their catalog by supplying another jurisdiction ID.
+- User catalog resolves subordinate geographic scopes so a higher authorized level can see the users belonging to its hierarchy rather than only users sharing the same exact jurisdiction level.
+- CSV exports are server-side and use the same filters and authorization boundary as the visible catalog.
+- Catalog navigation is exposed only to roles already permitted to view user/account administration; institution users remain within the institution portal.
+- Directory filters use the authoritative geography hierarchy and cascading Region → Zone/City → Subcity/Town → District selectors.
