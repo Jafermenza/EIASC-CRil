@@ -97,7 +97,7 @@ export default function InstitutionsDirectoryPage() {
           <div className="field"><label htmlFor="institution-from">Registered from</label><input id="institution-from" type="date" value={from} onChange={e=>{setFrom(e.target.value);setPage(1);}} /></div>
           <div className="field"><label htmlFor="institution-to">Registered to</label><input id="institution-to" type="date" value={to} onChange={e=>{setTo(e.target.value);setPage(1);}} /></div>
           <div className="field"><label htmlFor="institution-status">Status</label><select id="institution-status" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Inactive / suspended</option><option value="CLOSED">Closed</option><option value="REVOKED">Revoked</option></select></div>
-          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : /button></div>
+          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : <> <Search size={16}/> Search</>}</button></div>
           <div className="field field-action"><button className="button button-secondary" onClick={() => void exportCsv()} disabled={!items.length}><Download size={16}/> Export CSV</button></div>
         </div>
       </section>
