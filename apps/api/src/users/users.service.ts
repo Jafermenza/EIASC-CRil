@@ -46,7 +46,7 @@ export class UsersService {
       (!query.institutionId || resource.institutionId === query.institutionId);
   }
 
-  async list(actor: AuthenticatedUser, query: { search?: string; role?: RoleCode; status?: UserStatus; jurisdictionLevel?: JurisdictionLevel; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string; from?: string; to?: string; page?: string; pageSize?: string } = {}) {
+  async list(actor: AuthenticatedUser, query: { search?: string; role?: RoleCode; status?: UserStatus; jurisdictionLevel?: JurisdictionLevel; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string; from?: string; to?: string; page?: string; pageSize?: string; unpaged?: boolean } = {}) {
     this.assertListAccess(actor);
     const where: Prisma.UserWhereInput = {};
     if (query.status) where.status = query.status;
@@ -78,7 +78,7 @@ export class UsersService {
   }
 
   async exportCsv(actor: AuthenticatedUser, query: { search?: string; role?: RoleCode; status?: UserStatus; jurisdictionLevel?: JurisdictionLevel; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string; from?: string; to?: string }) {
-    const result = await this.list(actor, { ...query, page: '1', pageSize: '200000' });
+    const result = await this.list(actor, { ...query, unpaged: true });
     const cell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
     const lines = [
       ['User ID', 'Email', 'Phone', 'Role(s)', 'Status', 'Jurisdiction level', 'Jurisdiction ID', 'Institution ID', 'Created'].map(cell).join(','),
