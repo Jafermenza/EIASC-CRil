@@ -1,4 +1,7 @@
 -- Phase 6: membership integrity
+DROP INDEX IF EXISTS "MemberInstitution_memberId_institutionId_key";
+CREATE INDEX IF NOT EXISTS "MemberInstitution_memberId_institutionId_idx" ON "MemberInstitution" ("memberId", "institutionId");
+
 CREATE TABLE "MemberInstitutionHistory" (
   "id" UUID NOT NULL DEFAULT gen_random_uuid(),
   "memberInstitutionId" UUID NOT NULL,
@@ -35,7 +38,7 @@ ALTER TABLE "MemberInstitutionHistory"
   ADD CONSTRAINT "MemberInstitutionHistory_actorUserId_fkey"
   FOREIGN KEY ("actorUserId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-CREATE INDEX "MemberInstitution_memberId_relationshipType_status_idx"
+CREATE INDEX IF NOT EXISTS "MemberInstitution_memberId_relationshipType_status_idx"
   ON "MemberInstitution" ("memberId", "relationshipType", "status");
 
 -- A member may have multiple affiliations, but only one active PRIMARY affiliation.
