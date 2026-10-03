@@ -582,12 +582,14 @@ model Inspection {
   updatedAt                  DateTime           @updatedAt
   registration              Registration?      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  license                   License?            @relation(fields: [licenseId], references: [id], onDelete: Cascade)
   assignedTo                User               @relation(fields: [assignedToUserId], references: [id], onDelete: Restrict)
   institutionType            InstitutionType?    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
   checklistTemplate          InspectionChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id], onDelete: Restrict)
   inspectorAssignment       InspectorAssignment? @relation(fields: [inspectorAssignmentId], references: [id], onDelete: Restrict)
   @@index([registrationId, status])
   @@index([institutionApplicationId, status])
+  @@index([licenseId, status])
   @@index([assignedToUserId, status])
   @@index([institutionTypeId, status])
   @@index([checklistTemplateId])
@@ -856,6 +858,7 @@ model License {
   updatedAt         DateTime                @updatedAt
   institution       Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   credentials       Credential[]
+  inspections       Inspection[]
   @@index([institutionId])
   @@index([status])
   @@index([expiresAt])
