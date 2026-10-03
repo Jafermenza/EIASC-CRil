@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Download, Search } from 'lucide-react;
+import { Download, Search } from 'lucide-react'
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { formatLocation, useGeographyMap } from '../../../../lib/useGeographyMap';
