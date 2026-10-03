@@ -389,6 +389,7 @@ model Institution {
   registrations       Registration[]     @relation("InstitutionRegistration")
   applications        InstitutionApplication[]
   memberLinks         MemberInstitution[]
+  membershipHistory   MemberInstitutionHistory[]
   leaders             InstitutionLeader[]
   staffSummary        InstitutionStaffSummary?
   education           InstitutionEducation?
