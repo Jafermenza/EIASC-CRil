@@ -206,6 +206,7 @@ export class InstitutionsService {
   private institutionDirectoryWhere(query: InstitutionListQuery & { from?: string; to?: string }) {
     const where: any = {};
     if (query.institutionStatus) where.status = query.institutionStatus;
+    if (query.institutionTypeId) where.typeId = query.institutionTypeId;
     if (query.regionId) where.regionId = query.regionId;
     if (query.zoneId) where.zoneId = query.zoneId;
     if (query.subcityId) where.subcityId = query.subcityId;
