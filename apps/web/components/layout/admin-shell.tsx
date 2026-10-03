@@ -34,7 +34,8 @@ const sections: NavSection[] = [
   { label: 'Governance', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR'], items: [{ label: 'Licensing', href: '/admin/licenses', icon: FileCheck2 }] },
   { label: 'Inspection', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR'], items: [{ label: 'Review & inspection', href: '/admin/review', icon: ClipboardCheck }] },
   { label: 'Intelligence', roles: ALL_ADMIN_ROLES, items: [{ label: 'Reports & trends', href: '/admin/reports', icon: BarChart3 }] },
-  { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Users & roles', href: '/admin/users', icon: Shield }, { label: 'Platform settings', href: '/admin/settings/platform', icon: Settings2 }, { label: 'Institution types', href: '/admin/settings/institution-types', icon: BookOpenCheck }] },\n  { label: 'Policy', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN'], items: [{ label: 'Inspection checklists', href: '/admin/settings/inspection-checklists', icon: ClipboardCheck }] },
+  { label: 'People & access', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR', 'FINANCE_OFFICER'], items: [{ label: 'Users & accounts', href: '/admin/users', icon: UsersRound }] },
+  { label: 'System', roles: ['SUPER_ADMIN'], items: [{ label: 'Platform settings', href: '/admin/settings/platform', icon: Settings2 }, { label: 'Institution types', href: '/admin/settings/institution-types', icon: BookOpenCheck }] },\n  { label: 'Policy', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN'], items: [{ label: 'Inspection checklists', href: '/admin/settings/inspection-checklists', icon: ClipboardCheck }] },
   { label: 'Operations', roles: ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'FINANCE_OFFICER'], items: [{ label: 'Notifications', href: '/notifications', icon: Bell }] },
 ];
 
@@ -70,7 +71,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   }, [pathname]);
 
   const visibleSections = useMemo(() => sections.filter((section) => section.roles.some((role) => roles.includes(role))), [roles]);
-  const canSeeUsers = roles.includes('SUPER_ADMIN');
+  const canSeeUsers = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR', 'FINANCE_OFFICER'].includes(role));
   const canManageChecklists = roles.includes('SUPER_ADMIN') || roles.includes('NATIONAL_ADMIN');
   const canReview = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR', 'INSPECTOR'].includes(role));
   const canReviewApplications = roles.some((role) => ['SUPER_ADMIN', 'NATIONAL_ADMIN', 'REGIONAL_ADMIN', 'ZONE_ADMIN', 'DISTRICT_ADMIN', 'REGISTRAR'].includes(role));
@@ -85,7 +86,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     (pathname.startsWith('/admin/licenses') ? canViewLicensing : false) ||
     (pathname.startsWith('/admin/directory') ? canViewDirectory : false) ||
     (pathname.startsWith('/admin/payments') ? canViewPayments : false) ||
-    (pathname.startsWith('/admin/users') || pathname.startsWith('/admin/settings/platform') || pathname.startsWith('/admin/settings/institution-types') ? canSeeUsers : false) ||
+    (pathname.startsWith('/admin/users') ? canSeeUsers : pathname.startsWith('/admin/settings/platform') || pathname.startsWith('/admin/settings/institution-types') ? roles.includes('SUPER_ADMIN') : false) ||
     (pathname.startsWith('/admin/settings/inspection-checklists') ? canManageChecklists : false)
   );
 
