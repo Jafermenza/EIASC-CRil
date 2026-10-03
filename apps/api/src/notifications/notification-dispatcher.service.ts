@@ -71,7 +71,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
 
   private async createPendingDeliveries() {
     const events = await this.prisma.outboxEvent.findMany({
-      where: { status: { in: [OutboxEventStatus.PENDING, OutboxEventStatus.PROCESSING, OutboxEventStatus.FAILED] }, availableAt: { lte: new Date() } },
+      where: { status: { in: [OutboxEventStatus.PENDING, OutboxEventStatus.PROCESSING, OutboxEventStatus.FAILED] }, availableAt: { lte: new Date() }, attempts: { lt: MAX_ATTEMPTS } },
       orderBy: { createdAt: 'asc' },
       take: 100,
     });
