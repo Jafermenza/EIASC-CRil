@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 const API = '/api/v1';
 
 type Type = { id: string; code: string; name: string };
-type Template = { id: string; institutionTypeId: string; version: number; name: string; description: string | null; inspectionRequired: boolean; items: unknown[]; institutionType: Type };
+type Template = { id: string | null; institutionTypeId: string; version: number; name: string; description: string | null; inspectionRequired: boolean; items: unknown[]; institutionType: Type };
 
 export default function InspectionChecklistsPage() {
   const [items, setItems] = useState<Template[]>([]);
@@ -35,7 +35,7 @@ export default function InspectionChecklistsPage() {
 
   function edit(template: Template) {
     setSelected(template);
-    setName(template.name);
+    setName(template.name || `Inspection checklist — ${template.institutionType.name}`);
     setDescription(template.description || '');
     setRequired(template.inspectionRequired);
     setJson(JSON.stringify(template.items, null, 2));
@@ -67,8 +67,8 @@ export default function InspectionChecklistsPage() {
       {items.map((template) => <button type="button" key={template.id} className="workflow-panel" style={{ textAlign: 'left' }} onClick={() => edit(template)}>
         <p className="eyebrow">{template.institutionType.code}</p>
         <h2>{template.institutionType.name}</h2>
-        <p>{template.name} · v{template.version}</p>
-        <p>{template.inspectionRequired ? 'Inspection required' : 'Inspection not required by default'}</p>
+        <p>{template.name || 'Checklist not configured'} · {template.id ? `v${template.version}` : 'setup required'}</p>
+        <p>{template.id ? (template.inspectionRequired ? 'Inspection required' : 'Inspection not required by default') : 'No checklist configured — create one now'}</p>
         <p>{template.items.length} checklist items</p>
       </button>)}
     </section>
