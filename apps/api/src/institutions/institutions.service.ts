@@ -169,7 +169,7 @@ export class InstitutionsService {
         where: { institutionApplicationId: id },
         orderBy: { createdAt: 'desc' },
       });
-      if (!inspection || inspection.status !== 'COMPLETED' || !['PASS', 'CONDITIONAL'].includes(inspection.decision)) {
+      if (!inspection || inspection.checklistTemplateId !== template.id || inspection.status !== 'COMPLETED' || !['PASS', 'CONDITIONAL'].includes(inspection.decision)) {
         throw new ConflictException(`A completed acceptable inspection is required for organization type ${app.institutionType.name}`);
       }
     }
