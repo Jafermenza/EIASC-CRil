@@ -203,7 +203,61 @@ export class InstitutionsService {
     return { institution: result, institutionCode: code, approvedAt: now, organizationType: app.institutionType };
   }
 
-  async listInstitutions(user: AuthenticatedUser, query: InstitutionListQuery) { const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 25))); const where: any = {}; if (query.search) where.OR = [{ name: { contains: query.search.trim(), mode: 'insensitive' } }, { institutionCode: { contains: query.search.trim(), mode: 'insensitive' } }]; for (const [key, value] of Object.entries({ institutionTypeId: query.institutionTypeId, regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId, status: query.institutionStatus })) if (value) where[key] = value; if (!(await this.authorization.canAccess(user, { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId }))) { switch (user.jurisdictionLevel) { case 'REGION': where.regionId = user.jurisdictionId; break; case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break; case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break; case 'DISTRICT': where.districtId = user.jurisdictionId; break; case 'INSTITUTION': where.id = user.institutionId ?? user.jurisdictionId; break; } } const [items, total] = await this.prisma.$transaction([this.prisma.institution.findMany({ where, orderBy: { name: 'asc' }, skip: (page - 1) * pageSize, take: pageSize, include: { type: true } }), this.prisma.institution.count({ where })]); return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) }; }
+  private institutionDirectoryWhere(query: InstitutionListQuery & { from?: string; to?: string }) {
+    const where: any = {};
+    if (query.institutionStatus) where.status = query.institutionStatus;
+    if (query.regionId) where.regionId = query.regionId;
+    if (query.zoneId) where.zoneId = query.zoneId;
+    if (query.subcityId) where.subcityId = query.subcityId;
+    if (query.districtId) where.districtId = query.districtId;
+    if (query.search?.trim()) where.OR = [
+      { name: { contains: query.search.trim(), mode: 'insensitive' } },
+      { institutionCode: { contains: query.search.trim(), mode: 'insensitive' } },
+    ];
+    const createdAt: { gte?: Date; lt?: Date } = {};
+    if (query.from) { const d = new Date(query.from); if (!Number.isNaN(d.getTime())) createdAt.gte = d; }
+    if (query.to) { const d = new Date(query.to); if (!Number.isNaN(d.getTime())) { d.setUTCDate(d.getUTCDate() + 1); createdAt.lt = d; } }
+    if (createdAt.gte || createdAt.lt) where.createdAt = createdAt;
+    return where;
+  }
+
+  async listInstitutions(user: AuthenticatedUser, query: InstitutionListQuery & { from?: string; to?: string }) {
+    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 25)));
+    const where = this.institutionDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      if (user.jurisdictionLevel === 'REGION') where.regionId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'ZONE_CITY') where.zoneId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'SUBCITY_TOWN') where.subcityId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'DISTRICT') where.districtId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'INSTITUTION') where.id = user.institutionId ?? user.jurisdictionId;
+    }
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.institution.findMany({ where, orderBy: [{ regionId: 'asc' }, { zoneId: 'asc' }, { subcityId: 'asc' }, { districtId: 'asc' }, { createdAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize, include: { type: true } }),
+      this.prisma.institution.count({ where }),
+    ]);
+    return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  async exportInstitutions(user: AuthenticatedUser, query: InstitutionListQuery & { from?: string; to?: string }) {
+    const where = this.institutionDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      if (user.jurisdictionLevel === 'REGION') where.regionId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'ZONE_CITY') where.zoneId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'SUBCITY_TOWN') where.subcityId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'DISTRICT') where.districtId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'INSTITUTION') where.id = user.institutionId ?? user.jurisdictionId;
+    }
+    const items = await this.prisma.institution.findMany({ where, orderBy: [{ regionId: 'asc' }, { zoneId: 'asc' }, { subcityId: 'asc' }, { districtId: 'asc' }, { name: 'asc' }], include: { type: true } });
+    const cell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    return [
+      ['Institution ID', 'Institution code', 'Institution', 'Organization type', 'Status', 'Region ID', 'Zone/City ID', 'Subcity/Town ID', 'District ID', 'Registered'].map(cell).join(','),
+      ...items.map((i) => [i.id, i.institutionCode, i.name, i.type?.name, i.status, i.regionId, i.zoneId, i.subcityId, i.districtId, i.createdAt.toISOString()].map(cell).join(',')),
+    ].join('\n');
+  }
 
   async getInstitution(user: AuthenticatedUser, id: string) { const institution = await this.prisma.institution.findUnique({ where: { id }, include: { type: true, region: true, zone: true, subcity: true, district: true, leaders: true, staffSummary: true, education: true, statusHistory: { orderBy: { createdAt: 'asc' } } } }); if (!institution) throw new NotFoundException('Institution not found'); await this.authorization.assertCanAccess(user, { institutionId: id, regionId: institution.regionId, zoneId: institution.zoneId, subcityId: institution.subcityId, districtId: institution.districtId }); return institution; }
 
