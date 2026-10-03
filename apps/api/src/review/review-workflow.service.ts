@@ -28,26 +28,53 @@ export class ReviewWorkflowService {
     await this.authorization.assertCanAccess(user, resource);
   }
 
-  async queue(user: AuthenticatedUser, query: { type?: 'INDIVIDUAL'|'INSTITUTION'; status?: string; search?: string }) {
+  async queue(user: AuthenticatedUser, query: { type?: 'INDIVIDUAL'|'INSTITUTION'; status?: string; search?: string; page?: string; pageSize?: string }) {
     this.assertRole(user, REVIEW_ROLES);
+    const page = Math.max(1, Number(query.page ?? 1));
+    const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
     const individual = !query.type || query.type === 'INDIVIDUAL';
     const institution = !query.type || query.type === 'INSTITUTION';
     const result: any[] = [];
+    const jurisdictionWhere = this.queueJurisdictionWhere(user);
     if (individual) {
-      const where: any = { status: { in: [RegistrationStatus.SUBMITTED, RegistrationStatus.UNDER_REVIEW, RegistrationStatus.RESUBMITTED, RegistrationStatus.CORRECTION] } };
+      const where: any = { status: { in: [RegistrationStatus.SUBMITTED, RegistrationStatus.UNDER_REVIEW, RegistrationStatus.RESUBMITTED, RegistrationStatus.CORRECTION] }, ...jurisdictionWhere };
       if (query.status) where.status = query.status;
       if (query.search?.trim()) where.OR = [{ trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }, { firstName: { contains: query.search.trim(), mode: 'insensitive' } }, { lastName: { contains: query.search.trim(), mode: 'insensitive' } }];
-      const rows = await this.prisma.registration.findMany({ where, orderBy: { updatedAt: 'asc' }, take: 250 });
-      for (const row of rows) if (await this.authorization.canAccess(user, row)) result.push({ type: 'INDIVIDUAL', id: row.id, trackingCode: row.trackingCode, status: row.status, name: [row.firstName,row.middleName,row.lastName].filter(Boolean).join(' '), updatedAt: row.updatedAt, payment: await this.payments.getForApplication('INDIVIDUAL', row.id) });
+      const [rows,total] = await this.prisma.$transaction([
+        this.prisma.registration.findMany({ where, orderBy: { updatedAt: 'asc' }, skip: (page-1)*pageSize, take: pageSize }),
+        this.prisma.registration.count({ where }),
+      ]);
+      for (const row of rows) result.push({ type: 'INDIVIDUAL', id: row.id, trackingCode: row.trackingCode, status: row.status, name: [row.firstName,row.middleName,row.lastName].filter(Boolean).join(' '), updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), payment: await this.payments.getForApplication('INDIVIDUAL', row.id) });
+      if (institution) {
+        // institution branch below is independently paginated; combined queues use the same requested page size.
+      }
+      if (!institution) return { items: result, page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
     }
     if (institution) {
-      const where: any = { status: { in: [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED, InstitutionApplicationStatus.CORRECTION_REQUIRED] } };
+      const where: any = { status: { in: [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED, InstitutionApplicationStatus.CORRECTION_REQUIRED] }, ...jurisdictionWhere };
       if (query.status) where.status = query.status;
       if (query.search?.trim()) where.OR = [{ trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }, { institutionName: { contains: query.search.trim(), mode: 'insensitive' } }];
-      const rows = await this.prisma.institutionApplication.findMany({ where, include: { institutionType: true }, orderBy: { updatedAt: 'asc' }, take: 250 });
-      for (const row of rows) if (await this.authorization.canAccess(user, row)) { const template = await this.activeChecklist(row.institutionTypeId); result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, organizationType: row.institutionType.name, organizationTypeCode: row.institutionType.code, updatedAt: row.updatedAt, inspectionRequired: Boolean(template?.inspectionRequired), payment: await this.payments.getForApplication('INSTITUTION', row.id) }); }
+      const [rows,total] = await this.prisma.$transaction([
+        this.prisma.institutionApplication.findMany({ where, include: { institutionType: true }, orderBy: { updatedAt: 'asc' }, skip: (page-1)*pageSize, take: pageSize }),
+        this.prisma.institutionApplication.count({ where }),
+      ]);
+      for (const row of rows) { const template = await this.activeChecklist(row.institutionTypeId); result.push({ type: 'INSTITUTION', id: row.id, trackingCode: row.trackingCode, status: row.status, name: row.institutionName, organizationType: row.institutionType.name, organizationTypeCode: row.institutionType.code, updatedAt: row.updatedAt, ageHours: Math.max(0, (Date.now()-row.updatedAt.getTime())/3600000), inspectionRequired: Boolean(template?.inspectionRequired), payment: await this.payments.getForApplication('INSTITUTION', row.id) }); }
+      return { items: result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime()), page, pageSize, total, totalPages: Math.ceil(total/pageSize) };
     }
-    return result.sort((a,b) => a.updatedAt.getTime() - b.updatedAt.getTime());
+    return { items: result, page, pageSize, total: result.length, totalPages: Math.ceil(result.length/pageSize) };
+  }
+
+  private queueJurisdictionWhere(user: AuthenticatedUser) {
+    if (user.roles.includes(RoleCode.SUPER_ADMIN) || user.roles.includes(RoleCode.NATIONAL_ADMIN) || user.jurisdictionLevel === 'NATIONAL') return {};
+    if (!user.jurisdictionId) throw new ForbiddenException('A jurisdiction is required for queue access');
+    switch (user.jurisdictionLevel) {
+      case 'REGION': return { regionId: user.jurisdictionId };
+      case 'ZONE_CITY': return { zoneId: user.jurisdictionId };
+      case 'SUBCITY_TOWN': return { subcityId: user.jurisdictionId };
+      case 'DISTRICT': return { districtId: user.jurisdictionId };
+      case 'INSTITUTION': return { institutionId: user.institutionId ?? user.jurisdictionId };
+      default: return {};
+    }
   }
 
   async detail(user: AuthenticatedUser, type: 'INDIVIDUAL'|'INSTITUTION', id: string) {
