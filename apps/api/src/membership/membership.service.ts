@@ -150,10 +150,11 @@ export class MembershipService {
     const { member, institution } = await this.loadTarget(memberId, institutionId);
     const relationshipType = body.relationshipType ?? InstitutionRelationshipType.PRIMARY;
     await this.assertPrimaryAvailable(memberId, relationshipType, institutionId);
-    const existing = await this.prisma.memberInstitution.findUnique({
-      where: { memberId_institutionId: { memberId, institutionId } },
+    const existing = await this.prisma.memberInstitution.findFirst({
+      where: { memberId, institutionId, status: { in: [MembershipStatus.PENDING, MembershipStatus.ACTIVE, MembershipStatus.SUSPENDED] } },
+      orderBy: { createdAt: 'desc' },
     });
-    if (existing && [MembershipStatus.PENDING, MembershipStatus.ACTIVE, MembershipStatus.SUSPENDED].includes(existing.status)) {
+    if (existing) {
       throw new ConflictException('An active, suspended or pending membership already exists');
     }
 
@@ -205,7 +206,10 @@ export class MembershipService {
     const relationshipType = body.relationshipType ?? InstitutionRelationshipType.PRIMARY;
     await this.assertPrimaryAvailable(memberId, relationshipType, institutionId);
     const reason = this.cleanReason(body.reason);
-    const existing = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId } } });
+    const existing = await this.prisma.memberInstitution.findFirst({
+      where: { memberId, institutionId, status: { in: [MembershipStatus.PENDING, MembershipStatus.ACTIVE, MembershipStatus.SUSPENDED] } },
+      orderBy: { createdAt: 'desc' },
+    });
     if (existing?.status === MembershipStatus.ACTIVE) throw new ConflictException('Member is already associated with this institution');
 
     const now = new Date();
