@@ -173,6 +173,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
     return this.prisma.outboxEvent.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 500), include: { deliveries: { select: { id: true, channel: true, status: true, attempts: true, nextAttemptAt: true, lastError: true, sentAt: true } } } });
   }
 
+  async listDeliveries(limit = 100) { return this.prisma.notificationDelivery.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(Math.max(limit, 1), 500), include: { outboxEvent: { select: { eventId: true, eventType: true, aggregateType: true, aggregateId: true } }, recipient: { select: { id: true, email: true, phone: true } }, notification: { select: { id: true, type: true, status: true, sentAt: true, readAt: true } } } }); }
   async listDeliveryFailures(limit = 100) {
     return this.prisma.notificationDelivery.findMany({ where: { status: NotificationDeliveryStatus.FAILED }, orderBy: { updatedAt: 'desc' }, take: Math.min(Math.max(limit, 1), 500), include: { outboxEvent: { select: { eventId: true, eventType: true, aggregateType: true, aggregateId: true } }, recipient: { select: { id: true, email: true, phone: true } } } });
   }
