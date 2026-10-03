@@ -539,3 +539,24 @@ Still required before Phase 9 can be marked complete:
 - run Prisma/typecheck/lint/build/E2E validation.
 
 Phase 9 remains **implemented in part, not release-ready**.
+
+
+## 2026-10-03 — Phase 9 Queue/Reporting Hardening — IMPLEMENTED / VALIDATION PENDING
+
+Implemented:
+
+- Reviewer queue jurisdiction constraints remain enforced directly in database queries using the user's jurisdiction scope.
+- Unified reviewer queue pagination/count semantics were corrected: individual and institution queues are fetched in a deterministic common ordering, merged, then the requested global page is sliced; totals are independently counted.
+- Queue records now expose age/SLA indicators and the queue accepts a bounded configurable SLA threshold.
+- Added operational queue SLA reporting with open totals, overdue totals and status breakdown.
+- Added payment reconciliation reporting by payment status/method and date/jurisdiction scope.
+- Added application throughput reporting by application status plus correction/rejection metrics.
+- Added reviewer workload reporting for authorized reviewer/inspector actors.
+- Added Super Admin-only audit CSV export with action/entity/date filters.
+- Audit export generation itself is recorded as an audit event.
+- Added reporting UI sections for SLA, payment reconciliation and reviewer workload.
+- CSV export values are escaped to reduce spreadsheet formula/CSV injection risk.
+
+New report endpoints: /reports/queue-sla, /reports/throughput, /reports/payment-reconciliation, /reports/reviewer-workload, /reports/audit-export.
+
+Validation remains pending. Prisma validation/generation, migration deployment, typecheck, lint, unit tests, production build and E2E have not been run after the Phase 9 changes. Phase 9 is therefore implemented but not release-validated.
