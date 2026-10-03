@@ -154,14 +154,29 @@ export class ReportingService {
 
   async reviewerWorkload(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
     const { effectiveScope } = await this.scopedWhere(user, scope);
-    await this.authorization.assertCanAccess(user, effectiveScope);
     const createdAt = this.dateWhere(range);
-    const rows = await this.prisma.auditLog.groupBy({ by: ['actorUserId','action'], where: { actorUserId: { not: null }, action: { in: ['APPLICATION_SNAPSHOT_CAPTURED','APPLICATION_CORRECTION_BUILT','APPLICATION_APPROVED','APPLICATION_REJECTED','INSPECTION_UPDATED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } });
-    const ids = [...new Set(rows.map(r => r.actorUserId).filter((id): id is string => Boolean(id)))];
-    const users = await this.prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true, phone: true } });
-    return rows.map(row => ({ reviewer: users.find(u => u.id === row.actorUserId) ?? { id: row.actorUserId }, action: row.action, count: row._count._all }));
+    const candidates = await this.prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        roles: { some: { role: { code: { in: [RoleCode.REGISTRAR, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.INSPECTOR] } } } },
+      },
+      select: { id: true, email: true, phone: true, jurisdictionLevel: true, jurisdictionId: true, institutionId: true },
+    });
+    const authorized = candidates.filter((candidate) => {
+      if (!effectiveScope.regionId && !effectiveScope.zoneId && !effectiveScope.subcityId && !effectiveScope.districtId && !effectiveScope.institutionId) return true;
+      if (effectiveScope.institutionId) return candidate.institutionId === effectiveScope.institutionId || (candidate.jurisdictionLevel === 'INSTITUTION' && candidate.jurisdictionId === effectiveScope.institutionId);
+      return candidate.jurisdictionLevel === 'NATIONAL' || candidate.jurisdictionId === effectiveScope.regionId || candidate.jurisdictionId === effectiveScope.zoneId || candidate.jurisdictionId === effectiveScope.subcityId || candidate.jurisdictionId === effectiveScope.districtId;
+    });
+    const ids = authorized.map(candidate => candidate.id);
+    if (!ids.length) return [];
+    const rows = await this.prisma.auditLog.groupBy({
+      by: ['actorUserId','action'],
+      where: { actorUserId: { in: ids }, action: { in: ['APPLICATION_SNAPSHOT_CAPTURED','APPLICATION_CORRECTION_BUILT','APPLICATION_APPROVED','APPLICATION_REJECTED','INSPECTION_UPDATED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) },
+      _count: { _all: true },
+    });
+    const users = new Map(authorized.map(candidate => [candidate.id, candidate]));
+    return rows.map(row => ({ reviewer: users.get(row.actorUserId!) ?? { id: row.actorUserId }, action: row.action, count: row._count._all }));
   }
-
   async paymentReconciliation(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
     const { effectiveScope } = await this.scopedWhere(user, scope);
     const createdAt = this.dateWhere(range);
@@ -189,6 +204,7 @@ export class ReportingService {
     if (!user.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Super Admin permission required');
     const createdAt = this.dateWhere(filters);
     const rows = await this.prisma.auditLog.findMany({ where: { action: filters.action?.trim() ? { contains: filters.action.trim(), mode: 'insensitive' } : undefined, entityType: filters.entityType?.trim() ? { contains: filters.entityType.trim(), mode: 'insensitive' } : undefined, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, orderBy: { createdAt: 'desc' }, take: 10000, include: { actor: { select: { id: true, email: true, phone: true } } } });
+    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'AUDIT_EXPORT_GENERATED', entityType: 'AuditLog', entityId: null, metadata: { filters, rowCount: rows.length } } });
     return ['timestamp,actor,action,entityType,entityId,metadata', ...rows.map(row => [row.createdAt.toISOString(),row.actor?.email ?? row.actor?.phone ?? row.actorUserId,row.action,row.entityType,row.entityId,row.metadata ? JSON.stringify(row.metadata) : ''].map(this.csvCell).join(','))].join('\n');
   }
 
