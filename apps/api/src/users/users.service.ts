@@ -19,6 +19,7 @@ export class UsersService {
       const institution = await this.prisma.institution.findUnique({ where: { id: user.institutionId }, select: { id: true, regionId: true, zoneId: true, subcityId: true, districtId: true } });
       return institution ? { institutionId: institution.id, regionId: institution.regionId, zoneId: institution.zoneId, subcityId: institution.subcityId, districtId: institution.districtId } : {};
     }
+    if (user.jurisdictionLevel === JurisdictionLevel.INSTITUTION) return { institutionId: user.institutionId ?? user.jurisdictionId ?? undefined };
     if (!user.jurisdictionId || user.jurisdictionLevel === JurisdictionLevel.NATIONAL) return {};
     if (user.jurisdictionLevel === JurisdictionLevel.REGION) return { regionId: user.jurisdictionId };
     if (user.jurisdictionLevel === JurisdictionLevel.ZONE_CITY) {
@@ -58,7 +59,7 @@ export class UsersService {
       where.createdAt = createdAt;
     }
     if (query.role) where.roles = { some: { role: { code: query.role } } };
-    const candidates = await this.prisma.user.findMany({ where: { ...where, ...(actor.roles.includes(RoleCode.SUPER_ADMIN) || actor.roles.includes(RoleCode.NATIONAL_ADMIN) ? {} : await this.scopeWhere(actor)) }, include: { roles: { include: { role: true } } }, orderBy: [{ jurisdictionLevel: 'asc' }, { jurisdictionId: 'asc' }, { createdAt: 'desc' }] });
+    const candidates = await this.prisma.user.findMany({ where, include: { roles: { include: { role: true } } }, orderBy: [{ jurisdictionLevel: 'asc' }, { jurisdictionId: 'asc' }, { createdAt: 'desc' }] });
     const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId, institutionId: query.institutionId };
     if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(actor, requestedScope);
     const scoped = [];
