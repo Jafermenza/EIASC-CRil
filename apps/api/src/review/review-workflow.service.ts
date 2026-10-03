@@ -163,7 +163,7 @@ export class ReviewWorkflowService {
 
   async inspectionDetail(user: AuthenticatedUser, id: string) {
     this.assertRole(user, INSPECTION_ROLES);
-    const inspection = await this.prisma.inspection.findUnique({ where: { id }, include: { institutionApplication: true, registration: true, assignedTo: true } });
+    const inspection = await this.prisma.inspection.findUnique({ where: { id }, include: { institutionApplication: { include: { institutionType: true } }, registration: true, assignedTo: true, institutionType: true, checklistTemplate: true, inspectorAssignment: true } });
     if (!inspection) throw new NotFoundException('Inspection not found');
     if (user.roles.includes(RoleCode.INSPECTOR) && inspection.assignedToUserId !== user.id) throw new ForbiddenException('Inspection is not assigned to you');
     await this.scope(user, inspection.institutionApplication ?? inspection.registration ?? {});
@@ -204,6 +204,7 @@ export class ReviewWorkflowService {
     return {
       inspectionId: inspection.id,
       organizationType: { id: inspection.institutionTypeId, code: inspection.institutionTypeCode, name: inspection.institutionTypeName },
+      checklistTemplate: inspection.checklistTemplate ? { id: inspection.checklistTemplate.id, version: inspection.checklistTemplate.version, name: inspection.checklistTemplate.name } : null,
       checklistTemplateId: inspection.checklistTemplateId,
       checklist: inspection.checklistSnapshot,
       responses: inspection.checklistResponses,
