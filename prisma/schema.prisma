@@ -159,6 +159,20 @@ enum NotificationStatus {
   READ
 }
 
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
 enum AllocationPolicyStatus {
   DRAFT
   APPROVED
@@ -875,6 +889,7 @@ model AuditLog {
   metadata    Json?
   createdAt   DateTime  @default(now())
   actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  outboxEvents OutboxEvent[]
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
 }
@@ -918,7 +933,55 @@ model Notification {
   metadata    Json?
   createdAt   DateTime            @default(now())
   recipient   User                @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  deliveries  NotificationDelivery[]
   @@index([recipientId, status, createdAt])
+}
+
+model OutboxEvent {
+  id                String           @id @default(uuid()) @db.Uuid
+  eventId           String           @unique @db.Uuid
+  sourceAuditLogId  String           @unique @db.Uuid
+  eventType         String
+  aggregateType     String
+  aggregateId       String?          @db.Uuid
+  payload           Json
+  status            OutboxEventStatus @default(PENDING)
+  attempts          Int              @default(0)
+  availableAt       DateTime         @default(now())
+  lockedAt          DateTime?
+  processedAt       DateTime?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deliveries        NotificationDelivery[]
+  sourceAuditLog    AuditLog         @relation(fields: [sourceAuditLogId], references: [id], onDelete: Cascade)
+  @@index([status, availableAt])
+  @@index([aggregateType, aggregateId])
+  @@index([createdAt])
+}
+
+model NotificationDelivery {
+  id                String                    @id @default(uuid()) @db.Uuid
+  outboxEventId     String                    @db.Uuid
+  notificationId    String?                   @db.Uuid
+  recipientId       String                    @db.Uuid
+  channel           NotificationChannel
+  status            NotificationDeliveryStatus @default(PENDING)
+  attempts          Int                       @default(0)
+  nextAttemptAt     DateTime                  @default(now())
+  processingStartedAt DateTime?
+  sentAt            DateTime?
+  lastError         String?
+  providerMessageId String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  outboxEvent       OutboxEvent               @relation(fields: [outboxEventId], references: [id], onDelete: Cascade)
+  notification      Notification?             @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  recipient         User                      @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  @@unique([outboxEventId, recipientId, channel])
+  @@index([status, nextAttemptAt])
+  @@index([recipientId, createdAt])
+  @@index([notificationId])
 }
 
 model AllocationPolicy {
