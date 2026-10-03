@@ -29,6 +29,22 @@ export class AuthorizationService {
       const institution = await this.prisma.institution.findUnique({ where: { id: scope.institutionId } });
       if (!institution) return false;
       scope = { ...scope, regionId: institution.regionId, zoneId: institution.zoneId, subcityId: institution.subcityId, districtId: institution.districtId };
+    } else if (scope.districtId && (!scope.regionId || !scope.zoneId)) {
+      const district = await this.prisma.district.findUnique({ where: { id: scope.districtId }, select: { id: true, zoneId: true, subcityId: true } });
+      if (!district) return false;
+      const zone = await this.prisma.zoneCity.findUnique({ where: { id: district.zoneId }, select: { id: true, regionId: true } });
+      if (!zone) return false;
+      scope = { ...scope, regionId: zone.regionId, zoneId: zone.id, subcityId: district.subcityId, districtId: district.id };
+    } else if (scope.subcityId && (!scope.regionId || !scope.zoneId)) {
+      const subcity = await this.prisma.subcityTown.findUnique({ where: { id: scope.subcityId }, select: { id: true, zoneId: true } });
+      if (!subcity) return false;
+      const zone = await this.prisma.zoneCity.findUnique({ where: { id: subcity.zoneId }, select: { id: true, regionId: true } });
+      if (!zone) return false;
+      scope = { ...scope, regionId: zone.regionId, zoneId: zone.id, subcityId: subcity.id };
+    } else if (scope.zoneId && !scope.regionId) {
+      const zone = await this.prisma.zoneCity.findUnique({ where: { id: scope.zoneId }, select: { id: true, regionId: true } });
+      if (!zone) return false;
+      scope = { ...scope, regionId: zone.regionId, zoneId: zone.id };
     }
 
     if (!user.jurisdictionId) return false;
