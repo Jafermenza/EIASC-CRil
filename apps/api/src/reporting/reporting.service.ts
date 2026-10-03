@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { CredentialStatus, CredentialType, JurisdictionLevel, MemberStatus, Prisma } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
@@ -164,21 +164,27 @@ export class ReportingService {
 
   async paymentReconciliation(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
     const { effectiveScope } = await this.scopedWhere(user, scope);
-    await this.authorization.assertCanAccess(user, effectiveScope);
-    const rows = await this.prisma.$queryRaw<Array<{ status: string; method: string; count: bigint; amount: number }>>`
-      SELECT p."status", p."method", COUNT(*)::bigint AS "count", COALESCE(SUM(p."amount"),0)::numeric AS "amount"
-      FROM "RegistrationPayment" p
-      LEFT JOIN "Registration" r ON r."id"=p."registrationId"
-      LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
-      WHERE (${effectiveScope.regionId ? `COALESCE(r."regionId",ia."regionId") = '${effectiveScope.regionId}'` : 'TRUE'})
-        AND (${effectiveScope.zoneId ? `COALESCE(r."zoneId",ia."zoneId") = '${effectiveScope.zoneId}'` : 'TRUE'})
-        AND (${effectiveScope.subcityId ? `COALESCE(r."subcityId",ia."subcityId") = '${effectiveScope.subcityId}'` : 'TRUE'})
-        AND (${effectiveScope.districtId ? `COALESCE(r."districtId",ia."districtId") = '${effectiveScope.districtId}'` : 'TRUE'})
-        AND (${effectiveScope.institutionId ? `ia."institutionId" = '${effectiveScope.institutionId}'` : 'TRUE'})
-      GROUP BY p."status", p."method" ORDER BY p."status", p."method"`;
+    const createdAt = this.dateWhere(range);
+    const conditions = [
+      Prisma.sql`TRUE`,
+      effectiveScope.regionId ? Prisma.sql`COALESCE(r."regionId",ia."regionId") = ${effectiveScope.regionId}` : Prisma.sql`TRUE`,
+      effectiveScope.zoneId ? Prisma.sql`COALESCE(r."zoneId",ia."zoneId") = ${effectiveScope.zoneId}` : Prisma.sql`TRUE`,
+      effectiveScope.subcityId ? Prisma.sql`COALESCE(r."subcityId",ia."subcityId") = ${effectiveScope.subcityId}` : Prisma.sql`TRUE`,
+      effectiveScope.districtId ? Prisma.sql`COALESCE(r."districtId",ia."districtId") = ${effectiveScope.districtId}` : Prisma.sql`TRUE`,
+      effectiveScope.institutionId ? Prisma.sql`ia."institutionId" = ${effectiveScope.institutionId}` : Prisma.sql`TRUE`,
+      createdAt.gte ? Prisma.sql`p."createdAt" >= ${createdAt.gte}` : Prisma.sql`TRUE`,
+      createdAt.lt ? Prisma.sql`p."createdAt" < ${createdAt.lt}` : Prisma.sql`TRUE`,
+    ];
+    const rows = await this.prisma.$queryRaw<Array<{ status: string; method: string; count: bigint; amount: number }>>(
+      Prisma.sql`SELECT p."status", p."method", COUNT(*)::bigint AS "count", COALESCE(SUM(p."amount"),0)::numeric AS "amount"
+        FROM "RegistrationPayment" p
+        LEFT JOIN "Registration" r ON r."id"=p."registrationId"
+        LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
+        WHERE ${Prisma.join(conditions, ' AND ')}
+        GROUP BY p."status", p."method" ORDER BY p."status", p."method"`,
+    );
     return rows.map(row => ({ ...row, count: Number(row.count), amount: Number(row.amount) }));
   }
-
   async auditExport(user: AuthenticatedUser, filters: { action?: string; entityType?: string; from?: string; to?: string }) {
     if (!user.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Super Admin permission required');
     const createdAt = this.dateWhere(filters);
