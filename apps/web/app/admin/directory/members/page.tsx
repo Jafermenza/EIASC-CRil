@@ -100,7 +100,7 @@ export default function MembersDirectoryPage() {
           <div className="field"><label htmlFor="member-from">Registered from</label><input id="member-from" type="date" value={from} onChange={(e)=>{setFrom(e.target.value);setPage(1);}} /></div>
           <div className="field"><label htmlFor="member-to">Registered to</label><input id="member-to" type="date" value={to} onChange={(e)=>{setTo(e.target.value);setPage(1);}} /></div>
           <div className="field"><label htmlFor="member-status">Status</label><select id="member-status" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Inactive / suspended</option></select></div>
-          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : /button></div>
+          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : <> <Search size={16}/> Search</>}</button></div>
           <div className="field field-action"><button className="button button-secondary" onClick={() => void exportCsv()} disabled={!items.length}><Download size={16}/> Export CSV</button></div>
         </div>
       </section>
