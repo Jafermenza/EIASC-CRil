@@ -87,15 +87,6 @@ export class ReviewWorkflowService {
     return record;
   }
 
-  async setInspectionRequired(user: AuthenticatedUser, id: string, required: boolean) {
-    this.assertRole(user, REVIEW_ROLES);
-    const app = await this.prisma.institutionApplication.findUnique({ where: { id } });
-    if (!app) throw new NotFoundException('Application not found');
-    await this.scope(user, app);
-    const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { inspectionRequired: required } });
-    await this.audit(user, 'INSTITUTION', id, 'INSPECTION_REQUIREMENT_CHANGED', { required });
-    return updated;
-  }
 
   private async activeChecklist(institutionTypeId: string) {
     return this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId, active: true }, orderBy: { version: 'desc' } });
