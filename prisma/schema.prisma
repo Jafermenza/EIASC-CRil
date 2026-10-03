@@ -207,8 +207,8 @@ model User {
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
   notifications      Notification[]
+  notificationDeliveries NotificationDelivery[]
   membershipHistory  MemberInstitutionHistory[]
-  membershipHistory      MemberInstitutionHistory[]
   reviewSnapshots      ApplicationReviewSnapshot[]
   correctionRequests   ApplicationCorrection[]
   assignedInspections  Inspection[]
@@ -576,6 +576,7 @@ model Inspection {
   id                         String             @id @default(uuid()) @db.Uuid
   registrationId             String?            @db.Uuid
   institutionApplicationId  String?            @db.Uuid
+  licenseId                  String?            @db.Uuid
   assignedToUserId           String             @db.Uuid
   institutionTypeId          String?            @db.Uuid
   inspectorAssignmentId      String?            @db.Uuid
