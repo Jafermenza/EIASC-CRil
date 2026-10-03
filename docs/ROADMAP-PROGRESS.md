@@ -490,3 +490,31 @@ Important implementation boundary:
 Validation status:
 - Prisma migration/type generation, typecheck, lint, unit tests and acceptance tests have **not yet been run after these Phase 8 changes** in the current environment.
 - Phase 8 must not be marked release-complete until those gates are executed and any generated-client/schema issues are corrected.
+
+
+## 2026-10-03 — Phase 8 Durable Events & Notifications — IMPLEMENTED / VALIDATION PENDING
+
+Phase 8 builds on the existing M9 notification architecture and replaces best-effort recent audit polling with a durable, retryable delivery pipeline.
+
+Implemented on the current reconciliation branch:
+
+- Durable outbox: notification-worthy audit events are materialized into OutboxEvent records. The audit-log UUID is reused as the stable eventId, with a unique source-audit-log constraint preventing duplicate event creation.
+- Processing state: outbox events track PENDING → PROCESSING → PROCESSED/FAILED, attempt counts, availability time, lock time and the last processing error.
+- Idempotent delivery records: each event/recipient/channel combination has one NotificationDelivery row protected by a database unique constraint.
+- Channel retry state: delivery records track PENDING → PROCESSING → SENT/FAILED, attempts, next retry time, processing start time, provider message ID and last error.
+- Retry/backoff: failed deliveries use bounded exponential retry scheduling and stale PROCESSING work is recovered after ten minutes. Eight attempts are retained as the terminal retry boundary.
+- Notification history: each durable delivery is linked to the persisted Notification record; recipient history remains available through the existing notification API and Super Admin delivery-history monitoring.
+- Provider idempotency: email deliveries pass the stable delivery UUID as the Resend idempotency key. Internal database uniqueness prevents duplicate delivery jobs; SMS remains retryable while provider-level duplicate suppression depends on the SMS provider contract.
+- Monitoring: Super Admin endpoints and the notification settings workspace now expose outbox status, delivery status, recent sent history and failed-delivery retry details.
+- Existing business notifications: registration, institution application, licensing, membership and credential events continue to use the same recipient-resolution and template system, now backed by durable delivery state.
+- Schema repair: the Phase 8 relation between AuditLog and OutboxEvent is explicit, and the duplicate User.membershipHistory relation introduced during earlier increments was removed.
+
+Migration:
+- prisma/migrations/20261003190000_phase8_durable_events_notifications/migration.sql
+
+Validation:
+- Prisma validation/generation, migration deployment, typecheck, lint, production build and the Phase 8 Playwright acceptance gate have not been executed after these latest Phase 8 changes in this environment.
+- Therefore Phase 8 is recorded as implemented but not validated/released.
+
+Next action:
+- Run Prisma validation/generation and migration deployment first; then typecheck/lint/unit tests, production build and the dedicated Phase 8 E2E. Fix only actual gate failures and record each remediation before moving to Phase 9.
