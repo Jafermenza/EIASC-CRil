@@ -29,10 +29,6 @@ export class ReviewWorkflowController {
   @Post(':type/:id/correction')
   correction(@Req() req: AuthenticatedRequest, @Param('type') type: 'INDIVIDUAL'|'INSTITUTION', @Param('id') id: string, @Body() body: { reason?: string; fields?: Array<{ field: string; instruction: string }> }) { return this.workflow.requestCorrection(req.user!, type, id, body?.reason ?? '', body?.fields ?? []); }
 
-  @Roles(...REVIEW_ROLES)
-  @Put('institution/:id/inspection-required')
-  inspectionRequired(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { required?: boolean }) { return this.workflow.setInspectionRequired(req.user!, id, Boolean(body?.required)); }
-
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGISTRAR)
   @Get('checklists')
   checklists(@Req() req: AuthenticatedRequest) { return this.workflow.listChecklistTemplates(req.user!); }
