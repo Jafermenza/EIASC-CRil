@@ -436,3 +436,17 @@ M12 Production Hardening / UAT      ← LOCAL READINESS PASS / GO-LIVE PENDING
 ## Commit documentation rule
 
 Do not batch unrelated milestone progress into an undocumented series. If CI fails, record the failure and remediation commit. Never mark a milestone complete from code alone.
+
+
+## Phase 7 — Licensing closure (2026-10-03)
+
+Implementation recorded on the existing engine branch:
+- institution self-service licensing entry and API authorization;
+- license-to-inspection first-class relation;
+- organization-type checklist driven licensing inspection assignment;
+- inspector role/jurisdiction enforcement;
+- approval blocked when required inspection is missing, stale, incomplete, or not PASS/CONDITIONAL;
+- licensing lifecycle audit coverage retained for issue/suspend/restore/revoke/renew;
+- Phase 7 migration: `20261003170000_phase7_license_inspection`.
+
+Still open: dedicated licensing payment flow/gate, configurable licensing document checklist, richer license-specific reviewer workspace, and full post-change validation.
