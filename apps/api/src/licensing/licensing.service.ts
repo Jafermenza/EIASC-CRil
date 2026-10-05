@@ -121,7 +121,7 @@ export class LicensingService {
     const license = await this.get(user, id);
     if (license.applicationStatus !== LicenseApplicationStatus.UNDER_REVIEW) throw new ConflictException('License must be under review before inspection assignment');
     const institution = await this.prisma.institution.findUnique({ where: { id: license.institutionId }, include: { type: true } });
-    if (!institution?.institutionTypeId || !institution.institutionType) throw new ConflictException('Institution organization type is required for licensing inspection');
+    if (!institution?.institutionTypeId || !institution.type) throw new ConflictException('Institution organization type is required for licensing inspection');
     const template = await this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId: institution.institutionTypeId, active: true }, orderBy: { version: 'desc' } });
     if (!template?.inspectionRequired) throw new ConflictException('Inspection is not required for this organization type');
     const inspector = await this.prisma.user.findUnique({ where: { id: inspectorUserId }, include: { roles: { include: { role: true } } } });
