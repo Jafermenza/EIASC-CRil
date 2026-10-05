@@ -261,7 +261,7 @@ export class MembershipService {
     if (!allowed[membership.status].includes(status)) {
       throw new ConflictException(`Invalid membership transition: ${membership.status} -> ${status}`);
     }
-    if ([MembershipStatus.SUSPENDED, MembershipStatus.ENDED].includes(status) && !cleanReason) {
+    if ((status === MembershipStatus.SUSPENDED || status === MembershipStatus.ENDED) && !cleanReason) {
       throw new BadRequestException('A reason is required for suspension or ending');
     }
     if (status === MembershipStatus.ACTIVE) await this.assertPrimaryAvailable(membership.memberId, membership.relationshipType, membership.institutionId);
