@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { CredentialStatus, CredentialType, JurisdictionLevel, MemberStatus, Prisma } from '@prisma/client';
+import { CredentialStatus, CredentialType, JurisdictionLevel, MemberStatus, Prisma, RoleCode } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
@@ -127,15 +127,16 @@ export class ReportingService {
   }
 
   async queueSla(user: AuthenticatedUser, scope: Scope, slaHours = 48) {
-    const { applicationWhere } = await this.scopedWhere(user, scope);
+    const { applicationWhere, memberWhere } = await this.scopedWhere(user, scope);
+    const registrationWhere: Prisma.RegistrationWhereInput = { regionId: typeof memberWhere.regionId === 'string' ? memberWhere.regionId : undefined, zoneId: typeof memberWhere.zoneId === 'string' ? memberWhere.zoneId : undefined, subcityId: typeof memberWhere.subcityId === 'string' ? memberWhere.subcityId : undefined, districtId: typeof memberWhere.districtId === 'string' ? memberWhere.districtId : undefined };
     const cutoff = new Date(Date.now() - Math.max(1, Math.min(720, slaHours)) * 3600000);
     const [institution, individual] = await Promise.all([
       this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION_REQUIRED'] } }, _count: { _all: true } }),
-      this.prisma.registration.groupBy({ by: ['status'], where: { regionId: applicationWhere.regionId, zoneId: applicationWhere.zoneId, subcityId: applicationWhere.subcityId, districtId: applicationWhere.districtId, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] } }, _count: { _all: true } }),
+      this.prisma.registration.groupBy({ by: ['status'], where: { ...registrationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] } }, _count: { _all: true } }),
     ]);
     const overdueInstitution = await this.prisma.institutionApplication.count({ where: { ...applicationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION_REQUIRED'] }, updatedAt: { lt: cutoff } } });
-    const overdueIndividual = await this.prisma.registration.count({ where: { regionId: applicationWhere.regionId, zoneId: applicationWhere.zoneId, subcityId: applicationWhere.subcityId, districtId: applicationWhere.districtId, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] }, updatedAt: { lt: cutoff } } });
-    return { slaHours, cutoff, totals: { institution: institution.reduce((n, x) => n + x._count._all, 0), individual: individual.reduce((n, x) => n + x._count._all, 0) }, overdue: { institution: overdueInstitution, individual: overdueIndividual }, byStatus: { institution, individual } };
+    const overdueIndividual = await this.prisma.registration.count({ where: { ...registrationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] }, updatedAt: { lt: cutoff } } });
+    return { slaHours, cutoff, totals: { institution: institution.reduce((n, x) => n + Number((x._count as { _all?: number } | undefined)?._all ?? 0), 0), individual: individual.reduce((n, x) => n + Number((x._count as { _all?: number } | undefined)?._all ?? 0), 0) }, overdue: { institution: overdueInstitution, individual: overdueIndividual }, byStatus: { institution, individual } };
   }
 
   async applicationThroughput(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
@@ -148,7 +149,7 @@ export class ReportingService {
     ]);
     const [corrections, rejections] = await Promise.all([
       this.prisma.applicationCorrection.count({ where: { ...(Object.keys(createdAt).length ? { createdAt } : {}), OR: [{ institutionApplication: applicationWhere }, { registration: registrationWhere }] } }),
-      this.prisma.auditLog.count({ where: { action: { in: ['APPLICATION_CORRECTION_BUILT','APPLICATION_REJECTED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) } }),
+      this.prisma.auditLog.count({ where: { action: 'APPLICATION_REJECTED', entityId: { not: null }, ...(Object.keys(createdAt).length ? { createdAt } : {}) } }),
     ]);
     return { range, institution, individual, corrections, rejections };
   }
