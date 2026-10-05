@@ -113,7 +113,7 @@ export class ReviewWorkflowService {
   async requestCorrection(user: AuthenticatedUser, type: 'INDIVIDUAL'|'INSTITUTION', id: string, reason: string, fields: Array<{ field: string; instruction: string }> = []) {
     this.assertRole(user, REVIEW_ROLES);
     if (!reason?.trim()) throw new BadRequestException('reason is required');
-    const data = await this.detail(user, type, id);
+    await this.detail(user, type, id);
     if (type === 'INDIVIDUAL') await this.registrations.requestApplicationCorrection(user, id, reason);
     else await this.institutions.requestCorrection(user, id, reason);
     const record = await this.prisma.applicationCorrection.create({ data: { registrationId: type === 'INDIVIDUAL' ? id : undefined, institutionApplicationId: type === 'INSTITUTION' ? id : undefined, requestedByUserId: user.id, reason: reason.trim(), fields } });
@@ -252,7 +252,6 @@ export class ReviewWorkflowService {
       data.report = { organizationType: { code: (inspection as any).institutionTypeCode, name: (inspection as any).institutionTypeName }, checklistTemplateId: (inspection as any).checklistTemplateId, checklist: responses, findings: input.findings ?? (inspection as any).findings ?? null, decision: input.decision ?? (inspection as any).decision };
     }
     const updated = await this.prisma.inspection.update({ where: { id }, data });
-    const entityType = inspection.institutionApplicationId ? 'InstitutionApplication' : 'Registration';
     const entityId = inspection.institutionApplicationId ?? inspection.registrationId!;
     await this.audit(user, inspection.institutionApplicationId ? 'INSTITUTION' : 'INDIVIDUAL', entityId, 'INSPECTION_UPDATED', { inspectionId: id, changes: input, decision: updated.decision, status: updated.status });
     return updated;
