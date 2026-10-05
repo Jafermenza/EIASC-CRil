@@ -366,6 +366,8 @@ model InstitutionType {
   institutions  Institution[]
   applications  InstitutionApplication[]
   inspectionChecklistTemplates InspectionChecklistTemplate[]
+  inspectorAssignments InspectorAssignment[]
+  inspections Inspection[]
   credentialTypes Credential[] @relation("CredentialInstitutionType")
 }
 
@@ -408,10 +410,6 @@ model Institution {
   staffSummary        InstitutionStaffSummary?
   education           InstitutionEducation?
   documents           InstitutionDocument[]
-  amendments          InstitutionApplicationAmendment[]
-  reviewSnapshots     ApplicationReviewSnapshot[]
-  correctionRequests  ApplicationCorrection[]
-  inspections         Inspection[]
   statusHistory       InstitutionStatusHistory[]
   licenses            License[]
   credentials         Credential[]
