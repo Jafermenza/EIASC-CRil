@@ -74,7 +74,7 @@ export class PaymentsService {
     const providerStatus = String(paymentData?.status ?? '').toLowerCase();
     if (providerStatus === 'success') {
       if (expectedAmount !== undefined && Number(paymentData?.amount) !== Number(expectedAmount)) throw new ConflictException('Chapa payment amount does not match the required registration fee');
-      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='PAID', "providerReference"=${paymentData.reference ?? null}, "verifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
+      await this.prisma.$executeRaw`UPDATE "RegistrationPayment" SET "status"='PAID', "providerReference"=${paymentData?.reference ?? null}, "verifiedAt"=CURRENT_TIMESTAMP, "updatedAt"=CURRENT_TIMESTAMP WHERE "referenceNumber"=${ref} AND "method"='CHAPA'`;
       return { paid: true, data: paymentData };
     }
     if (['failed', 'cancelled', 'canceled', 'expired'].includes(providerStatus)) {
@@ -159,7 +159,7 @@ export class PaymentsService {
       if (!app) throw new NotFoundException('Application not found');
       const status = await this.statusForApplication(kind, app.id);
       if (status.status === 'PAID') return { alreadyPaid: true, status };
-      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone, trackingCode: code });
+      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone ?? undefined, trackingCode: code });
     }
     const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, institutionName: true, email: true, phone: true } });
     if (!app) throw new NotFoundException('Application not found');
