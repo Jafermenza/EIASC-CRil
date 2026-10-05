@@ -68,7 +68,7 @@ jobs:
 
       - name: Lint
         run: |
-          FILES=$(find apps -type f \( -name '*.ts' -o -name '*.tsx' \) ! -path 'apps/web/next-env.d.ts' ! -path 'apps/web/app/admin/review/page.tsx')
+          FILES=$(find apps -type f \( -name '*.ts' -o -name '*.tsx' \) ! -path '*/node_modules/*' ! -path '*/.next/*' ! -path 'apps/web/next-env.d.ts' ! -path 'apps/web/app/admin/review/page.tsx')
           npx eslint $FILES
 
       - name: Unit tests
