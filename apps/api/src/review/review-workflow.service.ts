@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InspectionDecision, InspectionStatus, InstitutionApplicationStatus, RegistrationStatus, RoleCode } from '@prisma/client';
+import { InspectionDecision, InspectionStatus, InstitutionApplicationStatus, RegistrationStatus, RoleCode, Prisma } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PaymentsService } from '../payments/payments.service';
@@ -190,7 +190,7 @@ export class ReviewWorkflowService {
     const version = (latest?.version ?? 0) + 1;
     const record = await this.prisma.$transaction(async (tx) => {
       await tx.inspectionChecklistTemplate.updateMany({ where: { institutionTypeId, active: true }, data: { active: false } });
-      return tx.inspectionChecklistTemplate.create({ data: { institutionTypeId, version, name: input.name.trim(), description: input.description?.trim(), inspectionRequired: Boolean(input.inspectionRequired), items: input.items, active: true } });
+      return tx.inspectionChecklistTemplate.create({ data: { institutionTypeId, version, name: input.name.trim(), description: input.description?.trim(), inspectionRequired: Boolean(input.inspectionRequired), items: input.items as Prisma.InputJsonValue, active: true } });
     });
     await this.audit(user, 'INSTITUTION', institutionTypeId, 'INSPECTION_CHECKLIST_UPDATED', { templateId: record.id, version, inspectionRequired: record.inspectionRequired, institutionType: type.name });
     return record;
@@ -212,7 +212,7 @@ export class ReviewWorkflowService {
     const inspection = await this.prisma.inspection.create({ data: {
       institutionApplicationId: id, assignedToUserId: inspectorUserId, inspectorAssignmentId: assignment.id, institutionTypeId: app.institutionTypeId,
       checklistTemplateId: template.id, institutionTypeCode: app.institutionType.code, institutionTypeName: app.institutionType.name,
-      checklistSnapshot: template.items, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+      checklistSnapshot: template.items as Prisma.InputJsonValue, scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
     } });
     await this.audit(user, 'INSTITUTION', id, 'INSPECTION_ASSIGNED', { inspectionId: inspection.id, inspectorUserId, inspectorAssignmentId: assignment.id, checklistTemplateId: template.id, organizationType: app.institutionType.code, scheduledAt });
     return inspection;
@@ -251,6 +251,7 @@ export class ReviewWorkflowService {
       data.checklistResponses = responses;
       data.report = { organizationType: { code: (inspection as any).institutionTypeCode, name: (inspection as any).institutionTypeName }, checklistTemplateId: (inspection as any).checklistTemplateId, checklist: responses, findings: input.findings ?? (inspection as any).findings ?? null, decision: input.decision ?? (inspection as any).decision };
     }
+    const updated = await this.prisma.inspection.update({ where: { id }, data });
     const entityType = inspection.institutionApplicationId ? 'InstitutionApplication' : 'Registration';
     const entityId = inspection.institutionApplicationId ?? inspection.registrationId!;
     await this.audit(user, inspection.institutionApplicationId ? 'INSTITUTION' : 'INDIVIDUAL', entityId, 'INSPECTION_UPDATED', { inspectionId: id, changes: input, decision: updated.decision, status: updated.status });
