@@ -144,7 +144,7 @@ export class ReportingService {
     const createdAt = this.dateWhere(range);
     const [institution, individual] = await Promise.all([
       this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
-      this.prisma.registration.groupBy({ by: ['status'], where: { regionId: memberWhere.regionId, zoneId: memberWhere.zoneId, subcityId: memberWhere.subcityId, districtId: memberWhere.districtId, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
+      this.prisma.registration.groupBy({ by: ['status'], where: { ...registrationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
     ]);
     const [corrections, rejections] = await Promise.all([
       this.prisma.applicationCorrection.count({ where: { ...(Object.keys(createdAt).length ? { createdAt } : {}), OR: [{ institutionApplication: applicationWhere }, { registration: registrationWhere }] } }),
