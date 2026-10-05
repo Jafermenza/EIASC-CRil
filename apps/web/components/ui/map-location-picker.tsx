@@ -68,8 +68,6 @@ export default function MapLocationPicker({ latitude, longitude, onPick }: Props
 function RecenterOnPin({ hasPin, lat, lng }: { hasPin: boolean; lat: number; lng: number }) {
   const map = useMapEvents({});
   useEffect(() => {
-    if (hasPin) map.setView([lat, lng], Math.max(map.getZoom(), 13));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasPin, lat, lng]);
+    if (hasPin) map.setView([lat, lng], Math.max(map.getZoom(), 13));}, [hasPin, lat, lng]);
   return null;
 }
