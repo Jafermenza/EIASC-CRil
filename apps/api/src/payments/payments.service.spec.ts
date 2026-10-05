@@ -20,7 +20,7 @@ describe('PaymentsService', () => {
   let service: PaymentsService;
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     settings.getPublic.mockResolvedValue({ individual: 100, institution: 500, banks: [{ id: 'bank-1', bankName: 'Test Bank', accountName: 'EIASC', accountNumber: '123', branch: null }] });
     service = new PaymentsService(prisma, settings, authorization, notifications);
     delete process.env.CHAPA_SECRET_KEY;
@@ -39,9 +39,9 @@ describe('PaymentsService', () => {
     expect(result).toMatchObject({ method: 'TELEBIRR', referenceNumber: 'TB-12345', amount: 500 });
   });
 
-  it('rejects manual verification of Chapa payments', async () => {
-    prisma.$queryRaw.mockResolvedValueOnce([{ id: '1', method: 'CHAPA' }]);
-    await expect(service.verifyManual('1', 'user-1', true)).rejects.toBeInstanceOf(BadRequestException);
+  it('rejects manual review of Chapa payments', async () => {
+    prisma.$queryRaw.mockResolvedValueOnce([{ id: '1', method: 'CHAPA', registrationId: 'r1', institutionApplicationId: null, regionId: null, zoneId: null, subcityId: null, districtId: null }]);
+    await expect(service.review('1', { id: 'user-1', email: null, phone: null, status: 'ACTIVE', roles: ['FINANCE_OFFICER'] as any, jurisdictionLevel: 'NATIONAL' as any, jurisdictionId: null, institutionId: null }, 'VERIFY')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('blocks approval when the linked payment is not paid', async () => {
