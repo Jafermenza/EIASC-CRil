@@ -136,7 +136,7 @@ export class InstitutionsService {
   private async transition(user: AuthenticatedUser, id: string, target: InstitutionApplicationStatus, reason: string) { const app = await this.detail(user, id); const valid: Record<InstitutionApplicationStatus, InstitutionApplicationStatus[]> = { DRAFT: [InstitutionApplicationStatus.SUBMITTED], SUBMITTED: [InstitutionApplicationStatus.UNDER_REVIEW], UNDER_REVIEW: [InstitutionApplicationStatus.CORRECTION_REQUIRED, InstitutionApplicationStatus.APPROVED, InstitutionApplicationStatus.REJECTED], CORRECTION_REQUIRED: [InstitutionApplicationStatus.RESUBMITTED], RESUBMITTED: [InstitutionApplicationStatus.UNDER_REVIEW], APPROVED: [], REJECTED: [] }; if (!valid[app.status].includes(target)) throw new ConflictException(`Invalid application transition: ${app.status} -> ${target}`); if (!reason.trim()) throw new BadRequestException('Reason is required'); return { app, reason: this.require(reason, 'reason') }; }
 
   async review(user: AuthenticatedUser, id: string) {
-    const app = await this.transition(user, id, InstitutionApplicationStatus.UNDER_REVIEW, 'Review started');
+    const { app } = await this.transition(user, id, InstitutionApplicationStatus.UNDER_REVIEW, 'Review started');
     const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.UNDER_REVIEW } });
     await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: 'Review started', actorUserId: user.id } });
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'INSTITUTION_REVIEW_STARTED', entityType: 'InstitutionApplication', entityId: id, metadata: { fromStatus: app.status, toStatus: updated.status } } });
@@ -154,7 +154,8 @@ export class InstitutionsService {
     });
     if (!app) throw new NotFoundException('Institution application not found');
     await this.authorization.assertCanAccess(user, app);
-    if (![InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED].includes(app.status)) {
+    const approvableStatuses: InstitutionApplicationStatus[] = [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED];
+    if (!approvableStatuses.includes(app.status)) {
       throw new ConflictException(`Cannot approve a ${app.status.toLowerCase()} application`);
     }
     await this.payments.assertPaid('INSTITUTION', id);
@@ -281,7 +282,7 @@ export class InstitutionsService {
 
   async removeMember(user: AuthenticatedUser, id: string, memberId: string) {
     await this.getInstitution(user, id);
-    const relation = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId: id } } });
+    const relation = await this.prisma.memberInstitution.findFirst({ where: { memberId, institutionId: id, status: MembershipStatus.ACTIVE }, orderBy: { createdAt: 'desc' } });
     if (!relation || relation.status !== MembershipStatus.ACTIVE) throw new NotFoundException('Active membership relationship not found');
     return this.memberships.setStatus(user, relation.id, MembershipStatus.ENDED, 'Institution removed member');
   }
