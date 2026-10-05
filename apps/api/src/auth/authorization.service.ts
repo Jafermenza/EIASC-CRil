@@ -31,7 +31,7 @@ export class AuthorizationService {
       scope = { ...scope, regionId: institution.regionId, zoneId: institution.zoneId, subcityId: institution.subcityId, districtId: institution.districtId };
     } else if (scope.districtId && (!scope.regionId || !scope.zoneId)) {
       const district = await this.prisma.district.findUnique({ where: { id: scope.districtId }, select: { id: true, zoneId: true, subcityId: true } });
-      if (!district) return false;
+      if (!district || !district.zoneId) return false;
       const zone = await this.prisma.zoneCity.findUnique({ where: { id: district.zoneId }, select: { id: true, regionId: true } });
       if (!zone) return false;
       scope = { ...scope, regionId: zone.regionId, zoneId: zone.id, subcityId: district.subcityId, districtId: district.id };
