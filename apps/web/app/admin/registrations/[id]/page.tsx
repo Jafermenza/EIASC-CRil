@@ -23,12 +23,6 @@ export default function IndividualRegistrationReviewPage() {
   }
   useEffect(() => { if (params.id) void load().catch((reason) => setError(reason instanceof Error ? reason.message : 'Unable to load registration.')); }, [params.id]);
 
-  async function openDocument(id: string, fileName: string) {
-    const response = await fetch(API + '/registrations/individual/admin/documents/' + encodeURIComponent(id), { headers: { authorization: 'Bearer ' + (localStorage.getItem('accessToken') || '') } });
-    if (!response.ok) throw new Error('Unable to open document.');
-    const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.target = '_blank'; anchor.rel = 'noopener'; anchor.download = fileName; anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 30000);
-  }
-
   async function action(path: string, body?: Record<string, string>) {
     setBusy(true); setError('');
     try {
