@@ -10,7 +10,7 @@ import { AuthenticatedUser } from '../auth/auth.types';
 const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
 const MAX_SIZE = 10 * 1024 * 1024;
 const EDITABLE_STATUSES: RegistrationStatus[] = [RegistrationStatus.DRAFT, RegistrationStatus.CORRECTION];
-const REVIEW_ROLES = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR];
+const REVIEW_ROLES = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR];
 
 @Injectable()
 export class RegistrationDocumentsService {
