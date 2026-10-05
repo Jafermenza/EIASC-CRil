@@ -10,7 +10,7 @@ describe('RegistrationsService', () => {
     auditLog: { create: jest.fn() },
   };
   const locations = { validateHierarchy: jest.fn() };
-  const payments = { validateForSubmission: jest.fn(), attachToApplication: jest.fn() };
+  const payments = { statusForApplication: jest.fn().mockResolvedValue({ required: true, amount: 100, currency: 'ETB', status: 'REQUIRED', nextAction: 'Payment is required.' }), validateForSubmission: jest.fn(), attachToApplication: jest.fn() };
   const service = new RegistrationsService(prisma as never, locations as never, payments as never);
 
   const input = {
