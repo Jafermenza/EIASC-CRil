@@ -1,5 +1,5 @@
-import { Prisma,  ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { LicenseApplicationStatus, LicenseStatus, RoleCode } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { LicenseApplicationStatus, LicenseStatus, Prisma, RoleCode } from '@prisma/client';
 import { createOpaqueToken } from '../auth/crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
