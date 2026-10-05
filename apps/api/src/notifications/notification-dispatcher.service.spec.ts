@@ -15,6 +15,7 @@ describe('NotificationDispatcherService', () => {
       notificationDelivery: {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
         ...overrides.notificationDelivery as object,
       },
       license: { findUnique: jest.fn() },
@@ -73,7 +74,7 @@ describe('NotificationDispatcherService', () => {
   });
 
   it('processes persisted delivery work rather than sending directly from the audit scan', async () => {
-    const { service, notifications, prisma } = service({
+    const { service, notifications, prisma } = makeService({
       notificationDelivery: {
         createMany: jest.fn(),
         findMany: jest.fn().mockResolvedValue([{ id: 'delivery-1' }]),
