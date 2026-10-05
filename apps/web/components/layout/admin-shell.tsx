@@ -12,7 +12,6 @@ import {
   FileCheck2,
   LayoutDashboard,
   LogOut,
-  Receipt,
   Settings2,
   Shield,
   UsersRound,
