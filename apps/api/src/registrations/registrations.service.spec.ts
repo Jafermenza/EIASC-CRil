@@ -95,7 +95,7 @@ describe('RegistrationsService', () => {
       correctionReason: null, rejectionReason: null, decisionAt: null,
     });
     const result = await service.track(' eiasc-2026-abc123 ', '+251900000000', 'amina');
-    expect(result).toEqual(expect.objectContaining({ trackingCode: 'EIASC-2026-ABC123', status: 'SUBMITTED', nextAction: 'Wait for EIASC review' }));
+    expect(result).toEqual(expect.objectContaining({ trackingCode: 'EIASC-2026-ABC123', status: 'SUBMITTED', nextAction: 'Payment is required.' }));
     expect(result).not.toHaveProperty('phone');
     expect(result).not.toHaveProperty('firstName');
   });
