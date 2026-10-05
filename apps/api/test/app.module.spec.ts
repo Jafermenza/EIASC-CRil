@@ -2,6 +2,7 @@ import { jest } from '@jest/globals';
 import { Test } from '@nestjs/testing';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma.service';
+import { MembershipService } from '../src/membership/membership.service';
 
 describe('MVP foundation', () => {
   it('compiles the API module without a live database', async () => {
@@ -12,6 +13,8 @@ describe('MVP foundation', () => {
       const module = await Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(PrismaService)
         .useValue({ $connect: jest.fn(), $disconnect: jest.fn(), $queryRaw: jest.fn() })
+        .overrideProvider(MembershipService)
+        .useValue({})
         .compile();
       expect(module).toBeDefined();
     } finally {
