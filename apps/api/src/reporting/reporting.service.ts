@@ -140,13 +140,14 @@ export class ReportingService {
 
   async applicationThroughput(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
     const { applicationWhere, memberWhere } = await this.scopedWhere(user, scope);
+    const registrationWhere: Prisma.RegistrationWhereInput = { regionId: memberWhere.regionId as string | undefined, zoneId: memberWhere.zoneId as string | undefined, subcityId: memberWhere.subcityId as string | undefined, districtId: memberWhere.districtId as string | undefined };
     const createdAt = this.dateWhere(range);
     const [institution, individual] = await Promise.all([
       this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
       this.prisma.registration.groupBy({ by: ['status'], where: { regionId: memberWhere.regionId, zoneId: memberWhere.zoneId, subcityId: memberWhere.subcityId, districtId: memberWhere.districtId, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
     ]);
     const [corrections, rejections] = await Promise.all([
-      this.prisma.applicationCorrection.count({ where: { ...(Object.keys(createdAt).length ? { createdAt } : {}), OR: [{ institutionApplication: applicationWhere }, { registration: { regionId: memberWhere.regionId, zoneId: memberWhere.zoneId, subcityId: memberWhere.subcityId, districtId: memberWhere.districtId } }] } }),
+      this.prisma.applicationCorrection.count({ where: { ...(Object.keys(createdAt).length ? { createdAt } : {}), OR: [{ institutionApplication: applicationWhere }, { registration: registrationWhere }] } }),
       this.prisma.auditLog.count({ where: { action: { in: ['APPLICATION_CORRECTION_BUILT','APPLICATION_REJECTED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) } }),
     ]);
     return { range, institution, individual, corrections, rejections };
