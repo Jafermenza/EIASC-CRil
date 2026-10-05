@@ -158,9 +158,10 @@ export class PaymentsService {
     if (kind === 'INDIVIDUAL') {
       const app = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { id: true, firstName: true, lastName: true, email: true, phone: true } });
       if (!app) throw new NotFoundException('Application not found');
+      if (!app.phone?.trim()) throw new BadRequestException('A registered phone number is required before payment can be initialized');
       const status = await this.statusForApplication(kind, app.id);
       if (status.status === 'PAID') return { alreadyPaid: true, status };
-      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, ...(app.phone ? { phone: app.phone } : {}), trackingCode: code });
+      return this.initializeChapa({ kind, applicationId: app.id, firstName: app.firstName ?? undefined, lastName: app.lastName ?? undefined, email: app.email ?? undefined, phone: app.phone, trackingCode: code });
     }
     const app = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, institutionName: true, email: true, phone: true } });
     if (!app) throw new NotFoundException('Application not found');
