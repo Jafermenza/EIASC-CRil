@@ -30,7 +30,7 @@ describe('MembershipService — Phase 6 integrity', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     prisma.$transaction.mockImplementation(async (callback: (tx: typeof prisma) => unknown) => callback(prisma));
-    prisma.user.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValue([{ id: 'member-user-1' }]);
     prisma.memberInstitutionHistory.create.mockResolvedValue({});
     prisma.auditLog.create.mockResolvedValue({});
     notifications.notifyEvent.mockResolvedValue({});
