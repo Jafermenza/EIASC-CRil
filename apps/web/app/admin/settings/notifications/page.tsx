@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 
 const API = '/api/v1';
 type Summary = { outbox: Array<{ status: string; _count: { _all: number } }>; deliveries: Array<{ status: string; _count: { _all: number } }>; failedDeliveries: number; pendingDeliveries: number };
-type Failure = { id: string; channel: string; attempts: number; lastError?: string | null; updatedAt: string; recipient: { email?: string | null; phone?: string | null }; outboxEvent: { eventId: string; eventType: string; aggregateType: string; aggregateId?: string | null } };
+type Failure = { id: string; channel: string; attempts: number; lastError?: string | null; updatedAt: string; recipient: { id: string; email?: string | null; phone?: string | null }; outboxEvent: { eventId: string; eventType: string; aggregateType: string; aggregateId?: string | null } };
 type Delivery = { id: string; channel: string; status: string; attempts: number; sentAt?: string | null; lastError?: string | null; createdAt: string; recipient: { email?: string | null; phone?: string | null; id: string }; notification?: { id: string; type: string; title: string; status: string } | null; outboxEvent: { eventId: string; eventType: string; aggregateType: string; aggregateId?: string | null; status: string } };
 
 export default function NotificationMonitoringPage() {
