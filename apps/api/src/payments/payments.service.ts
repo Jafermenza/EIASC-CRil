@@ -132,7 +132,8 @@ export class PaymentsService {
 
   async refreshForApplication(kind: RegistrationKind, applicationId: string) {
     const payment = await this.getForApplication(kind, applicationId);
-    if (payment && (payment.status === 'INITIATED' || payment.status === 'PENDING') && payment.method === 'CHAPA') {
+    const paymentStatus = typeof payment?.status === 'string' ? payment.status : undefined;
+    if (payment && (paymentStatus === 'INITIATED' || paymentStatus === 'PENDING') && payment.method === 'CHAPA') {
       await this.verifyChapa(String(payment.referenceNumber), Number(payment.amount));
       return this.getForApplication(kind, applicationId);
     }
@@ -146,7 +147,7 @@ export class PaymentsService {
       required: amount > 0,
       amount,
       currency: 'ETB',
-      status: payment?.status ?? (amount > 0 ? 'REQUIRED' : 'NOT_REQUIRED'),
+      status: typeof payment?.status === 'string' ? payment.status : (amount > 0 ? 'REQUIRED' : 'NOT_REQUIRED'),
       payment: payment ?? null,
       nextAction: payment?.status === 'PAID' ? 'Payment verified. Continue with the application.' : payment?.status === 'PENDING' || payment?.status === 'INITIATED' ? 'Payment is awaiting verification.' : payment?.status === 'REJECTED' ? 'Payment was rejected. Pay again or submit a new payment reference.' : amount > 0 ? 'Payment is required. Use Pay Now to continue.' : 'No payment is required.'
     };
