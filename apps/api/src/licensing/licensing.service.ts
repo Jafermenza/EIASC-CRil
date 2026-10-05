@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Prisma,  ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { LicenseApplicationStatus, LicenseStatus, RoleCode } from '@prisma/client';
 import { createOpaqueToken } from '../auth/crypto';
 import { AuthorizationService } from '../auth/authorization.service';
@@ -120,7 +120,7 @@ export class LicensingService {
     await this.assertDecisionRole(user);
     const license = await this.get(user, id);
     if (license.applicationStatus !== LicenseApplicationStatus.UNDER_REVIEW) throw new ConflictException('License must be under review before inspection assignment');
-    const institution = await this.prisma.institution.findUnique({ where: { id: license.institutionId }, include: { institutionType: true } });
+    const institution = await this.prisma.institution.findUnique({ where: { id: license.institutionId }, include: { type: true } });
     if (!institution?.institutionTypeId || !institution.institutionType) throw new ConflictException('Institution organization type is required for licensing inspection');
     const template = await this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId: institution.institutionTypeId, active: true }, orderBy: { version: 'desc' } });
     if (!template?.inspectionRequired) throw new ConflictException('Inspection is not required for this organization type');
@@ -142,9 +142,9 @@ export class LicensingService {
       inspectorAssignmentId: assignment.id,
       institutionTypeId: institution.institutionTypeId,
       checklistTemplateId: template.id,
-      institutionTypeCode: institution.institutionType.code,
-      institutionTypeName: institution.institutionType.name,
-      checklistSnapshot: template.items,
+      institutionTypeCode: institution.type.code,
+      institutionTypeName: institution.type.name,
+      checklistSnapshot: template.items as Prisma.InputJsonValue,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
     } });
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'LICENSE_INSPECTION_ASSIGNED', entityType: 'License', entityId: id, metadata: { inspectionId: inspection.id, inspectorUserId, checklistTemplateId: template.id } } });
