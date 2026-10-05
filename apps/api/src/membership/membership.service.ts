@@ -161,15 +161,10 @@ export class MembershipService {
     const now = new Date();
     try {
       const membership = await this.prisma.$transaction(async (tx) => {
-        const relation = existing
-          ? await tx.memberInstitution.update({
-              where: { id: existing.id },
-              data: { status: MembershipStatus.PENDING, relationshipType, startedAt: now, endedAt: null },
-            })
-          : await tx.memberInstitution.create({
-              data: { memberId, institutionId, relationshipType, status: MembershipStatus.PENDING, startedAt: now },
-            });
-        await this.recordHistory(tx, relation, existing?.status ?? null, MembershipStatus.PENDING, user.id, undefined, null, null);
+        const relation = await tx.memberInstitution.create({
+          data: { memberId, institutionId, relationshipType, status: MembershipStatus.PENDING, startedAt: now },
+        });
+        await this.recordHistory(tx, relation, null, MembershipStatus.PENDING, user.id, undefined, null, null);
         await tx.auditLog.create({
           data: {
             actorUserId: user.id,
