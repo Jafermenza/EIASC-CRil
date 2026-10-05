@@ -1,7 +1,7 @@
 import { NotificationDispatcherService } from './notification-dispatcher.service';
 
 describe('NotificationDispatcherService', () => {
-  function service(overrides: Record<string, unknown> = {}) {
+  function makeService(overrides: Record<string, unknown> = {}) {
     const prisma = {
       auditLog: { findMany: jest.fn().mockResolvedValue([]) },
       outboxEvent: {
@@ -29,7 +29,7 @@ describe('NotificationDispatcherService', () => {
   }
 
   it('materializes a stable event ID from the source audit record and creates idempotent channel deliveries', async () => {
-    const { service, prisma } = service({
+    const { service, prisma } = makeService({
       auditLog: { findMany: jest.fn().mockResolvedValue([{ id: 'audit-1', action: 'LICENSE_APPROVED', entityType: 'License', entityId: 'license-1', metadata: { licenseNumber: 'EIASC-L-2026-ABC123' } }]) },
       outboxEvent: {
         createMany: jest.fn().mockResolvedValue({ count: 1 }),
