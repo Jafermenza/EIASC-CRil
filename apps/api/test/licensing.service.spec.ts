@@ -68,7 +68,8 @@ describe('LicensingService', () => {
       applicationStatus: LicenseApplicationStatus.UNDER_REVIEW,
       institution: { regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1' },
     });
-    prisma.institution.findUnique.mockResolvedValue({ id: 'institution-1', institutionTypeId: 'type-1' });
+    prisma.institution.findUnique.mockResolvedValue({ id: 'institution-1', institutionTypeId: 'type-1', type: { id: 'type-1', code: 'MOSQUE', name: 'Mosque' } });
+    prisma.inspectionChecklistTemplate.findFirst.mockResolvedValue({ id: 'checklist-1', inspectionRequired: true });
     prisma.inspectionChecklistTemplate.findFirst.mockResolvedValue({ id: 'checklist-1', inspectionRequired: true });
     prisma.inspection.findFirst.mockResolvedValue(null);
     await expect(instance.approve(nationalUser, 'license-1')).rejects.toThrow('completed passing licensing inspection');
