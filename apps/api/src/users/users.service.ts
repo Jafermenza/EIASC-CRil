@@ -33,7 +33,7 @@ export class UsersService {
       return { regionId: zone?.regionId, zoneId: row.zoneId, subcityId: row.id };
     }
     const row = await this.prisma.district.findUnique({ where: { id: user.jurisdictionId }, select: { id: true, zoneId: true, subcityId: true } });
-    if (!row) return {};
+    if (!row || !row.zoneId) return {};
     const zone = await this.prisma.zoneCity.findUnique({ where: { id: row.zoneId }, select: { regionId: true } });
     return { regionId: zone?.regionId, zoneId: row.zoneId, subcityId: row.subcityId, districtId: row.id };
   }
@@ -74,7 +74,7 @@ export class UsersService {
   }
 
   private assertListAccess(actor: AuthenticatedUser) {
-    const allowed = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR, RoleCode.FINANCE_OFFICER];
+    const allowed: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR, RoleCode.FINANCE_OFFICER];
     if (!actor.roles.some((role) => allowed.includes(role))) throw new ForbiddenException('User catalog permission required');
   }
 
