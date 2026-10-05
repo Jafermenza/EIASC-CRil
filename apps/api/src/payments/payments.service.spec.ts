@@ -61,12 +61,14 @@ describe('PaymentsService', () => {
 
   it('requires a reason for payment rejection or clarification', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ id: 'p1', method: 'TELEBIRR', registrationId: 'r1', institutionApplicationId: null, regionId: null, zoneId: null, subcityId: null, districtId: null }]);
+    prisma.$queryRaw.mockResolvedValueOnce([{ status: 'PENDING' }]);
     await expect(service.review('p1', { id: 'u1', email: null, phone: null, status: 'ACTIVE', roles: ['FINANCE_OFFICER'] as any, jurisdictionLevel: 'NATIONAL' as any, jurisdictionId: null, institutionId: null }, 'REJECT')).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('accepts a payment clarification decision only with a reason', async () => {
     prisma.$queryRaw.mockResolvedValueOnce([{ id: 'p1', method: 'TELEBIRR', registrationId: 'r1', institutionApplicationId: null, regionId: null, zoneId: null, subcityId: null, districtId: null }]);
     prisma.$transaction.mockImplementation(async (fn: any) => fn({ $executeRaw: jest.fn(), auditLog: { create: jest.fn() } }));
+    prisma.$queryRaw.mockResolvedValueOnce([{ status: 'PENDING' }]);
     prisma.$queryRaw.mockResolvedValueOnce([]);
     jest.spyOn(service, 'detail').mockResolvedValue({} as any);
     await expect(service.review('p1', { id: 'u1', email: null, phone: null, status: 'ACTIVE', roles: ['FINANCE_OFFICER'] as any, jurisdictionLevel: 'NATIONAL' as any, jurisdictionId: null, institutionId: null }, 'CLARIFICATION', 'Please provide a clearer receipt')).resolves.toBeDefined();
