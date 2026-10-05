@@ -57,7 +57,7 @@ export default function AdminPaymentsPage(){
   }
   useEffect(()=>{void load();},[status,method]);
 
-  const p=detail?.payment??{};
+  const p: Record<string, unknown> = detail?.payment ?? {};
   const a=detail?.application??{};
   const canDecide=Boolean(detail && p.method!=='CHAPA' && ['PENDING','REJECTED'].includes(String(p.status)));
   const identity=String(a.trackingCode??'');
@@ -89,7 +89,7 @@ export default function AdminPaymentsPage(){
         {!detail?<><h2>Payment detail</h2><p>Select a payment from the queue. The reviewer will see the submitted application and attachments before deciding.</p></>:<>
           <div className="action-row"><div><p className="eyebrow">APPLICATION</p><h2>{identity||'Payment'}</h2></div><span className="status-badge">{String(p.status)}</span></div>
           <div className="grid detail-grid">
-            <article><p className="eyebrow">PAYMENT</p><p><strong>{String(p.method)}</strong> · {String(p.referenceNumber)}</p><p>{String(p.amount)} {String(p.currency)}</p>{p.providerReference&&<p>Provider reference: {String(p.providerReference)}</p>}{p.receiptUrl&&<p>Receipt: <a href={String(p.receiptUrl)} target="_blank" rel="noreferrer">Open receipt</a></p>}</article>
+            <article><p className="eyebrow">PAYMENT</p><p><strong>{String(p.method)}</strong> · {String(p.referenceNumber)}</p><p>{String(p.amount)} {String(p.currency)}</p>{p.providerReference != null && <p>Provider reference: {String(p.providerReference)}</p>}{p.receiptUrl != null && <p>Receipt: <a href={String(p.receiptUrl)} target="_blank" rel="noreferrer">Open receipt</a></p>}</article>
             <article><p className="eyebrow">APPLICANT / APPLICATION</p>{Object.entries(a).filter(([k])=>!['createdAt','updatedAt'].includes(k)).slice(0,14).map(([k,v])=><p key={k}><strong>{k}:</strong> {String(v??'—')}</p>)}</article>
           </div>
           <h3>Submitted attachments</h3>
