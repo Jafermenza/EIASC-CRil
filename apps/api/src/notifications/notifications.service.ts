@@ -130,7 +130,8 @@ export class NotificationsService {
     try {
       const recipient = delivery.recipient;
       if (delivery.channel === NotificationChannel.IN_APP) {
-        const notification = delivery.notification ?? await this.prisma.notification.create({ data: { recipientId: recipient.id, channel: NotificationChannel.IN_APP, type: String(delivery.outboxEvent.payload.type ?? delivery.outboxEvent.eventType), title: String(delivery.outboxEvent.payload.title ?? delivery.outboxEvent.eventType), message: String(delivery.outboxEvent.payload.message ?? ''), status: NotificationStatus.SENT, sentAt: new Date(), metadata: delivery.outboxEvent.payload as Prisma.InputJsonValue } });
+        const payload = delivery.outboxEvent.payload && typeof delivery.outboxEvent.payload === 'object' && !Array.isArray(delivery.outboxEvent.payload) ? delivery.outboxEvent.payload as Record<string, unknown> : {};
+        const notification = delivery.notification ?? await this.prisma.notification.create({ data: { recipientId: recipient.id, channel: NotificationChannel.IN_APP, type: String(payload.type ?? delivery.outboxEvent.eventType), title: String(payload.title ?? delivery.outboxEvent.eventType), message: String(payload.message ?? ''), status: NotificationStatus.SENT, sentAt: new Date(), metadata: delivery.outboxEvent.payload as Prisma.InputJsonValue } });
         await this.prisma.$transaction([
           this.prisma.notification.update({ where: { id: notification.id }, data: { status: NotificationStatus.SENT, sentAt: notification.sentAt ?? new Date() } }),
           this.prisma.notificationDelivery.update({ where: { id: deliveryId }, data: { notificationId: notification.id, status: NotificationDeliveryStatus.SENT, sentAt: new Date(), processingStartedAt: null } }),
