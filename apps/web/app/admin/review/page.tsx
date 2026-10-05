@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 
 const API='/api/v1';
-type Item={type:'INDIVIDUAL'|'INSTITUTION';id:string;trackingCode:string;status:string;name:string;organizationType?:string;organizationTypeCode?:string;updatedAt:string;inspectionRequired?:boolean;payment?:{status?:string}};
+type Item={type:'INDIVIDUAL'|'INSTITUTION';id:string;trackingCode:string;status:string;name:string;organizationType?:string;organizationTypeCode?:string;updatedAt:string;inspectionRequired?:boolean;ageHours:number;payment?:{status?:string}};
 type Detail={type:string;application:any;payment:any;audits:any[]};
 
 export default function ReviewWorkspace(){
-  const [viewer,setViewer]=useState<{url:string;mime:string;name:string}|null>(null),[inspector,setInspector]=useState(''),[checklistValues,setChecklistValues]=useState<Record<string,Record<string,unknown>>>({}),[finding,setFinding]=useState(''),[inspectionDecision,setInspectionDecision]=useState('PASS'),[items,setItems]=useState<Item[]>([]),[detail,setDetail]=useState<Detail|null>(null),[type,setType]=useState(''),[search,setSearch]=useState(''),[reason,setReason]=useState(''),[fields,setFields]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false),[busy,setBusy]=useState(false);
+  const [viewer,setViewer]=useState<{url:string;mime:string;name:string}|null>(null),[inspector,setInspector]=useState(''),[checklistValues,setChecklistValues]=useState<Record<string,Record<string,unknown>>>({}),[finding,setFinding]=useState(''),[inspectionDecision,setInspectionDecision]=useState('PASS'),[items,setItems]=useState<Item[]>([]),[detail,setDetail]=useState<Detail|null>(null),[type,setType]=useState(''),[search,setSearch]=useState(''),[reason,setReason]=useState(''),[fields,setFields]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(false),[busy,setBusy]=useState(false),[page,setPage]=useState(1),[totalPages,setTotalPages]=useState(1);
   const token=()=>localStorage.getItem('accessToken')||'';
   async function call(path:string,opts:RequestInit={}){const r=await fetch(API+path,{...opts,headers:{authorization:'Bearer '+token(),'content-type':'application/json',...(opts.headers||{})},cache:'no-store'});const d=await r.json().catch(()=>null);if(!r.ok)throw new Error(d?.message||'Request failed');return d;}
   async function load(){setLoading(true);try{const q=new URLSearchParams();if(type)q.set('type',type);if(search.trim())q.set('search',search.trim());q.set('page',String(page));q.set('pageSize','50');const data=await call('/admin/review/workspace?'+q);setItems(data.items||[]);setPage(data.page||1);setTotalPages(data.totalPages||1);}catch(e){setError(e instanceof Error?e.message:'Unable to load review queue.')}finally{setLoading(false)}}
