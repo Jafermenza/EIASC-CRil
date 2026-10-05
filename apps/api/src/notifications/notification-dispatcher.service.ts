@@ -51,7 +51,7 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
 
   private async materializeAuditEvents() {
     const events = await this.prisma.auditLog.findMany({
-      where: { action: { in: [...EVENT_ACTIONS] }, entityId: { not: null }, outboxEvent: null },
+      where: { action: { in: [...EVENT_ACTIONS] }, entityId: { not: null }, outboxEvents: { none: {} } },
       orderBy: { createdAt: 'asc' },
       take: 500,
     });
@@ -100,8 +100,8 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
           await this.prisma.notificationDelivery.upsert({
             where: { outboxEventId_recipientId_channel: { outboxEventId: event.id, recipientId, channel } },
             create: {
-              outboxEventId: event.id,
-              recipientId,
+              outboxEvent: { connect: { id: event.id } },
+              recipient: { connect: { id: recipientId } },
               channel,
               notification: {
                 create: {
