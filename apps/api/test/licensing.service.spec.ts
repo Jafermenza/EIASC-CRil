@@ -20,6 +20,8 @@ const institutionAdmin = {
 function service() {
   const prisma: any = {
     institution: { findUnique: jest.fn() },
+    inspectionChecklistTemplate: { findFirst: jest.fn() },
+    inspection: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), create: jest.fn() },
     license: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(async (queries: any) => Array.isArray(queries) ? Promise.all(queries) : queries(prisma)),
