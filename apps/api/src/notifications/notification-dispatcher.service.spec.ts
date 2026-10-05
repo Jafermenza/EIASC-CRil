@@ -1,3 +1,4 @@
+import { jest } from '@jest/globals';
 import { NotificationDispatcherService } from './notification-dispatcher.service';
 
 describe('NotificationDispatcherService', () => {
@@ -62,7 +63,7 @@ describe('NotificationDispatcherService', () => {
   });
 
   it('does not require a second outbox row when the same audit event is seen again', async () => {
-    const { service, prisma } = service({
+    const { service, prisma } = makeService({
       auditLog: { findMany: jest.fn().mockResolvedValue([{ id: 'audit-1', action: 'LICENSE_APPROVED', entityType: 'License', entityId: 'license-1', metadata: {} }]) },
       outboxEvent: { createMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn(), update: jest.fn() },
     });
