@@ -19,14 +19,14 @@ describe('NotificationDispatcherService', () => {
         ...overrides.notificationDelivery as object,
       },
       license: { findUnique: jest.fn() },
-      user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn() },
+      user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue({ email: 'user@example.test', phone: '+251900000000' }) },
       registration: { findUnique: jest.fn() },
       institutionApplication: { findUnique: jest.fn() },
       memberInstitution: { findUnique: jest.fn() },
       member: { findUnique: jest.fn() },
       credential: { findUnique: jest.fn() },
     };
-    const notifications = { deliverPersistedDelivery: jest.fn().mockResolvedValue(null) };
+    const notifications = { deliverDelivery: jest.fn().mockResolvedValue(null) };
     return { service: new NotificationDispatcherService(prisma as never, notifications as never), prisma, notifications };
   }
 
@@ -66,6 +66,7 @@ describe('NotificationDispatcherService', () => {
   it('does not require a second outbox row when the same audit event is seen again', async () => {
     const { service, prisma } = makeService({
       auditLog: { findMany: jest.fn().mockResolvedValue([{ id: 'audit-1', action: 'LICENSE_APPROVED', entityType: 'License', entityId: 'license-1', metadata: {} }]) },
+      auditLog: { findMany: jest.fn().mockResolvedValue([{ id: 'audit-1', action: 'LICENSE_APPROVED', entityType: 'License', entityId: 'license-1', metadata: {} }]) },
       outboxEvent: { createMany: jest.fn().mockResolvedValue({ count: 0 }), findMany: jest.fn().mockResolvedValue([]), updateMany: jest.fn(), update: jest.fn() },
     });
 
@@ -82,7 +83,7 @@ describe('NotificationDispatcherService', () => {
     });
 
     await service.process();
-    expect(notifications.deliverPersistedDelivery).toHaveBeenCalledWith('delivery-1');
+    expect(notifications.deliverDelivery).toHaveBeenCalledWith('delivery-1');
     expect(prisma.notificationDelivery.findMany).toHaveBeenCalled();
   });
 });
