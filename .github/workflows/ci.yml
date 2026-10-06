@@ -60,6 +60,13 @@ jobs:
       - name: Validate Prisma schema
         run: npx prisma validate
 
+      - name: Verify production Prisma engines
+        run: |
+          set -euo pipefail
+          test -f node_modules/.prisma/client/libquery_engine-debian-openssl-1.0.x.so.node
+          test -f node_modules/.prisma/client/libquery_engine-debian-openssl-1.1.x.so.node
+          echo "Prisma production engines: OK"
+
       - name: Deploy database migrations
         run: npm run db:deploy
 
