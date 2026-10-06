@@ -141,7 +141,7 @@ export class ReportingService {
 
   async applicationThroughput(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
     const { applicationWhere, memberWhere } = await this.scopedWhere(user, scope);
-    const registrationWhere: Prisma.RegistrationWhereInput = { regionId: memberWhere.regionId as string | undefined, zoneId: memberWhere.zoneId as string | undefined, subcityId: memberWhere.subcityId as string | undefined, districtId: memberWhere.districtId as string | undefined };
+    const registrationWhere: Prisma.RegistrationWhereInput = { regionId: typeof memberWhere.regionId === 'string' ? memberWhere.regionId : undefined, zoneId: typeof memberWhere.zoneId === 'string' ? memberWhere.zoneId : undefined, subcityId: typeof memberWhere.subcityId === 'string' ? memberWhere.subcityId : undefined, districtId: typeof memberWhere.districtId === 'string' ? memberWhere.districtId : undefined };
     const createdAt = this.dateWhere(range);
     const [institution, individual] = await Promise.all([
       this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
@@ -206,7 +206,7 @@ export class ReportingService {
     if (!user.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Super Admin permission required');
     const createdAt = this.dateWhere(filters);
     const rows = await this.prisma.auditLog.findMany({ where: { action: filters.action?.trim() ? { contains: filters.action.trim(), mode: 'insensitive' } : undefined, entityType: filters.entityType?.trim() ? { contains: filters.entityType.trim(), mode: 'insensitive' } : undefined, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, orderBy: { createdAt: 'desc' }, take: 10000, include: { actor: { select: { id: true, email: true, phone: true } } } });
-    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'AUDIT_EXPORT_GENERATED', entityType: 'AuditLog', entityId: null, metadata: { filters, rowCount: rows.length } } });
+    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'AUDIT_EXPORT_GENERATED' as any, entityType: 'AuditLog', entityId: null, metadata: { filters, rowCount: rows.length } } });
     return ['timestamp,actor,action,entityType,entityId,metadata', ...rows.map(row => [row.createdAt.toISOString(),row.actor?.email ?? row.actor?.phone ?? row.actorUserId,row.action,row.entityType,row.entityId,row.metadata ? JSON.stringify(row.metadata) : ''].map(this.csvCell).join(','))].join('\n');
   }
 
