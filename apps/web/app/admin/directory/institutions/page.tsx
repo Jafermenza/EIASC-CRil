@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Download, Search } from 'lucide-react'
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { formatLocation, useGeographyMap } from '../../../../lib/useGeographyMap';
@@ -8,7 +9,9 @@ import { extractErrorMessage } from '../../../../lib/validation';
 import { useToast } from '../../../../components/ui/toast-provider';
 
 const API = '/api/v1';
-type Institution = { id: string; name: string; institutionCode?: string | null; status: string; regionId?: string | null; zoneId?: string | null; subcityId?: string | null; districtId?: string | null; type?: { name: string } | null; createdAt: string };
+type Institution = { id: string; name: string; institutionCode?: string | null; status: string; regionId?: string | null; zoneId?: string | null; subcityId?: string | null; districtId?: string | null; type?: { id?: string; name: string } | null; createdAt: string };
+type Location = { id: string; name: string; regionId?: string; zoneId?: string; subcityId?: string };
+type InstitutionType = { id: string; name: string };
 
 export default function InstitutionsDirectoryPage() {
   const geography = useGeographyMap();
@@ -22,13 +25,20 @@ export default function InstitutionsDirectoryPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState('');
+  const [regions, setRegions] = useState<Location[]>([]);
+  const [zones, setZones] = useState<Location[]>([]);
+  const [subcities, setSubcities] = useState<Location[]>([]);
+  const [districts, setDistricts] = useState<Location[]>([]);
+  const [types, setTypes] = useState<InstitutionType[]>([]);
+  const [regionId, setRegionId] = useState(''); const [zoneId, setZoneId] = useState(''); const [subcityId, setSubcityId] = useState(''); const [districtId, setDistrictId] = useState('');
+  const [institutionTypeId, setInstitutionTypeId] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState('');
   const auth = () => ({ authorization: `Bearer ${localStorage.getItem('accessToken') || ''}` });
 
   async function load() {
     setLoading(true); setError('');
     const query = new URLSearchParams({ page: String(page), pageSize: '50' });
     if (status) query.set('institutionStatus', status);
-    if (search.trim()) query.set('search', search.trim());
+    if (search.trim()) query.set('search', search.trim()); if (institutionTypeId) query.set('institutionTypeId', institutionTypeId); if (regionId) query.set('regionId', regionId); if (zoneId) query.set('zoneId', zoneId); if (subcityId) query.set('subcityId', subcityId); if (districtId) query.set('districtId', districtId); if (from) query.set('from', from); if (to) query.set('to', to);
     try {
       const response = await fetch(`${API}/institutions?${query}`, { headers: auth(), cache: 'no-store' });
       const data = await response.json();
@@ -37,6 +47,16 @@ export default function InstitutionsDirectoryPage() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Unable to load the institution directory.'); }
     finally { setLoading(false); }
   }
+  useEffect(() => {
+    const headers = auth();
+    Promise.all([
+      fetch(`${API}/locations/regions`, { headers }).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/locations/zones`, { headers }).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/locations/subcities`, { headers }).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/locations/districts`, { headers }).then(r=>r.ok?r.json():[]),
+      fetch(`${API}/institution-types`, { headers }).then(r=>r.ok?r.json():[]),
+    ]).then(([a,b,d,e,t])=>{setRegions(a);setZones(b);setSubcities(d);setDistricts(e);setTypes(t);}).catch(()=>undefined);
+  }, []);
   useEffect(() => { void load(); }, [page, status]);
 
   async function resetCredentials(institutionId: string) {
@@ -55,12 +75,12 @@ export default function InstitutionsDirectoryPage() {
     finally { setResetting(''); }
   }
 
-  function exportCsv() {
-    const rows = [['Institution', 'Code', 'Type', 'Status', 'Location', 'Registered'], ...items.map((i) => [i.name, i.institutionCode || '', i.type?.name || '', i.status, formatLocation(geography, i), new Date(i.createdAt).toLocaleDateString()])];
-    const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'eiasc-institutions.csv'; anchor.click(); URL.revokeObjectURL(url);
+  async function exportCsv() {
+    const query = new URLSearchParams();
+    if (status) query.set('institutionStatus', status); if (search.trim()) query.set('search', search.trim()); if (institutionTypeId) query.set('institutionTypeId', institutionTypeId); if (regionId) query.set('regionId', regionId); if (zoneId) query.set('zoneId', zoneId); if (subcityId) query.set('subcityId', subcityId); if (districtId) query.set('districtId', districtId); if (from) query.set('from', from); if (to) query.set('to', to);
+    const response = await fetch(`${API}/institutions/export?${query}`, { headers: auth() });
+    if (!response.ok) { const body = await response.json().catch(() => ({})); push({ type: 'error', title: 'Export failed', message: extractErrorMessage(body, 'Unable to export the institution catalog.') }); return; }
+    const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = 'eiasc-institutions.csv'; anchor.click(); URL.revokeObjectURL(url);
   }
 
   return (
@@ -69,9 +89,16 @@ export default function InstitutionsDirectoryPage() {
       <section className="workflow-panel">
         <div className="form-grid">
           <div className="field"><label htmlFor="institution-search">Search</label><input id="institution-search" placeholder="Name or institution code" value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setPage(1); void load(); } }} /></div>
+          <div className="field"><label htmlFor="institution-type">Organization type</label><select id="institution-type" value={institutionTypeId} onChange={e=>{setInstitutionTypeId(e.target.value);setPage(1);}}><option value="">All organization types</option>{types.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select></div>
+          <div className="field"><label htmlFor="institution-region">Region</label><select id="institution-region" value={regionId} onChange={e=>{setRegionId(e.target.value);setZoneId('');setSubcityId('');setDistrictId('');setPage(1);}}><option value="">All regions</option>{regions.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <div className="field"><label htmlFor="institution-zone">Zone / City</label><select id="institution-zone" value={zoneId} onChange={e=>{setZoneId(e.target.value);setSubcityId('');setDistrictId('');setPage(1);}} disabled={!regionId}><option value="">All zones / cities</option>{zones.filter(x=>!regionId||x.regionId===regionId).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <div className="field"><label htmlFor="institution-subcity">Subcity / Town</label><select id="institution-subcity" value={subcityId} onChange={e=>{setSubcityId(e.target.value);setDistrictId('');setPage(1);}} disabled={!zoneId}><option value="">All subcities / towns</option>{subcities.filter(x=>!zoneId||x.zoneId===zoneId).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <div className="field"><label htmlFor="institution-district">District</label><select id="institution-district" value={districtId} onChange={e=>{setDistrictId(e.target.value);setPage(1);}} disabled={!zoneId}><option value="">All districts</option>{districts.filter(x=>(!subcityId||x.subcityId===subcityId)&&(!zoneId||x.zoneId===zoneId)).map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></div>
+          <div className="field"><label htmlFor="institution-from">Registered from</label><input id="institution-from" type="date" value={from} onChange={e=>{setFrom(e.target.value);setPage(1);}} /></div>
+          <div className="field"><label htmlFor="institution-to">Registered to</label><input id="institution-to" type="date" value={to} onChange={e=>{setTo(e.target.value);setPage(1);}} /></div>
           <div className="field"><label htmlFor="institution-status">Status</label><select id="institution-status" value={status} onChange={(e) => { setPage(1); setStatus(e.target.value); }}><option value="">All statuses</option><option value="ACTIVE">Active</option><option value="SUSPENDED">Inactive / suspended</option><option value="CLOSED">Closed</option><option value="REVOKED">Revoked</option></select></div>
-          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : 'Search'}</button></div>
-          <div className="field field-action"><button className="button button-secondary" onClick={exportCsv} disabled={!items.length}>Export CSV</button></div>
+          <div className="field field-action"><button className="button button-primary" onClick={() => { setPage(1); void load(); }} disabled={loading}>{loading ? 'Searching…' : <> <Search size={16}/> Search</>}</button></div>
+          <div className="field field-action"><button className="button button-secondary" onClick={() => void exportCsv()} disabled={!items.length}><Download size={16}/> Export CSV</button></div>
         </div>
       </section>
       {error && <section className="error-reason" role="alert"><strong>Directory could not be loaded</strong><span>{error}</span></section>}

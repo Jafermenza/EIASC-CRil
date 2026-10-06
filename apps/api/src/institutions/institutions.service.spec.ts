@@ -10,7 +10,9 @@ describe('InstitutionsService', () => {
   const locations = { validateHierarchy: jest.fn() };
   const authorization = {};
   const credentials = {};
-  const service = new InstitutionsService(prisma as never, locations as never, authorization as never, credentials as never);
+  const payments = { attachToApplication: jest.fn() };
+  const memberships = { directAdd: jest.fn(), setStatus: jest.fn() };
+  const service = new InstitutionsService(prisma as never, locations as never, authorization as never, credentials as never, payments as never, memberships as never);
 
   beforeEach(() => {
     jest.clearAllMocks();

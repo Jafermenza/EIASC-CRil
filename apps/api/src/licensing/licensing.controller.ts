@@ -23,7 +23,7 @@ export class LicensingController {
   @Get(':id')
   get(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.licensing.get(req.user!, id); }
 
-  @Roles(...DECISION_ROLES)
+  @Roles(...DECISION_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Post()
   create(@Req() req: AuthenticatedRequest, @Body() body: CreateLicenseInput) {
     if (!body?.institutionId?.trim()) throw new BadRequestException('institutionId is required');
@@ -55,6 +55,13 @@ export class LicensingController {
   @Roles(...VIEW_ROLES)
   @Post(':id/resubmit')
   resubmit(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.licensing.resubmit(req.user!, id); }
+
+  @Roles(...DECISION_ROLES)
+  @Post(':id/inspection')
+  assignInspection(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { inspectorUserId?: string; scheduledAt?: string }) {
+    if (!body.inspectorUserId?.trim()) throw new BadRequestException('inspectorUserId is required');
+    return this.licensing.assignInspection(req.user!, id, body.inspectorUserId, body.scheduledAt);
+  }
 
   @Roles(...DECISION_ROLES)
   @Post(':id/issue')

@@ -9,7 +9,7 @@ export interface DecisionInput { reason?: string }
 export interface MemberRelationshipInput { relationshipType?: InstitutionRelationshipType }
 export interface InstitutionListQuery { search?: string; institutionTypeId?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; applicationStatus?: InstitutionApplicationStatus; institutionStatus?: InstitutionStatus; page?: number; pageSize?: number }
 export interface InstitutionProfileUpdateInput { name?: string; alternativeName?: string; phone?: string; secondaryPhone?: string; email?: string; website?: string; address?: string; mission?: string; description?: string; services?: string; communityActivities?: string }
-export const DOCUMENT_TYPES = ['ESTABLISHMENT_DOCUMENT','AUTHORIZATION_DOCUMENT','LEADERSHIP_DOCUMENT','LOCATION_DOCUMENT','OTHER'] as const;
+export const DOCUMENT_TYPES = ['SUPPORTING_DOCUMENT','ESTABLISHMENT_DOCUMENT','AUTHORIZATION_DOCUMENT','LEADERSHIP_DOCUMENT','LOCATION_DOCUMENT','OTHER'] as const;
 export const LEADER_ROLES = ['CHAIRPERSON','IMAM','DIRECTOR','ADMINISTRATOR','MADRASA_HEAD','SECRETARY','OTHER'] as const;
 export const EDUCATION_LEVELS = ['QURAN','HIFZ','BASIC_ISLAMIC_STUDIES','MADRASAH','ADULT_EDUCATION','OTHER'] as const;
 export { InstitutionStatus, InstitutionApplicationStatus, InstitutionRelationshipType };

@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -39,6 +39,34 @@ export class RegistrationsController {
   }
 
   @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Get('admin/application/:id')
+  applicationDetail(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.registrations.applicationDetail(req.user!, id); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/application/:id/review')
+  reviewApplication(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.registrations.reviewApplication(req.user!, id); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/application/:id/request-correction')
+  requestApplicationCorrection(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('reason is required'); return this.registrations.requestApplicationCorrection(req.user!, id, body.reason); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Post('admin/application/:id/reject')
+  rejectApplication(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() body: { reason?: string }) { if (!body?.reason?.trim()) throw new BadRequestException('reason is required'); return this.registrations.rejectApplication(req.user!, id, body.reason); }
+
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  @Get('admin/members/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="eiasc-members.csv"')
+  membersExport(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {
+    return this.registrations.exportMembers(req.user!, query);
+  }
+
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
   @Get('admin/members')
   members(@Req() req: AuthenticatedRequest, @Query() query: Record<string, string>) {

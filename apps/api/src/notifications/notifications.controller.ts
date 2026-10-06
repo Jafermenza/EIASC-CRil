@@ -5,11 +5,12 @@ import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { NotificationsService } from './notifications.service';
+import { NotificationDispatcherService } from './notification-dispatcher.service';
 
 @Controller('notifications')
 @UseGuards(AuthGuard)
 export class NotificationsController {
-  constructor(private readonly notifications: NotificationsService) {}
+  constructor(private readonly notifications: NotificationsService, private readonly dispatcher: NotificationDispatcherService) {}
   @Get()
   list(@Req() req: AuthenticatedRequest, @Query('unreadOnly') unreadOnly?: string) { return this.notifications.list(req.user!, unreadOnly === 'true'); }
   @Patch(':id/read')
@@ -26,6 +27,22 @@ export class NotificationsController {
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.INSTITUTION_ADMIN)
   testSms(@Req() req: AuthenticatedRequest) { return this.notifications.testSms(req.user!); }
+  @Get('admin/summary')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN)
+  adminSummary() { return this.dispatcher.summary(); }
+  @Get('admin/outbox')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN)
+  adminOutbox(@Query('limit') limit?: string) { return this.dispatcher.listOutbox(Number(limit ?? 100)); }
+  @Get('admin/delivery-failures')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN)
+  adminDeliveryFailures(@Query('limit') limit?: string) { return this.dispatcher.listDeliveryFailures(Number(limit ?? 100)); }
+  @Get('admin/deliveries')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles(RoleCode.SUPER_ADMIN)
+  adminDeliveries(@Req() req: AuthenticatedRequest, @Query('status') status?: string) { return this.notifications.listAdminDeliveries(req.user!.roles, status); }
   @Get('settings/admin')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(RoleCode.SUPER_ADMIN)

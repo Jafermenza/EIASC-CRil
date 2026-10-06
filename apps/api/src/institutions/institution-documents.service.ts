@@ -1,36 +1,52 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { InstitutionApplicationStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { DOCUMENT_TYPES } from './institution.types';
+import { AuthorizationService } from '../auth/authorization.service';
+import { AuthenticatedUser } from '../auth/auth.types';
 
-const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png']);
+const ALLOWED_MIME = new Set(['application/pdf', 'image/jpeg', 'image/png', 'image/webp']);
 const MAX_SIZE = 10 * 1024 * 1024;
-const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [
-  InstitutionApplicationStatus.DRAFT,
-  InstitutionApplicationStatus.CORRECTION_REQUIRED,
-];
+const DOCUMENT_EDITABLE_STATUSES: InstitutionApplicationStatus[] = [InstitutionApplicationStatus.DRAFT, InstitutionApplicationStatus.CORRECTION_REQUIRED];
 
 @Injectable()
 export class InstitutionDocumentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService) {}
 
-  async upload(trackingCode: string, documentType: string, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
+  async upload(trackingCode: string, documentType: string, phone: string | undefined, firstName: string | undefined, file: { originalname: string; mimetype: string; size: number; buffer: Buffer }) {
     if (!DOCUMENT_TYPES.includes(documentType as any)) throw new BadRequestException('Invalid document type');
-    if (!file || !file.buffer || file.size <= 0 || file.size > MAX_SIZE) throw new BadRequestException('File is missing or exceeds the 10 MB limit');
-    if (!ALLOWED_MIME.has(file.mimetype)) throw new BadRequestException('Unsupported document MIME type');
-    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true } });
+    if (!file?.buffer || file.size <= 0 || file.size > MAX_SIZE) throw new BadRequestException('File is missing or exceeds the 10 MB limit');
+    if (!ALLOWED_MIME.has(file.mimetype)) throw new BadRequestException('Only PDF and picture files (JPEG, PNG, WebP) are accepted');
+    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: trackingCode.trim().toUpperCase() }, select: { id: true, status: true, phone: true, applicantPhone: true, applicantName: true } });
     if (!application) throw new NotFoundException('Application not found');
+    if (!phone && !firstName) throw new BadRequestException('Registered phone number or first name is required');
+    if (phone && application.phone !== phone.trim() && application.applicantPhone !== phone.trim()) throw new NotFoundException('Application not found');
+    if (firstName && application.applicantName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
     if (!DOCUMENT_EDITABLE_STATUSES.includes(application.status)) throw new BadRequestException('Documents cannot be changed in the current application status');
-    const root = process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
-    if (!root) throw new BadRequestException('Institution document storage is not configured');
-    const extension = file.mimetype === 'application/pdf' ? '.pdf' : file.mimetype === 'image/png' ? '.png' : '.jpg';
-    const storageKey = `${new Date().getUTCFullYear()}/${randomBytes(24).toString('hex')}${extension}`;
-    const path = join(root, storageKey);
-    await mkdir(join(root, String(new Date().getUTCFullYear())), { recursive: true });
-    await writeFile(path, file.buffer, { flag: 'wx' });
-    return this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, mimeType: true, size: true, createdAt: true } });
+    const root = process.env.APPLICATION_DOCUMENT_STORAGE_PATH?.trim() || process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
+    if (!root) throw new BadRequestException('Application document storage is not configured');
+    const extension = file.mimetype === 'application/pdf' ? '.pdf' : file.mimetype === 'image/png' ? '.png' : file.mimetype === 'image/webp' ? '.webp' : '.jpg';
+    const storageKey = `institution/${new Date().getUTCFullYear()}/${randomBytes(24).toString('hex')}${extension}`;
+    await mkdir(join(root, 'institution', String(new Date().getUTCFullYear())), { recursive: true });
+    await writeFile(join(root, storageKey), file.buffer, { flag: 'wx' });
+    const created = await this.prisma.institutionDocument.create({ data: { institutionApplicationId: application.id, documentType, storageUrl: 'pending', fileName: file.originalname.replace(/[\\/]/g, '_').slice(0, 255), storageKey, mimeType: file.mimetype, size: file.size }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } });
+    const storageUrl = `/api/v1/registrations/institution/documents/${encodeURIComponent(created.id)}`;
+    await this.prisma.institutionDocument.update({ where: { id: created.id }, data: { storageUrl } });
+    await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_SUPPORTING_DOCUMENT_UPLOADED', entityType: 'InstitutionApplication', entityId: application.id, metadata: { documentId: created.id, documentType, fileName: created.fileName, mimeType: created.mimeType, size: created.size } } });
+    return { ...created, storageUrl };
+  }
+
+  async download(id: string, user: AuthenticatedUser) {
+    const document = await this.prisma.institutionDocument.findUnique({ where: { id }, include: { application: { select: { regionId: true, zoneId: true, subcityId: true, districtId: true } } } });
+    if (!document) throw new NotFoundException('Document not found');
+    if (!document.application) throw new NotFoundException('Application document is no longer available');
+    await this.authorization.assertCanAccess(user, { regionId: document.application.regionId, zoneId: document.application.zoneId, subcityId: document.application.subcityId, districtId: document.application.districtId });
+    const root = process.env.APPLICATION_DOCUMENT_STORAGE_PATH?.trim() || process.env.INSTITUTION_DOCUMENT_STORAGE_PATH?.trim();
+    if (!root) throw new BadRequestException('Application document storage is not configured');
+    const buffer = await readFile(join(root, document.storageKey)).catch(() => { throw new NotFoundException('Stored document file not found'); });
+    return { buffer, fileName: document.fileName, mimeType: document.mimeType };
   }
 }

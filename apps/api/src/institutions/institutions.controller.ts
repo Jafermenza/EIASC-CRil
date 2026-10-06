@@ -1,5 +1,5 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { InstitutionStatus, RoleCode } from '@prisma/client';
+import { BadRequestException, Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { InstitutionRelationshipType, InstitutionStatus, RoleCode } from '@prisma/client';
 import { AuthGuard, AuthenticatedRequest } from '../auth/auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -32,7 +32,10 @@ export class InstitutionsController {
 
   @Get('registrations/institution/:trackingCode') track(@Param('trackingCode') code: string, @Query('phone') phone?: string) { return this.institutions.trackApplication(code, phone); }
   @Patch('registrations/institution/:id') updateApplication(@Param('id') id: string, @Body() body: InstitutionApplicationUpdateInput) { return this.institutions.updateApplication(id, body); }
-  @Post('registrations/institution/:id/resubmit') resubmit(@Param('id') id: string) { return this.institutions.resubmit(id); }
+  @Post('registrations/institution/:id/resubmit') async resubmit(@Param('id') id: string, @Body() body: { payment?: InstitutionApplicationInput['payment'] }) {
+    if (!body?.payment) throw new BadRequestException('Registration payment is required before resubmission');
+    return this.institutions.resubmit(id, body.payment);
+  }
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES)
@@ -55,6 +58,11 @@ export class InstitutionsController {
 
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
+  @Get('institutions/export')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="eiasc-institutions.csv"')
+  export(@Req() req: AuthenticatedRequest, @Query() query: InstitutionListQuery) { return this.institutions.exportInstitutions(req.user!, query); }
+
   @Get('institutions') list(@Req() req: AuthenticatedRequest, @Query() query: InstitutionListQuery) { return this.institutions.listInstitutions(req.user!, query); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
@@ -73,7 +81,7 @@ export class InstitutionsController {
   @Get('institutions/:id/members') members(@Req() req: AuthenticatedRequest, @Param('id') id: string) { return this.institutions.members(req.user!, id); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
-  @Post('institutions/:id/members/:memberId') addMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('memberId') memberId: string, @Body() body: { relationshipType?: any }) { return this.institutions.addMember(req.user!, id, memberId, body ?? {}); }
+  @Post('institutions/:id/members/:memberId') addMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('memberId') memberId: string, @Body() body: { relationshipType?: InstitutionRelationshipType }) { return this.institutions.addMember(req.user!, id, memberId, body ?? {}); }
   @UseGuards(AuthGuard, RolesGuard)
   @Roles(...ADMIN_ROLES, RoleCode.INSTITUTION_ADMIN)
   @Delete('institutions/:id/members/:memberId') removeMember(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Param('memberId') memberId: string) { return this.institutions.removeMember(req.user!, id, memberId); }

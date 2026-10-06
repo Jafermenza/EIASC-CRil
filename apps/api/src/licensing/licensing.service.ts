@@ -1,5 +1,5 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
-import { LicenseApplicationStatus, LicenseStatus, RoleCode } from '@prisma/client';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { LicenseApplicationStatus, LicenseStatus, Prisma, RoleCode } from '@prisma/client';
 import { createOpaqueToken } from '../auth/crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
@@ -93,6 +93,62 @@ export class LicensingService {
       });
     }
     return license;
+  }
+
+  private async assertInspectionGate(license: any) {
+    const institution = await this.prisma.institution.findUnique({
+      where: { id: license.institutionId },
+      select: { id: true, institutionTypeId: true, institutionCode: true, name: true, regionId: true, zoneId: true, subcityId: true, districtId: true },
+    });
+    if (!institution?.institutionTypeId) return;
+    const checklist = await this.prisma.inspectionChecklistTemplate.findFirst({
+      where: { institutionTypeId: institution.institutionTypeId, active: true },
+      orderBy: { version: 'desc' },
+    });
+    if (!checklist?.inspectionRequired) return;
+    const inspection = await this.prisma.inspection.findFirst({
+      where: { licenseId: license.id },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, checklistTemplateId: true, status: true, decision: true },
+    });
+    if (!inspection || inspection.checklistTemplateId !== checklist.id || inspection.status !== 'COMPLETED' || !['PASS', 'CONDITIONAL'].includes(inspection.decision)) {
+      throw new ConflictException('A completed passing licensing inspection using the current organization-type checklist is required before approval');
+    }
+  }
+
+  async assignInspection(user: AuthenticatedUser, id: string, inspectorUserId: string, scheduledAt?: string) {
+    await this.assertDecisionRole(user);
+    const license = await this.get(user, id);
+    if (license.applicationStatus !== LicenseApplicationStatus.UNDER_REVIEW) throw new ConflictException('License must be under review before inspection assignment');
+    const institution = await this.prisma.institution.findUnique({ where: { id: license.institutionId }, include: { type: true } });
+    if (!institution?.institutionTypeId || !institution.type) throw new ConflictException('Institution organization type is required for licensing inspection');
+    const template = await this.prisma.inspectionChecklistTemplate.findFirst({ where: { institutionTypeId: institution.institutionTypeId, active: true }, orderBy: { version: 'desc' } });
+    if (!template?.inspectionRequired) throw new ConflictException('Inspection is not required for this organization type');
+    const inspector = await this.prisma.user.findUnique({ where: { id: inspectorUserId }, include: { roles: { include: { role: true } } } });
+    if (!inspector || !inspector.roles.some((r) => r.role.code === RoleCode.INSPECTOR)) throw new BadRequestException('Assigned user must have INSPECTOR role');
+    const assignments = await this.prisma.inspectorAssignment.findMany({ where: { inspectorUserId, active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] } });
+    const assignment = assignments.find((a) =>
+      (!a.institutionTypeId || a.institutionTypeId === institution.institutionTypeId) &&
+      (a.jurisdictionLevel === 'NATIONAL' ||
+       (a.jurisdictionLevel === 'REGION' && a.jurisdictionId === institution.regionId) ||
+       (a.jurisdictionLevel === 'ZONE_CITY' && a.jurisdictionId === institution.zoneId) ||
+       (a.jurisdictionLevel === 'SUBCITY_TOWN' && a.jurisdictionId === institution.subcityId) ||
+       (a.jurisdictionLevel === 'DISTRICT' && a.jurisdictionId === institution.districtId) ||
+       (a.jurisdictionLevel === 'INSTITUTION' && a.jurisdictionId === institution.id)));
+    if (!assignment) throw new ForbiddenException('Inspector is not assigned to this organization type and jurisdiction');
+    const inspection = await this.prisma.inspection.create({ data: {
+      licenseId: id,
+      assignedToUserId: inspectorUserId,
+      inspectorAssignmentId: assignment.id,
+      institutionTypeId: institution.institutionTypeId,
+      checklistTemplateId: template.id,
+      institutionTypeCode: institution.type.code,
+      institutionTypeName: institution.type.name,
+      checklistSnapshot: template.items as Prisma.InputJsonValue,
+      scheduledAt: scheduledAt ? new Date(scheduledAt) : undefined,
+    } });
+    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'LICENSE_INSPECTION_ASSIGNED', entityType: 'License', entityId: id, metadata: { inspectionId: inspection.id, inspectorUserId, checklistTemplateId: template.id } } });
+    return inspection;
   }
 
   async list(user: AuthenticatedUser, query: LicenseListQuery) {
@@ -204,7 +260,9 @@ export class LicensingService {
   }
 
   async create(user: AuthenticatedUser, input: CreateLicenseInput) {
-    await this.assertDecisionRole(user);
+    const institutionAdmin = user.roles.includes(RoleCode.INSTITUTION_ADMIN);
+    if (!institutionAdmin) await this.assertDecisionRole(user);
+    if (institutionAdmin && input.institutionId !== user.institutionId) throw new ForbiddenException('Institution administrators may only apply for their own institution');
     if (!input.institutionId) throw new BadRequestException('institutionId is required');
     const institution = await this.assertInstitutionAccess(user, input.institutionId);
     if (institution.status !== 'ACTIVE') throw new ConflictException('Only active institutions are eligible for licensing');
@@ -261,6 +319,7 @@ export class LicensingService {
 
   async approve(user: AuthenticatedUser, id: string) {
     const { license } = await this.transitionApplication(user, id, LicenseApplicationStatus.APPROVED);
+    await this.assertInspectionGate(license);
     const updated = await this.prisma.license.update({ where: { id }, data: { applicationStatus: LicenseApplicationStatus.APPROVED, approvedBy: user.id, approvedAt: new Date() } });
     await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'LICENSE_APPROVED', entityType: 'License', entityId: id, metadata: { fromStatus: license.applicationStatus } } });
     return updated;

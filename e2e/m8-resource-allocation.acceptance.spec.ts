@@ -37,11 +37,12 @@ test.beforeAll(async () => {
       status: 'ACTIVE',
     },
   });
-  await prisma.memberInstitution.upsert({
-    where: { memberId_institutionId: { memberId: member.id, institutionId: institution.id } },
-    update: { status: 'ACTIVE', endedAt: null },
-    create: { memberId: member.id, institutionId: institution.id, status: 'ACTIVE' },
-  });
+  const existingMembership = await prisma.memberInstitution.findFirst({ where: { memberId: member.id, institutionId: institution.id }, orderBy: { createdAt: 'desc' } });
+  if (existingMembership) {
+    await prisma.memberInstitution.update({ where: { id: existingMembership.id }, data: { status: 'ACTIVE', endedAt: null } });
+  } else {
+    await prisma.memberInstitution.create({ data: { memberId: member.id, institutionId: institution.id, status: 'ACTIVE' } });
+  }
 });
 
 test.afterAll(async () => prisma.$disconnect());

@@ -10,11 +10,13 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { PrismaService } from '../prisma.service';
 import { RegistrationsController } from './registrations.controller';
 import { RegistrationsService } from './registrations.service';
+import { RegistrationDocumentsController } from './registration-documents.controller';
+import { RegistrationDocumentsService } from './registration-documents.service';
 
 @Module({
   imports: [LocationsModule, PaymentsModule],
-  controllers: [RegistrationsController],
-  providers: [RegistrationsService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard, CredentialProvisioningService, NotificationsService],
+  controllers: [RegistrationsController, RegistrationDocumentsController],
+  providers: [RegistrationsService, RegistrationDocumentsService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard, CredentialProvisioningService, NotificationsService],
   exports: [RegistrationsService],
 })
 export class RegistrationsModule {}

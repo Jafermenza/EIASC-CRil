@@ -5,6 +5,7 @@ const prisma = new PrismaClient();
 const ADMIN_EMAIL = 'e2e-admin@example.test';
 const ADMIN_PASSWORD = 'e2e-password-12345';
 const M6_MEMBER_NUMBER = 'E2E-M6-MEMBER-0001';
+const M6_DIRECT_MEMBER_NUMBER = 'E2E-M6-MEMBER-0002';
 
 async function signIn(page: Page) {
   await page.goto('/login');
@@ -39,10 +40,29 @@ test.beforeAll(async () => {
     },
   });
 
-  // The schema intentionally keeps one member/institution row unique even after END.
-  // Reset only this dedicated M6 fixture so the acceptance test is repeatable and
-  // cannot collide with a prior CI attempt or another milestone's fixture.
+  // Reset only these dedicated M6 fixtures so the acceptance test is repeatable
+  // and cannot collide with a prior CI attempt or another milestone's fixture.
   await prisma.memberInstitution.deleteMany({ where: { memberId: member.id, institutionId: institution.id } });
+  await prisma.member.upsert({
+    where: { membershipNumber: M6_DIRECT_MEMBER_NUMBER },
+    update: { status: 'ACTIVE' },
+    create: {
+      membershipNumber: M6_DIRECT_MEMBER_NUMBER,
+      firstName: 'E2E M6 Direct',
+      lastName: 'Member',
+      birthDate: new Date('1991-01-01'),
+      gender: 'OTHER',
+      maritalStatus: 'SINGLE',
+      phone: '+251911000007',
+      regionId: region.id,
+      zoneId: zone.id,
+      subcityId: subcity.id,
+      districtId: district.id,
+      status: 'ACTIVE',
+    },
+  });
+  const directMember = await prisma.member.findUniqueOrThrow({ where: { membershipNumber: M6_DIRECT_MEMBER_NUMBER } });
+  await prisma.memberInstitution.deleteMany({ where: { memberId: directMember.id, institutionId: institution.id } });
 });
 
 test.afterAll(async () => prisma.$disconnect());
@@ -87,4 +107,13 @@ test('M6 institutional membership lifecycle: request, approve, display, suspend 
   expect(persisted.endedAt).toBeTruthy();
   const audit = await prisma.auditLog.findMany({ where: { entityType: 'MemberInstitution', entityId: created.id } });
   expect(audit.map((entry) => entry.action)).toEqual(expect.arrayContaining(['MEMBERSHIP_REQUESTED', 'MEMBERSHIP_ACTIVE', 'MEMBERSHIP_SUSPENDED', 'MEMBERSHIP_ENDED']));
+  const directMember = await prisma.member.findUniqueOrThrow({ where: { membershipNumber: M6_DIRECT_MEMBER_NUMBER } });
+  const direct = await request.post('http://127.0.0.1:4000/api/v1/memberships/direct', {
+    headers,
+    data: { memberId: directMember.id, institutionId: institution.id, relationshipType: 'SECONDARY', reason: 'Institution administrator direct affiliation' },
+  });
+  expect(direct.status()).toBe(201);
+  expect((await direct.json()).status).toBe('ACTIVE');
+  const directHistory = await prisma.memberInstitutionHistory.findMany({ where: { memberId: directMember.id, institutionId: institution.id } });
+  expect(directHistory.map((entry) => entry.toStatus)).toContain('ACTIVE');
 });

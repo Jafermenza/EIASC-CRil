@@ -111,6 +111,20 @@ enum LicenseApplicationStatus {
   REJECTED
 }
 
+enum InspectionStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum InspectionDecision {
+  PENDING
+  PASS
+  FAIL
+  CONDITIONAL
+}
+
 enum CredentialType {
   MEMBER
   INSTITUTION
@@ -145,6 +159,20 @@ enum NotificationStatus {
   READ
 }
 
+enum OutboxEventStatus {
+  PENDING
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
 enum AllocationPolicyStatus {
   DRAFT
   APPROVED
@@ -172,10 +200,19 @@ model User {
   updatedAt           DateTime          @updatedAt
   roles               UserRole[]
   auditLogs           AuditLog[]
+  createdInspectionTemplates InspectionChecklistTemplate[] @relation("InspectionTemplateCreatedBy")
+  updatedInspectionTemplates InspectionChecklistTemplate[] @relation("InspectionTemplateUpdatedBy")
+  createdInspectorAssignments InspectorAssignment[] @relation("InspectorAssignmentCreatedBy")
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
   geographyImports    GeographyImport[]
-  notifications       Notification[]
+  notifications      Notification[]
+  notificationDeliveries NotificationDelivery[]
+  membershipHistory  MemberInstitutionHistory[]
+  reviewSnapshots      ApplicationReviewSnapshot[]
+  correctionRequests   ApplicationCorrection[]
+  assignedInspections  Inspection[]
+  inspectionAssignments InspectorAssignment[]
   createdPolicies     AllocationPolicy[] @relation("PolicyCreatedBy")
   approvedPolicies    AllocationPolicy[] @relation("PolicyApprovedBy")
   calculatedRuns      AllocationRun[]    @relation("RunCalculatedBy")
@@ -328,6 +365,10 @@ model InstitutionType {
   updatedAt     DateTime      @updatedAt
   institutions  Institution[]
   applications  InstitutionApplication[]
+  inspectionChecklistTemplates InspectionChecklistTemplate[]
+  inspectorAssignments InspectorAssignment[]
+  inspections Inspection[]
+  credentialTypes Credential[] @relation("CredentialInstitutionType")
 }
 
 model Institution {
@@ -364,6 +405,7 @@ model Institution {
   registrations       Registration[]     @relation("InstitutionRegistration")
   applications        InstitutionApplication[]
   memberLinks         MemberInstitution[]
+  membershipHistory   MemberInstitutionHistory[]
   leaders             InstitutionLeader[]
   staffSummary        InstitutionStaffSummary?
   education           InstitutionEducation?
@@ -404,6 +446,7 @@ model InstitutionApplication {
   applicantName       String?
   applicantPhone      String?
   applicantEmail      String?
+  inspectionRequired  Boolean                    @default(false)
   correctionReason    String?
   rejectionReason     String?
   institutionId       String?                    @db.Uuid
@@ -421,10 +464,148 @@ model InstitutionApplication {
   staffSummary        InstitutionApplicationStaffSummary?
   education           InstitutionApplicationEducation?
   documents           InstitutionDocument[]
+  amendments          InstitutionApplicationAmendment[]
+  reviewSnapshots     ApplicationReviewSnapshot[]
+  correctionRequests  ApplicationCorrection[]
+  inspections         Inspection[]
   history             InstitutionStatusHistory[]
   @@index([status])
   @@index([regionId, zoneId, subcityId, districtId])
   @@index([institutionName])
+}
+
+model InspectionChecklistTemplate {
+  id                 String         @id @default(uuid()) @db.Uuid
+  institutionTypeId  String         @db.Uuid
+  version            Int
+  name               String
+  description        String?
+  inspectionRequired Boolean        @default(true)
+  items              Json
+  active              Boolean       @default(true)
+  createdByUserId    String?        @db.Uuid
+  updatedByUserId    String?        @db.Uuid
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  institutionType    InstitutionType @relation(fields: [institutionTypeId], references: [id], onDelete: Cascade)
+  createdBy          User?          @relation("InspectionTemplateCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy          User?          @relation("InspectionTemplateUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  inspections        Inspection[]
+  @@unique([institutionTypeId, version])
+  @@index([institutionTypeId, active])
+}
+
+model InspectorAssignment {
+  id                 String           @id @default(uuid()) @db.Uuid
+  inspectorUserId    String           @db.Uuid
+  institutionTypeId  String?          @db.Uuid
+  jurisdictionLevel  JurisdictionLevel
+  jurisdictionId     String?
+  active             Boolean          @default(true)
+  assignedAt         DateTime         @default(now())
+  expiresAt          DateTime?
+  notes              String?
+  createdByUserId    String?          @db.Uuid
+  inspector          User             @relation(fields: [inspectorUserId], references: [id], onDelete: Cascade)
+  institutionType    InstitutionType? @relation(fields: [institutionTypeId], references: [id], onDelete: SetNull)
+  createdBy          User?            @relation("InspectorAssignmentCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  inspections        Inspection[]
+  @@index([inspectorUserId, active])
+  @@index([institutionTypeId, active])
+  @@index([jurisdictionLevel, jurisdictionId, active])
+}
+
+model RegistrationAmendment {
+  id             String       @id @default(uuid()) @db.Uuid
+  registrationId String       @db.Uuid
+  version        Int
+  snapshot       Json
+  changedFields  Json?
+  createdAt      DateTime     @default(now())
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  @@unique([registrationId, version])
+  @@index([registrationId, createdAt])
+}
+
+model InstitutionApplicationAmendment {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  institutionApplicationId  String                  @db.Uuid
+  version                    Int
+  snapshot                   Json
+  changedFields              Json?
+  createdAt                  DateTime                @default(now())
+  application                InstitutionApplication @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  @@unique([institutionApplicationId, version])
+  @@index([institutionApplicationId, createdAt])
+}
+
+model ApplicationReviewSnapshot {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  registrationId             String?                 @db.Uuid
+  institutionApplicationId  String?                 @db.Uuid
+  capturedByUserId           String                  @db.Uuid
+  status                     String
+  snapshot                   Json
+  createdAt                  DateTime                @default(now())
+  registration               Registration?           @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  capturedBy                 User                    @relation(fields: [capturedByUserId], references: [id], onDelete: Restrict)
+  @@index([registrationId, createdAt])
+  @@index([institutionApplicationId, createdAt])
+}
+
+model ApplicationCorrection {
+  id                         String                  @id @default(uuid()) @db.Uuid
+  registrationId             String?                 @db.Uuid
+  institutionApplicationId  String?                 @db.Uuid
+  requestedByUserId          String                  @db.Uuid
+  reason                     String
+  fields                     Json?
+  resolvedAt                 DateTime?
+  createdAt                  DateTime                @default(now())
+  registration               Registration?           @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  requestedBy                User                    @relation(fields: [requestedByUserId], references: [id], onDelete: Restrict)
+  @@index([registrationId, createdAt])
+  @@index([institutionApplicationId, createdAt])
+}
+
+model Inspection {
+  id                         String             @id @default(uuid()) @db.Uuid
+  registrationId             String?            @db.Uuid
+  institutionApplicationId  String?            @db.Uuid
+  licenseId                  String?            @db.Uuid
+  assignedToUserId           String             @db.Uuid
+  institutionTypeId          String?            @db.Uuid
+  inspectorAssignmentId      String?            @db.Uuid
+  checklistTemplateId        String?            @db.Uuid
+  institutionTypeCode       String?
+  institutionTypeName       String?
+  checklistSnapshot         Json?
+  checklistResponses        Json?
+  report                    Json?
+  status                     InspectionStatus   @default(ASSIGNED)
+  decision                   InspectionDecision @default(PENDING)
+  scheduledAt                DateTime?
+  startedAt                  DateTime?
+  completedAt                DateTime?
+  findings                   Json?
+  decisionReason             String?
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  registration              Registration?      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  institutionApplication    InstitutionApplication? @relation(fields: [institutionApplicationId], references: [id], onDelete: Cascade)
+  license                   License?            @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  assignedTo                User               @relation(fields: [assignedToUserId], references: [id], onDelete: Restrict)
+  institutionType            InstitutionType?    @relation(fields: [institutionTypeId], references: [id], onDelete: Restrict)
+  checklistTemplate          InspectionChecklistTemplate? @relation(fields: [checklistTemplateId], references: [id], onDelete: Restrict)
+  inspectorAssignment       InspectorAssignment? @relation(fields: [inspectorAssignmentId], references: [id], onDelete: Restrict)
+  @@index([registrationId, status])
+  @@index([institutionApplicationId, status])
+  @@index([licenseId, status])
+  @@index([assignedToUserId, status])
+  @@index([institutionTypeId, status])
+  @@index([checklistTemplateId])
 }
 
 model InstitutionApplicationLeader {
@@ -496,6 +677,7 @@ model InstitutionDocument {
   documentType        String
   fileName             String
   storageKey           String                  @unique
+  storageUrl            String
   mimeType             String
   size                 Int
   uploadedBy           String?                 @db.Uuid
@@ -504,6 +686,24 @@ model InstitutionDocument {
   institution          Institution?           @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   @@index([institutionApplicationId])
   @@index([institutionId])
+}
+
+model RegistrationDocument {
+  id             String       @id @default(uuid()) @db.Uuid
+  registrationId String       @db.Uuid
+  memberId       String?      @db.Uuid
+  documentType   String
+  fileName       String
+  storageKey     String       @unique
+  storageUrl     String
+  mimeType       String
+  size           Int
+  uploadedBy     String?      @db.Uuid
+  createdAt      DateTime     @default(now())
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  member         Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  @@index([registrationId, createdAt])
+  @@index([memberId, createdAt])
 }
 
 model InstitutionStatusHistory {
@@ -550,7 +750,9 @@ model Member {
   subcity            SubcityTown?        @relation("SubcityMembers", fields: [subcityId], references: [id], onDelete: Restrict)
   district            District            @relation("DistrictMembers", fields: [districtId], references: [id], onDelete: Restrict)
   institutions       MemberInstitution[]
+  membershipHistory MemberInstitutionHistory[]
   registration       Registration?       @relation("MemberRegistration")
+  registrationDocuments RegistrationDocument[]
   credentials        Credential[]
   @@index([phone])
   @@index([regionId, zoneId, subcityId, districtId])
@@ -568,9 +770,33 @@ model MemberInstitution {
   updatedAt         DateTime                    @updatedAt
   member            Member                      @relation(fields: [memberId], references: [id], onDelete: Cascade)
   institution       Institution                 @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  @@unique([memberId, institutionId])
+  @@index([memberId, institutionId])
   @@index([institutionId, status])
   @@index([memberId, status])
+  @@index([memberId, relationshipType, status])
+  membershipHistory MemberInstitutionHistory[]
+}
+
+model MemberInstitutionHistory {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  memberInstitutionId String                    @db.Uuid
+  memberId            String                    @db.Uuid
+  institutionId       String                    @db.Uuid
+  fromStatus          MembershipStatus?
+  toStatus            MembershipStatus
+  relationshipType    InstitutionRelationshipType
+  effectiveFrom       DateTime?
+  effectiveTo         DateTime?
+  reason              String?
+  actorUserId         String?                   @db.Uuid
+  createdAt           DateTime                  @default(now())
+  membership          MemberInstitution         @relation(fields: [memberInstitutionId], references: [id], onDelete: Cascade)
+  member              Member                    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  institution         Institution               @relation(fields: [institutionId], references: [id], onDelete: Cascade)
+  actor               User?                     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  @@index([memberInstitutionId, createdAt])
+  @@index([memberId, createdAt])
+  @@index([institutionId, createdAt])
 }
 
 model Registration {
@@ -605,6 +831,11 @@ model Registration {
   rejectionReason     String?
   decisionAt          DateTime?
   memberId            String?             @unique @db.Uuid
+  documents            RegistrationDocument[]
+  amendments           RegistrationAmendment[]
+  reviewSnapshots      ApplicationReviewSnapshot[]
+  correctionRequests   ApplicationCorrection[]
+  inspections          Inspection[]
   submittedAt         DateTime?
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
@@ -640,6 +871,7 @@ model License {
   updatedAt         DateTime                @updatedAt
   institution       Institution             @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   credentials       Credential[]
+  inspections       Inspection[]
   @@index([institutionId])
   @@index([status])
   @@index([expiresAt])
@@ -656,6 +888,7 @@ model AuditLog {
   metadata    Json?
   createdAt   DateTime  @default(now())
   actor       User?     @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  outboxEvents OutboxEvent[]
   @@index([entityType, entityId])
   @@index([actorUserId, createdAt])
 }
@@ -669,6 +902,7 @@ model Credential {
   memberId       String?        @db.Uuid
   institutionId  String?        @db.Uuid
   licenseId      String?        @db.Uuid
+  institutionTypeId String?    @db.Uuid
   issuedAt       DateTime       @default(now())
   expiresAt      DateTime?
   revokedAt      DateTime?
@@ -677,10 +911,12 @@ model Credential {
   member         Member?        @relation(fields: [memberId], references: [id], onDelete: Cascade)
   institution    Institution?   @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   license        License?       @relation(fields: [licenseId], references: [id], onDelete: Cascade)
+  institutionType InstitutionType? @relation("CredentialInstitutionType", fields: [institutionTypeId], references: [id], onDelete: SetNull)
   @@index([type, status])
   @@index([memberId])
   @@index([institutionId])
   @@index([licenseId])
+  @@index([institutionTypeId])
 }
 
 model Notification {
@@ -696,7 +932,55 @@ model Notification {
   metadata    Json?
   createdAt   DateTime            @default(now())
   recipient   User                @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  deliveries  NotificationDelivery[]
   @@index([recipientId, status, createdAt])
+}
+
+model OutboxEvent {
+  id                String           @id @default(uuid()) @db.Uuid
+  eventId           String           @unique @db.Uuid
+  sourceAuditLogId  String           @unique @db.Uuid
+  eventType         String
+  aggregateType     String
+  aggregateId       String?          @db.Uuid
+  payload           Json
+  status            OutboxEventStatus @default(PENDING)
+  attempts          Int              @default(0)
+  availableAt       DateTime         @default(now())
+  lockedAt          DateTime?
+  processedAt       DateTime?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deliveries        NotificationDelivery[]
+  sourceAuditLog    AuditLog         @relation(fields: [sourceAuditLogId], references: [id], onDelete: Cascade)
+  @@index([status, availableAt])
+  @@index([aggregateType, aggregateId])
+  @@index([createdAt])
+}
+
+model NotificationDelivery {
+  id                String                    @id @default(uuid()) @db.Uuid
+  outboxEventId     String                    @db.Uuid
+  notificationId    String?                   @db.Uuid
+  recipientId       String                    @db.Uuid
+  channel           NotificationChannel
+  status            NotificationDeliveryStatus @default(PENDING)
+  attempts          Int                       @default(0)
+  nextAttemptAt     DateTime                  @default(now())
+  processingStartedAt DateTime?
+  sentAt            DateTime?
+  lastError         String?
+  providerMessageId String?
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  outboxEvent       OutboxEvent               @relation(fields: [outboxEventId], references: [id], onDelete: Cascade)
+  notification      Notification?             @relation(fields: [notificationId], references: [id], onDelete: SetNull)
+  recipient         User                      @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+  @@unique([outboxEventId, recipientId, channel])
+  @@index([status, nextAttemptAt])
+  @@index([recipientId, createdAt])
+  @@index([notificationId])
 }
 
 model AllocationPolicy {

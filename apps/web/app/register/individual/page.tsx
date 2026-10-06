@@ -35,6 +35,8 @@ export default function IndividualRegistrationPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [paying, setPaying] = useState(false);
+  const [supportingDocument, setSupportingDocument] = useState<File | null>(null);
+  const [otherAttachments, setOtherAttachments] = useState<File[]>([]);
   const [form, setForm] = useState({
     firstName: "",
     middleName: "",
@@ -243,7 +245,21 @@ export default function IndividualRegistrationPage() {
       setPaying(false);
     }
   }
+  async function uploadSupportingDocuments(trackingCode: string, phone: string) {
+    const files: Array<{ file: File; type: string }> = [];
+    if (supportingDocument) files.push({ file: supportingDocument, type: "SUPPORTING_DOCUMENT" });
+    for (const file of otherAttachments) files.push({ file, type: "OTHER" });
+    for (const item of files) {
+      const body = new FormData();
+      body.append("file", item.file);
+      const response = await fetch(`${API}/registrations/individual/${encodeURIComponent(trackingCode)}/documents/${item.type}?phone=${encodeURIComponent(phone)}`, { method: "POST", body });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(extractErrorMessage(data, `Unable to upload ${item.file.name}.`));
+    }
+  }
+
   async function saveApplication() {
+    if (application) { setLoading(true); try { await uploadSupportingDocuments(application.trackingCode, application.phone); setStep(3); } catch (e) { reportError(e instanceof Error ? e.message : "Unable to upload supporting documents."); } finally { setLoading(false); } return; }
     if (!stepOneValid() || !stepTwoValid()) {
       reportError(validationReason());
       return;
@@ -268,6 +284,7 @@ export default function IndividualRegistrationPage() {
       const data = await response.json();
       if (!response.ok) throw new Error(extractErrorMessage(data, "Registration could not be saved."));
       setApplication({ trackingCode: data.trackingCode, phone: data.phone });
+      await uploadSupportingDocuments(data.trackingCode, data.phone);
       setStep(3);
     } catch (e) {
       reportError(e instanceof Error ? e.message : "Registration could not be saved.");
@@ -677,6 +694,7 @@ export default function IndividualRegistrationPage() {
                 disabled={loading}
                 onClick={saveApplication}
               >
+            <section className="workflow-panel"><p className="eyebrow">SUPPORTING DOCUMENTS</p><h3>Attach supporting document</h3><p className="lead" style={{ fontSize: 14 }}>Optional. Upload one main supporting document and add other attachments if needed. PDF, JPEG, PNG or WebP; maximum 10 MB per file.</p><label>Supporting document<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setSupportingDocument(e.target.files?.[0] ?? null)} /></label>{supportingDocument && <p><small>{supportingDocument.name}</small></p>}<label>Other attachments (optional)<input type="file" multiple accept="application/pdf,image/jpeg,image/png,image/webp" onChange={(e) => setOtherAttachments(Array.from(e.target.files ?? []))} /></label>{otherAttachments.length > 0 && <ul>{otherAttachments.map((file) => <li key={file.name + file.size}>{file.name}</li>)}</ul>}</section>
                 {loading ? "Saving application…" : "Save application & continue to payment"}
               </button>
             </div>

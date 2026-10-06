@@ -70,19 +70,23 @@ export class RegistrationsService {
 
   async track(trackingCode: string, phone?: string, firstName?: string): Promise<ApplicationTrackingResult> {
     const code = trackingCode.trim().toUpperCase(); if (!code) throw new BadRequestException('Tracking code is required');
-    const registration = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { type: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, firstName: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
+    const registration = await this.prisma.registration.findUnique({ where: { trackingCode: code }, select: { id: true, type: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, firstName: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
     if (registration) {
+      const payment = await this.payments.statusForApplication('INDIVIDUAL', registration.id);
+      const paymentStatus = String(payment.status ?? 'PENDING');
+      const normalizedPayment = { required: Boolean(payment.required), amount: Number(payment.amount ?? 0), currency: String(payment.currency ?? ''), status: paymentStatus, nextAction: String(payment.nextAction ?? ''), payment: (payment.payment && typeof payment.payment === 'object' ? payment.payment as Record<string, unknown> : null) };
       if (phone && registration.phone !== phone.trim()) throw new NotFoundException('Application not found'); if (firstName && registration.firstName?.trim().toLowerCase() !== firstName.trim().toLowerCase()) throw new NotFoundException('Application not found');
       const nextActionByStatus: Record<RegistrationStatus, string> = { DRAFT: 'Complete and submit the application', SUBMITTED: 'Wait for EIASC review', UNDER_REVIEW: 'Application is being reviewed', CORRECTION: 'Update the requested information and resubmit', RESUBMITTED: 'Wait for EIASC review', APPROVED: 'Your application has been approved', REJECTED: 'Review the decision information', REVOKED: 'Contact EIASC for further information' };
-      return { type: registration.type, trackingCode: registration.trackingCode, status: registration.status, submittedAt: registration.submittedAt, createdAt: registration.createdAt, updatedAt: registration.updatedAt, nextAction: nextActionByStatus[registration.status], correctionRequirement: registration.status === RegistrationStatus.CORRECTION ? registration.correctionReason ?? undefined : undefined, decisionInformation: registration.status === RegistrationStatus.REJECTED || registration.status === RegistrationStatus.APPROVED ? registration.rejectionReason ?? (registration.decisionAt ? `Decision recorded on ${registration.decisionAt.toISOString()}` : undefined) : undefined };
+      return { type: registration.type, trackingCode: registration.trackingCode, status: registration.status, submittedAt: registration.submittedAt, createdAt: registration.createdAt, updatedAt: registration.updatedAt, nextAction: payment.required && paymentStatus !== 'PAID' ? normalizedPayment.nextAction : nextActionByStatus[registration.status], correctionRequirement: registration.status === RegistrationStatus.CORRECTION ? registration.correctionReason ?? undefined : undefined, decisionInformation: registration.status === RegistrationStatus.REJECTED || registration.status === RegistrationStatus.APPROVED ? registration.rejectionReason ?? (registration.decisionAt ? `Decision recorded on ${registration.decisionAt.toISOString()}` : undefined) : undefined, payment: normalizedPayment };
     }
     // Institution applications use their own tracking-code sequence and table. The public
     // tracking page accepts either code type, so fall back here instead of reporting "not found".
-    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
+    const application = await this.prisma.institutionApplication.findUnique({ where: { trackingCode: code }, select: { id: true, trackingCode: true, status: true, submittedAt: true, createdAt: true, updatedAt: true, phone: true, applicantPhone: true, correctionReason: true, rejectionReason: true, decisionAt: true } });
     if (!application) throw new NotFoundException('Application not found');
+    const payment = await this.payments.statusForApplication('INSTITUTION', application.id);
     if (phone && application.phone !== phone.trim() && application.applicantPhone !== phone.trim()) throw new NotFoundException('Application not found');
     const institutionNextActionByStatus: Record<string, string> = { DRAFT: 'Complete and submit the application', SUBMITTED: 'Wait for EIASC review', UNDER_REVIEW: 'Application is being reviewed', CORRECTION_REQUIRED: 'Update the requested information and resubmit', RESUBMITTED: 'Wait for EIASC review', APPROVED: 'Application approved', REJECTED: 'Review the decision information', REVOKED: 'Contact EIASC for further information' };
-    return { type: 'INSTITUTION', trackingCode: application.trackingCode, status: application.status as unknown as IndividualRegistrationStatus, submittedAt: application.submittedAt, createdAt: application.createdAt, updatedAt: application.updatedAt, nextAction: institutionNextActionByStatus[application.status] ?? 'Wait for EIASC review', correctionRequirement: application.status === 'CORRECTION_REQUIRED' ? application.correctionReason ?? undefined : undefined, decisionInformation: application.status === 'REJECTED' || application.status === 'APPROVED' ? application.rejectionReason ?? (application.decisionAt ? `Decision recorded on ${application.decisionAt.toISOString()}` : undefined) : undefined };
+    return { type: 'INSTITUTION', trackingCode: application.trackingCode, status: application.status as unknown as IndividualRegistrationStatus, submittedAt: application.submittedAt, createdAt: application.createdAt, updatedAt: application.updatedAt, nextAction: payment.required && payment.status !== 'PAID' ? payment.nextAction : (institutionNextActionByStatus[application.status] ?? 'Wait for EIASC review'), correctionRequirement: application.status === 'CORRECTION_REQUIRED' ? application.correctionReason ?? undefined : undefined, decisionInformation: application.status === 'REJECTED' || application.status === 'APPROVED' ? application.rejectionReason ?? (application.decisionAt ? `Decision recorded on ${application.decisionAt.toISOString()}` : undefined) : undefined, payment };
   }
 
   private assertReviewRole(user: AuthenticatedUser) {
@@ -90,21 +94,127 @@ export class RegistrationsService {
     if (!user.roles.some((role) => reviewRoles.includes(role))) throw new ConflictException('Registration review permission required');
   }
 
-  async listMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; page?: string; pageSize?: string }) {
+  async applicationDetail(user: AuthenticatedUser, id: string) {
     this.assertReviewRole(user);
-    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
+    const registration = await this.prisma.registration.findUnique({
+      where: { id },
+      include: { institution: true, member: true, documents: { orderBy: { createdAt: 'asc' }, select: { id: true, documentType: true, fileName: true, storageUrl: true, mimeType: true, size: true, createdAt: true } } },
+    });
+    if (!registration) throw new NotFoundException('Application not found');
+    if (!(await this.authorization.canAccess(user, { regionId: registration.regionId, zoneId: registration.zoneId, subcityId: registration.subcityId, districtId: registration.districtId }))) throw new ConflictException('Application is outside your jurisdiction');
+    const amendments = await this.prisma.registrationAmendment.findMany({ where: { registrationId: id }, orderBy: { version: 'desc' } });
+    const payment = await this.payments.getForApplication('INDIVIDUAL', id);
+    return { ...registration, payment, amendments };
+  }
+
+  private async applicationTransition(user: AuthenticatedUser, id: string, target: RegistrationStatus, reason: string) {
+    const app = await this.applicationDetail(user, id);
+    const allowed: Record<RegistrationStatus, RegistrationStatus[]> = {
+      DRAFT: [RegistrationStatus.SUBMITTED],
+      SUBMITTED: [RegistrationStatus.UNDER_REVIEW],
+      UNDER_REVIEW: [RegistrationStatus.CORRECTION, RegistrationStatus.APPROVED, RegistrationStatus.REJECTED],
+      CORRECTION: [RegistrationStatus.RESUBMITTED, RegistrationStatus.REJECTED],
+      RESUBMITTED: [RegistrationStatus.UNDER_REVIEW],
+      APPROVED: [],
+      REJECTED: [],
+      REVOKED: [],
+    };
+    if (!allowed[app.status].includes(target)) throw new ConflictException(`Invalid application transition: ${app.status} -> ${target}`);
+    if (!reason.trim()) throw new BadRequestException('Reason is required');
+    return app;
+  }
+
+  async reviewApplication(user: AuthenticatedUser, id: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.UNDER_REVIEW, 'Review started');
+    const updated = await this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.UNDER_REVIEW } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_REVIEW_STARTED', entityType: 'Registration', entityId: id, metadata: { fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
+
+  async requestApplicationCorrection(user: AuthenticatedUser, id: string, reason: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.CORRECTION, reason);
+    const updated = await this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.CORRECTION, correctionReason: this.clean(reason) } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_CORRECTION_REQUESTED', entityType: 'Registration', entityId: id, metadata: { reason: this.clean(reason), fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
+
+  async rejectApplication(user: AuthenticatedUser, id: string, reason: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.REJECTED, reason);
+    const updated = await this.prisma.registration.update({ where: { id }, data: { status: RegistrationStatus.REJECTED, rejectionReason: this.clean(reason), decisionAt: new Date() } });
+    await this.prisma.auditLog.create({ data: { action: 'REGISTRATION_APPLICATION_REJECTED', entityType: 'Registration', entityId: id, metadata: { reason: this.clean(reason), fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
+
+  async approveApplication(user: AuthenticatedUser, id: string) {
+    const app = await this.applicationTransition(user, id, RegistrationStatus.APPROVED, 'Approval');
+    await this.payments.assertPaid('INDIVIDUAL', id);
+    if (app.status !== RegistrationStatus.UNDER_REVIEW) throw new ConflictException('Only applications under review may be approved');
+    return this.approve(user, id);
+  }
+
+  private csvCell(value: unknown): string {
+    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  private memberDirectoryWhere(query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; from?: string; to?: string }) {
     const where: any = {};
     if (query.status) where.status = query.status;
     for (const key of ['regionId', 'zoneId', 'subcityId', 'districtId'] as const) if (query[key]) where[key] = query[key];
-    if (query.search?.trim()) where.OR = [{ firstName: { contains: query.search.trim(), mode: 'insensitive' } }, { lastName: { contains: query.search.trim(), mode: 'insensitive' } }, { phone: { contains: query.search.trim() } }, { membershipNumber: { contains: query.search.trim(), mode: 'insensitive' } }];
-    if (!(await this.authorization.canAccess(user, { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId }))) {
-      switch (user.jurisdictionLevel) { case 'REGION': where.regionId = user.jurisdictionId; break; case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break; case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break; case 'DISTRICT': where.districtId = user.jurisdictionId; break; default: break; }
+    if (query.search?.trim()) where.OR = [
+      { firstName: { contains: query.search.trim(), mode: 'insensitive' } },
+      { lastName: { contains: query.search.trim(), mode: 'insensitive' } },
+      { phone: { contains: query.search.trim() } },
+      { membershipNumber: { contains: query.search.trim(), mode: 'insensitive' } },
+      { email: { contains: query.search.trim(), mode: 'insensitive' } },
+    ];
+    const createdAt: { gte?: Date; lt?: Date } = {};
+    if (query.from) { const d = new Date(query.from); if (!Number.isNaN(d.getTime())) createdAt.gte = d; }
+    if (query.to) { const d = new Date(query.to); if (!Number.isNaN(d.getTime())) { d.setUTCDate(d.getUTCDate() + 1); createdAt.lt = d; } }
+    if (createdAt.gte || createdAt.lt) where.createdAt = createdAt;
+    return where;
+  }
+
+  async listMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; from?: string; to?: string; page?: string; pageSize?: string }) {
+    this.assertReviewRole(user);
+    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
+    const where = this.memberDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      switch (user.jurisdictionLevel) {
+        case 'REGION': where.regionId = user.jurisdictionId; break;
+        case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break;
+        case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break;
+        case 'DISTRICT': where.districtId = user.jurisdictionId; break;
+        default: break;
+      }
     }
     const [items, total] = await this.prisma.$transaction([
       this.prisma.member.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.member.count({ where }),
     ]);
     return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  async exportMembers(user: AuthenticatedUser, query: { status?: string; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; search?: string; from?: string; to?: string }) {
+    this.assertReviewRole(user);
+    const where = this.memberDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      switch (user.jurisdictionLevel) {
+        case 'REGION': where.regionId = user.jurisdictionId; break;
+        case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break;
+        case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break;
+        case 'DISTRICT': where.districtId = user.jurisdictionId; break;
+      }
+    }
+    const items = await this.prisma.member.findMany({ where, orderBy: [{ regionId: 'asc' }, { zoneId: 'asc' }, { subcityId: 'asc' }, { districtId: 'asc' }, { lastName: 'asc' }, { firstName: 'asc' }] });
+    const lines = [
+      ['Member ID', 'Membership number', 'First name', 'Last name', 'Phone', 'Email', 'Status', 'Region ID', 'Zone/City ID', 'Subcity/Town ID', 'District ID', 'Registered'].map(this.csvCell).join(','),
+      ...items.map((m) => [m.id, m.membershipNumber, m.firstName, m.lastName, m.phone, m.email, m.status, m.regionId, m.zoneId, m.subcityId, m.districtId, m.createdAt.toISOString()].map(this.csvCell).join(',')),
+    ];
+    return lines.join('\n');
   }
 
   async memberDetail(user: AuthenticatedUser, id: string) {

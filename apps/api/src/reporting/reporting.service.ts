@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { CredentialStatus, CredentialType, JurisdictionLevel, MemberStatus, Prisma } from '@prisma/client';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { CredentialStatus, CredentialType, JurisdictionLevel, MemberStatus, Prisma, RoleCode } from '@prisma/client';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { PrismaService } from '../prisma.service';
@@ -119,6 +119,95 @@ export class ReportingService {
       ]);
       return { regionId: region.id, region: region.name, members, institutions, credentials };
     }));
+  }
+
+  private csvCell(value: unknown) {
+    const raw = String(value ?? '');
+    return /[",\n\r]/.test(raw) || /^[=+@-]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
+  }
+
+  async queueSla(user: AuthenticatedUser, scope: Scope, slaHours = 48) {
+    const { applicationWhere, memberWhere } = await this.scopedWhere(user, scope);
+    const registrationWhere: Prisma.RegistrationWhereInput = { regionId: typeof memberWhere.regionId === 'string' ? memberWhere.regionId : undefined, zoneId: typeof memberWhere.zoneId === 'string' ? memberWhere.zoneId : undefined, subcityId: typeof memberWhere.subcityId === 'string' ? memberWhere.subcityId : undefined, districtId: typeof memberWhere.districtId === 'string' ? memberWhere.districtId : undefined };
+    const cutoff = new Date(Date.now() - Math.max(1, Math.min(720, slaHours)) * 3600000);
+    const [institution, individual] = await Promise.all([
+      this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION_REQUIRED'] } }, _count: { _all: true } }),
+      this.prisma.registration.groupBy({ by: ['status'], where: { ...registrationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] } }, _count: { _all: true } }),
+    ]);
+    const overdueInstitution = await this.prisma.institutionApplication.count({ where: { ...applicationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION_REQUIRED'] }, updatedAt: { lt: cutoff } } });
+    const overdueIndividual = await this.prisma.registration.count({ where: { ...registrationWhere, status: { in: ['SUBMITTED','UNDER_REVIEW','RESUBMITTED','CORRECTION'] }, updatedAt: { lt: cutoff } } });
+    return { slaHours, cutoff, totals: { institution: institution.reduce((n, x) => n + Number((x._count as { _all?: number } | undefined)?._all ?? 0), 0), individual: individual.reduce((n, x) => n + Number((x._count as { _all?: number } | undefined)?._all ?? 0), 0) }, overdue: { institution: overdueInstitution, individual: overdueIndividual }, byStatus: { institution, individual } };
+  }
+
+  async applicationThroughput(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
+    const { applicationWhere, memberWhere } = await this.scopedWhere(user, scope);
+    const registrationWhere: Prisma.RegistrationWhereInput = { regionId: typeof memberWhere.regionId === 'string' ? memberWhere.regionId : undefined, zoneId: typeof memberWhere.zoneId === 'string' ? memberWhere.zoneId : undefined, subcityId: typeof memberWhere.subcityId === 'string' ? memberWhere.subcityId : undefined, districtId: typeof memberWhere.districtId === 'string' ? memberWhere.districtId : undefined };
+    const createdAt = this.dateWhere(range);
+    const [institution, individual] = await Promise.all([
+      this.prisma.institutionApplication.groupBy({ by: ['status'], where: { ...applicationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
+      this.prisma.registration.groupBy({ by: ['status'], where: { ...registrationWhere, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, _count: { _all: true } }),
+    ]);
+    const [corrections, rejections] = await Promise.all([
+      this.prisma.applicationCorrection.count({ where: { ...(Object.keys(createdAt).length ? { createdAt } : {}), OR: [{ institutionApplication: applicationWhere }, { registration: registrationWhere }] } }),
+      this.prisma.auditLog.count({ where: { action: 'APPLICATION_REJECTED', entityId: { not: null }, ...(Object.keys(createdAt).length ? { createdAt } : {}) } }),
+    ]);
+    return { range, institution, individual, corrections, rejections };
+  }
+
+  async reviewerWorkload(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
+    const { effectiveScope } = await this.scopedWhere(user, scope);
+    const createdAt = this.dateWhere(range);
+    const candidates = await this.prisma.user.findMany({
+      where: {
+        status: 'ACTIVE',
+        roles: { some: { role: { code: { in: [RoleCode.REGISTRAR, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.INSPECTOR] } } } },
+      },
+      select: { id: true, email: true, phone: true, jurisdictionLevel: true, jurisdictionId: true, institutionId: true },
+    });
+    const authorized = candidates.filter((candidate) => {
+      if (!effectiveScope.regionId && !effectiveScope.zoneId && !effectiveScope.subcityId && !effectiveScope.districtId && !effectiveScope.institutionId) return true;
+      if (effectiveScope.institutionId) return candidate.institutionId === effectiveScope.institutionId || (candidate.jurisdictionLevel === 'INSTITUTION' && candidate.jurisdictionId === effectiveScope.institutionId);
+      return candidate.jurisdictionLevel === 'NATIONAL' || candidate.jurisdictionId === effectiveScope.regionId || candidate.jurisdictionId === effectiveScope.zoneId || candidate.jurisdictionId === effectiveScope.subcityId || candidate.jurisdictionId === effectiveScope.districtId;
+    });
+    const ids = authorized.map(candidate => candidate.id);
+    if (!ids.length) return [];
+    const rows = await this.prisma.auditLog.groupBy({
+      by: ['actorUserId','action'],
+      where: { actorUserId: { in: ids }, action: { in: ['APPLICATION_SNAPSHOT_CAPTURED','APPLICATION_CORRECTION_BUILT','APPLICATION_APPROVED','APPLICATION_REJECTED','INSPECTION_UPDATED'] }, ...(Object.keys(createdAt).length ? { createdAt } : {}) },
+      _count: { _all: true },
+    });
+    const users = new Map(authorized.map(candidate => [candidate.id, candidate]));
+    return rows.map(row => ({ reviewer: users.get(row.actorUserId!) ?? { id: row.actorUserId }, action: row.action, count: row._count._all }));
+  }
+  async paymentReconciliation(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {
+    const { effectiveScope } = await this.scopedWhere(user, scope);
+    const createdAt = this.dateWhere(range);
+    const conditions = [
+      Prisma.sql`TRUE`,
+      effectiveScope.regionId ? Prisma.sql`COALESCE(r."regionId",ia."regionId") = ${effectiveScope.regionId}` : Prisma.sql`TRUE`,
+      effectiveScope.zoneId ? Prisma.sql`COALESCE(r."zoneId",ia."zoneId") = ${effectiveScope.zoneId}` : Prisma.sql`TRUE`,
+      effectiveScope.subcityId ? Prisma.sql`COALESCE(r."subcityId",ia."subcityId") = ${effectiveScope.subcityId}` : Prisma.sql`TRUE`,
+      effectiveScope.districtId ? Prisma.sql`COALESCE(r."districtId",ia."districtId") = ${effectiveScope.districtId}` : Prisma.sql`TRUE`,
+      effectiveScope.institutionId ? Prisma.sql`ia."institutionId" = ${effectiveScope.institutionId}` : Prisma.sql`TRUE`,
+      createdAt.gte ? Prisma.sql`p."createdAt" >= ${createdAt.gte}` : Prisma.sql`TRUE`,
+      createdAt.lt ? Prisma.sql`p."createdAt" < ${createdAt.lt}` : Prisma.sql`TRUE`,
+    ];
+    const rows = await this.prisma.$queryRaw<Array<{ status: string; method: string; count: bigint; amount: number }>>(
+      Prisma.sql`SELECT p."status", p."method", COUNT(*)::bigint AS "count", COALESCE(SUM(p."amount"),0)::numeric AS "amount"
+        FROM "RegistrationPayment" p
+        LEFT JOIN "Registration" r ON r."id"=p."registrationId"
+        LEFT JOIN "InstitutionApplication" ia ON ia."id"=p."institutionApplicationId"
+        WHERE ${Prisma.join(conditions, ' AND ')}
+        GROUP BY p."status", p."method" ORDER BY p."status", p."method"`,
+    );
+    return rows.map(row => ({ ...row, count: Number(row.count), amount: Number(row.amount) }));
+  }
+  async auditExport(user: AuthenticatedUser, filters: { action?: string; entityType?: string; from?: string; to?: string }) {
+    if (!user.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Super Admin permission required');
+    const createdAt = this.dateWhere(filters);
+    const rows = await this.prisma.auditLog.findMany({ where: { action: filters.action?.trim() ? { contains: filters.action.trim(), mode: 'insensitive' } : undefined, entityType: filters.entityType?.trim() ? { contains: filters.entityType.trim(), mode: 'insensitive' } : undefined, ...(Object.keys(createdAt).length ? { createdAt } : {}) }, orderBy: { createdAt: 'desc' }, take: 10000, include: { actor: { select: { id: true, email: true, phone: true } } } });
+    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'AUDIT_EXPORT_GENERATED', entityType: 'AuditLog', entityId: null, metadata: { filters, rowCount: rows.length } } });
+    return ['timestamp,actor,action,entityType,entityId,metadata', ...rows.map(row => [row.createdAt.toISOString(),row.actor?.email ?? row.actor?.phone ?? row.actorUserId,row.action,row.entityType,row.entityId,row.metadata ? JSON.stringify(row.metadata) : ''].map(this.csvCell).join(','))].join('\n');
   }
 
   async exportCsv(user: AuthenticatedUser, scope: Scope, range: DateRange = {}) {

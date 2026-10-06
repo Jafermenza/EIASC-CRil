@@ -10,5 +10,5 @@ export interface IndividualRegistrationInput {
   familyMemberPhone?: string; declarationAccepted: boolean; payment?: PaymentInput;
 }
 export interface IndividualRegistrationRecord extends Omit<IndividualRegistrationInput, 'payment'> { id: string; trackingCode: string; status: IndividualRegistrationStatus; age: number; submittedAt: Date | null; createdAt: Date; updatedAt: Date; payment?: PaymentInput; }
-export interface ApplicationTrackingResult { type: RegistrationTypeValue; trackingCode: string; status: IndividualRegistrationStatus; submittedAt: Date | null; createdAt: Date; updatedAt: Date; nextAction: string; correctionRequirement?: string; decisionInformation?: string; }
+export interface ApplicationTrackingResult { type: RegistrationTypeValue; trackingCode: string; status: IndividualRegistrationStatus; submittedAt: Date | null; createdAt: Date; updatedAt: Date; nextAction: string; correctionRequirement?: string; decisionInformation?: string; payment?: { required: boolean; amount: number; currency: string; status: string; nextAction: string; payment: Record<string, unknown> | null; }; }
 type RegistrationTypeValue = 'INDIVIDUAL' | 'INSTITUTION';

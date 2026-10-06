@@ -10,7 +10,7 @@ describe('RegistrationsService', () => {
     auditLog: { create: jest.fn() },
   };
   const locations = { validateHierarchy: jest.fn() };
-  const payments = { validateForSubmission: jest.fn(), attachToApplication: jest.fn() };
+  const payments = { statusForApplication: jest.fn().mockResolvedValue({ required: true, amount: 100, currency: 'ETB', status: 'REQUIRED', nextAction: 'Payment is required.' }), validateForSubmission: jest.fn(), attachToApplication: jest.fn() };
   const service = new RegistrationsService(prisma as never, locations as never, payments as never);
 
   const input = {
@@ -95,7 +95,7 @@ describe('RegistrationsService', () => {
       correctionReason: null, rejectionReason: null, decisionAt: null,
     });
     const result = await service.track(' eiasc-2026-abc123 ', '+251900000000', 'amina');
-    expect(result).toEqual(expect.objectContaining({ trackingCode: 'EIASC-2026-ABC123', status: 'SUBMITTED', nextAction: 'Wait for EIASC review' }));
+    expect(result).toEqual(expect.objectContaining({ trackingCode: 'EIASC-2026-ABC123', status: 'SUBMITTED', nextAction: 'Payment is required.' }));
     expect(result).not.toHaveProperty('phone');
     expect(result).not.toHaveProperty('firstName');
   });

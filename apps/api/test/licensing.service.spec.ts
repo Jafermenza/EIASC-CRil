@@ -20,6 +20,8 @@ const institutionAdmin = {
 function service() {
   const prisma: any = {
     institution: { findUnique: jest.fn() },
+    inspectionChecklistTemplate: { findFirst: jest.fn() },
+    inspection: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn(), create: jest.fn() },
     license: { findFirst: jest.fn(), findUnique: jest.fn(), create: jest.fn(), update: jest.fn(), findMany: jest.fn(), count: jest.fn() },
     auditLog: { create: jest.fn() },
     $transaction: jest.fn(async (queries: any) => Array.isArray(queries) ? Promise.all(queries) : queries(prisma)),
@@ -30,9 +32,16 @@ function service() {
 }
 
 describe('LicensingService', () => {
-  it('rejects licensing decisions by institution administrators', async () => {
-    const { instance } = service();
-    await expect(instance.create(institutionAdmin, { institutionId: 'institution-1' })).rejects.toBeInstanceOf(ForbiddenException);
+  it('allows an institution administrator to create only its own license application', async () => {
+    const { instance, prisma } = service();
+    prisma.institution.findUnique.mockResolvedValue({
+      id: 'institution-1', name: 'Test Mosque', institutionCode: 'I-1', status: 'ACTIVE',
+      regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1',
+    });
+    prisma.license.findFirst.mockResolvedValue(null);
+    prisma.license.create.mockResolvedValue({ id: 'license-1', institutionId: 'institution-1', status: LicenseStatus.PENDING, applicationStatus: LicenseApplicationStatus.SUBMITTED });
+    await expect(instance.create(institutionAdmin, { institutionId: 'institution-1' })).resolves.toMatchObject({ id: 'license-1' });
+    await expect(instance.create(institutionAdmin, { institutionId: 'other-institution' })).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('rejects licensing an institution that is not active', async () => {
@@ -52,6 +61,20 @@ describe('LicensingService', () => {
       institution: { regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1' },
     });
     await expect(instance.review(nationalUser, 'license-1')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('blocks approval when the active organization checklist requires inspection', async () => {
+    const { instance, prisma } = service();
+    (instance as any).get = jest.fn().mockResolvedValue({
+      id: 'license-1', institutionId: 'institution-1', status: LicenseStatus.PENDING,
+      applicationStatus: LicenseApplicationStatus.UNDER_REVIEW,
+      institution: { regionId: 'r1', zoneId: 'z1', subcityId: 's1', districtId: 'd1' },
+    });
+    prisma.institution.findUnique.mockResolvedValue({ id: 'institution-1', institutionTypeId: 'type-1', type: { id: 'type-1', code: 'MOSQUE', name: 'Mosque' } });
+    prisma.inspectionChecklistTemplate.findFirst.mockResolvedValue({ id: 'checklist-1', inspectionRequired: true });
+    prisma.inspectionChecklistTemplate.findFirst.mockResolvedValue({ id: 'checklist-1', inspectionRequired: true });
+    prisma.inspection.findFirst.mockResolvedValue(null);
+    await expect(instance.approve(nationalUser, 'license-1')).rejects.toThrow('completed passing licensing inspection');
   });
 
   it('requires an approved application before issuing a license', async () => {

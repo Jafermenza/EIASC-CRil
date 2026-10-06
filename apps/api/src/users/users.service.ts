@@ -14,7 +14,79 @@ interface UpdateUserInput { status?: UserStatus; role?: RoleCode; jurisdictionLe
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService, private readonly authorization: AuthorizationService, private readonly credentials: CredentialProvisioningService) {}
-  async list(actor: AuthenticatedUser) { const users = await this.prisma.user.findMany({ where: await this.scopeWhere(actor), include: { roles: { include: { role: true } } }, orderBy: [{ jurisdictionLevel: 'asc' }, { jurisdictionId: 'asc' }, { createdAt: 'desc' }] }); return users.map((user) => this.present(user)); }
+  private async userResourceScope(user: { jurisdictionLevel: JurisdictionLevel; jurisdictionId: string | null; institutionId: string | null }) {
+    if (user.institutionId) {
+      const institution = await this.prisma.institution.findUnique({ where: { id: user.institutionId }, select: { id: true, regionId: true, zoneId: true, subcityId: true, districtId: true } });
+      return institution ? { institutionId: institution.id, regionId: institution.regionId, zoneId: institution.zoneId, subcityId: institution.subcityId, districtId: institution.districtId } : {};
+    }
+    if (user.jurisdictionLevel === JurisdictionLevel.INSTITUTION) return { institutionId: user.institutionId ?? user.jurisdictionId ?? undefined };
+    if (!user.jurisdictionId || user.jurisdictionLevel === JurisdictionLevel.NATIONAL) return {};
+    if (user.jurisdictionLevel === JurisdictionLevel.REGION) return { regionId: user.jurisdictionId };
+    if (user.jurisdictionLevel === JurisdictionLevel.ZONE_CITY) {
+      const row = await this.prisma.zoneCity.findUnique({ where: { id: user.jurisdictionId }, select: { id: true, regionId: true } });
+      return row ? { regionId: row.regionId, zoneId: row.id } : {};
+    }
+    if (user.jurisdictionLevel === JurisdictionLevel.SUBCITY_TOWN) {
+      const row = await this.prisma.subcityTown.findUnique({ where: { id: user.jurisdictionId }, select: { id: true, zoneId: true } });
+      if (!row) return {};
+      const zone = await this.prisma.zoneCity.findUnique({ where: { id: row.zoneId }, select: { regionId: true } });
+      return { regionId: zone?.regionId, zoneId: row.zoneId, subcityId: row.id };
+    }
+    const row = await this.prisma.district.findUnique({ where: { id: user.jurisdictionId }, select: { id: true, zoneId: true, subcityId: true } });
+    if (!row || !row.zoneId) return {};
+    const zone = await this.prisma.zoneCity.findUnique({ where: { id: row.zoneId }, select: { regionId: true } });
+    return { regionId: zone?.regionId, zoneId: row.zoneId, subcityId: row.subcityId, districtId: row.id };
+  }
+
+  private userMatchesFilters(resource: Record<string, string | null | undefined>, query: { regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string }) {
+    return (!query.regionId || resource.regionId === query.regionId) &&
+      (!query.zoneId || resource.zoneId === query.zoneId) &&
+      (!query.subcityId || resource.subcityId === query.subcityId) &&
+      (!query.districtId || resource.districtId === query.districtId) &&
+      (!query.institutionId || resource.institutionId === query.institutionId);
+  }
+
+  async list(actor: AuthenticatedUser, query: { search?: string; role?: RoleCode; status?: UserStatus; jurisdictionLevel?: JurisdictionLevel; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string; from?: string; to?: string; page?: string; pageSize?: string; unpaged?: boolean } = {}) {
+    this.assertListAccess(actor);
+    const where: Prisma.UserWhereInput = {};
+    if (query.status) where.status = query.status;
+    if (query.jurisdictionLevel) where.jurisdictionLevel = query.jurisdictionLevel;
+    if (query.search?.trim()) where.OR = [{ email: { contains: query.search.trim(), mode: 'insensitive' } }, { phone: { contains: query.search.trim() } }];
+    if (query.from || query.to) {
+      const createdAt: { gte?: Date; lt?: Date } = {};
+      if (query.from) { const d = new Date(query.from); if (!Number.isNaN(d.getTime())) createdAt.gte = d; }
+      if (query.to) { const d = new Date(query.to); if (!Number.isNaN(d.getTime())) { d.setUTCDate(d.getUTCDate() + 1); createdAt.lt = d; } }
+      where.createdAt = createdAt;
+    }
+    if (query.role) where.roles = { some: { role: { code: query.role } } };
+    const candidates = await this.prisma.user.findMany({ where, include: { roles: { include: { role: true } } }, orderBy: [{ jurisdictionLevel: 'asc' }, { jurisdictionId: 'asc' }, { createdAt: 'desc' }] });
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId, institutionId: query.institutionId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(actor, requestedScope);
+    const scoped = [];
+    for (const candidate of candidates) {
+      const resource = await this.userResourceScope(candidate);
+      if ((await this.authorization.canAccess(actor, resource)) && this.userMatchesFilters(resource, requestedScope)) scoped.push(candidate);
+    }
+    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(200, Math.max(1, Number(query.pageSize ?? 50)));
+    if (query.unpaged) return { items: scoped.map((user) => this.present(user)), page: 1, pageSize: scoped.length, total: scoped.length, totalPages: 1 };
+    const start = (page - 1) * pageSize;
+    return { items: scoped.slice(start, start + pageSize).map((user) => this.present(user)), page, pageSize, total: scoped.length, totalPages: Math.max(1, Math.ceil(scoped.length / pageSize)) };
+  }
+
+  private assertListAccess(actor: AuthenticatedUser) {
+    const allowed: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.INSPECTOR, RoleCode.FINANCE_OFFICER];
+    if (!actor.roles.some((role) => allowed.includes(role))) throw new ForbiddenException('User catalog permission required');
+  }
+
+  async exportCsv(actor: AuthenticatedUser, query: { search?: string; role?: RoleCode; status?: UserStatus; jurisdictionLevel?: JurisdictionLevel; regionId?: string; zoneId?: string; subcityId?: string; districtId?: string; institutionId?: string; from?: string; to?: string }) {
+    const result = await this.list(actor, { ...query, unpaged: true });
+    const cell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const lines = [
+      ['User ID', 'Email', 'Phone', 'Role(s)', 'Status', 'Jurisdiction level', 'Jurisdiction ID', 'Institution ID', 'Created'].map(cell).join(','),
+      ...result.items.map((u) => [u.id, u.email, u.phone, u.roles.join(' | '), u.status, u.jurisdictionLevel, u.jurisdictionId, u.institutionId, u.createdAt.toISOString()].map(cell).join(',')),
+    ];
+    return lines.join('\n');
+  }
   async roles(actor: AuthenticatedUser) { if (!actor.roles.includes(RoleCode.SUPER_ADMIN)) throw new ForbiddenException('Only super administrators can manage role assignments'); return this.prisma.role.findMany({ orderBy: { name: 'asc' }, select: { code: true, name: true } }); }
   async get(actor: AuthenticatedUser, id: string) { const user = await this.prisma.user.findUnique({ where: { id }, include: { roles: { include: { role: true } } } }); if (!user) throw new NotFoundException('User not found'); await this.assertManageable(actor, user); return this.present(user); }
   async create(actor: AuthenticatedUser, input: CreateUserInput, requestId?: string) {

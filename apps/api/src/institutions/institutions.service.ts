@@ -1,12 +1,14 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { InstitutionApplicationStatus, InstitutionRelationshipType, InstitutionStatus, MembershipStatus, RoleCode } from '@prisma/client';
+import { InstitutionApplicationStatus, InstitutionStatus, MembershipStatus, RoleCode } from '@prisma/client';
 import { createOpaqueToken } from '../auth/crypto';
 import { AuthorizationService } from '../auth/authorization.service';
 import { AuthenticatedUser } from '../auth/auth.types';
 import { CredentialProvisioningService } from '../auth/credential-provisioning.service';
 import { LocationsService } from '../locations/locations.service';
 import { PrismaService } from '../prisma.service';
+import { PaymentsService } from '../payments/payments.service';
 import { DOCUMENT_TYPES, EDUCATION_LEVELS, InstitutionApplicationInput, InstitutionApplicationUpdateInput, InstitutionListQuery, InstitutionProfileUpdateInput, MemberRelationshipInput } from './institution.types';
+import { MembershipService } from '../membership/membership.service';
 
 const ACTIVE_APP: InstitutionApplicationStatus[] = [InstitutionApplicationStatus.DRAFT, InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.CORRECTION_REQUIRED, InstitutionApplicationStatus.RESUBMITTED];
 const ADMIN_ROLES: RoleCode[] = [RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN];
@@ -14,7 +16,7 @@ const MAX_TEXT = 5000;
 
 @Injectable()
 export class InstitutionsService {
-  constructor(private readonly prisma: PrismaService, private readonly locations: LocationsService, private readonly authorization: AuthorizationService, private readonly credentials: CredentialProvisioningService) {}
+  constructor(private readonly prisma: PrismaService, private readonly locations: LocationsService, private readonly authorization: AuthorizationService, private readonly credentials: CredentialProvisioningService, private readonly payments: PaymentsService, private readonly memberships: MembershipService) {}
 
   private clean(value?: string, max = MAX_TEXT): string | undefined {
     const v = value?.trim();
@@ -125,7 +127,7 @@ export class InstitutionsService {
     }
     const updated = await this.prisma.institutionApplication.update({ where: { id }, data }); return { id: updated.id, trackingCode: updated.trackingCode, status: updated.status, updatedAt: updated.updatedAt, latitude: updated.latitude, longitude: updated.longitude, locationVerified: updated.locationVerified }; }
 
-  async resubmit(id: string) { const app = await this.prisma.institutionApplication.findUnique({ where: { id } }); if (!app) throw new NotFoundException('Application not found'); if (app.status !== InstitutionApplicationStatus.CORRECTION_REQUIRED) throw new ConflictException('Application is not awaiting correction'); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.RESUBMITTED, correctionReason: null, submittedAt: new Date() } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: 'Applicant resubmitted' } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_APPLICATION_RESUBMITTED', entityType: 'InstitutionApplication', entityId: id } }); return { id, trackingCode: updated.trackingCode, status: updated.status }; }
+  async resubmit(id: string, payment: InstitutionApplicationInput['payment']) { const app = await this.prisma.institutionApplication.findUnique({ where: { id } }); if (!app) throw new NotFoundException('Application not found'); if (app.status !== InstitutionApplicationStatus.CORRECTION_REQUIRED) throw new ConflictException('Application is not awaiting correction'); if (!payment) throw new BadRequestException('Registration payment is required before resubmission'); await this.payments.attachToApplication('INSTITUTION', id, payment); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.RESUBMITTED, correctionReason: null, submittedAt: new Date() } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: 'Applicant resubmitted' } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_APPLICATION_RESUBMITTED', entityType: 'InstitutionApplication', entityId: id } }); return { id, trackingCode: updated.trackingCode, status: updated.status }; }
 
   async queue(user: AuthenticatedUser, query: InstitutionListQuery) { const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 25))); const where: any = {}; if (query.applicationStatus) where.status = query.applicationStatus; if (query.institutionTypeId) where.institutionTypeId = query.institutionTypeId; if (query.regionId) where.regionId = query.regionId; if (query.zoneId) where.zoneId = query.zoneId; if (query.subcityId) where.subcityId = query.subcityId; if (query.districtId) where.districtId = query.districtId; if (query.search) where.OR = [{ institutionName: { contains: query.search.trim(), mode: 'insensitive' } }, { trackingCode: { contains: query.search.trim(), mode: 'insensitive' } }]; if (query.institutionStatus) where.institution = { status: query.institutionStatus }; if (!user.roles.some((r) => ADMIN_ROLES.includes(r))) { if (!user.jurisdictionId) throw new ForbiddenException('No jurisdiction assigned'); const scope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId }; if (!(await this.authorization.canAccess(user, scope))) { switch (user.jurisdictionLevel) { case 'REGION': where.regionId = user.jurisdictionId; break; case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break; case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break; case 'DISTRICT': where.districtId = user.jurisdictionId; break; default: break; } } } const [items, total] = await this.prisma.$transaction([this.prisma.institutionApplication.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize, include: { institutionType: true, institution: { select: { institutionCode: true, status: true } } } }), this.prisma.institutionApplication.count({ where })]); return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) }; }
 
@@ -133,15 +135,132 @@ export class InstitutionsService {
 
   private async transition(user: AuthenticatedUser, id: string, target: InstitutionApplicationStatus, reason: string) { const app = await this.detail(user, id); const valid: Record<InstitutionApplicationStatus, InstitutionApplicationStatus[]> = { DRAFT: [InstitutionApplicationStatus.SUBMITTED], SUBMITTED: [InstitutionApplicationStatus.UNDER_REVIEW], UNDER_REVIEW: [InstitutionApplicationStatus.CORRECTION_REQUIRED, InstitutionApplicationStatus.APPROVED, InstitutionApplicationStatus.REJECTED], CORRECTION_REQUIRED: [InstitutionApplicationStatus.RESUBMITTED], RESUBMITTED: [InstitutionApplicationStatus.UNDER_REVIEW], APPROVED: [], REJECTED: [] }; if (!valid[app.status].includes(target)) throw new ConflictException(`Invalid application transition: ${app.status} -> ${target}`); if (!reason.trim()) throw new BadRequestException('Reason is required'); return { app, reason: this.require(reason, 'reason') }; }
 
-  async review(user: AuthenticatedUser, id: string) { await this.transition(user, id, InstitutionApplicationStatus.UNDER_REVIEW, 'Review started'); return this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.UNDER_REVIEW } }); }
+  async review(user: AuthenticatedUser, id: string) {
+    const { app } = await this.transition(user, id, InstitutionApplicationStatus.UNDER_REVIEW, 'Review started');
+    const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.UNDER_REVIEW } });
+    await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: 'Review started', actorUserId: user.id } });
+    await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'INSTITUTION_REVIEW_STARTED', entityType: 'InstitutionApplication', entityId: id, metadata: { fromStatus: app.status, toStatus: updated.status } } });
+    return updated;
+  }
 
-  async requestCorrection(user: AuthenticatedUser, id: string, reason: string) { const { app } = await this.transition(user, id, InstitutionApplicationStatus.CORRECTION_REQUIRED, reason); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.CORRECTION_REQUIRED, correctionReason: this.clean(reason) } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: this.clean(reason) } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_CORRECTION_REQUESTED', entityType: 'InstitutionApplication', entityId: id, metadata: { reason: this.clean(reason) } } }); return updated; }
+  async requestCorrection(user: AuthenticatedUser, id: string, reason: string) { const { app } = await this.transition(user, id, InstitutionApplicationStatus.CORRECTION_REQUIRED, reason); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.CORRECTION_REQUIRED, correctionReason: this.clean(reason) } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: this.clean(reason), actorUserId: user.id } }); await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'INSTITUTION_CORRECTION_REQUESTED', entityType: 'InstitutionApplication', entityId: id, metadata: { reason: this.clean(reason), fromStatus: app.status, toStatus: updated.status } } }); return updated; }
 
-  async reject(user: AuthenticatedUser, id: string, reason: string) { const { app } = await this.transition(user, id, InstitutionApplicationStatus.REJECTED, reason); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.REJECTED, rejectionReason: this.clean(reason), decisionAt: new Date() } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: this.clean(reason) } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_APPLICATION_REJECTED', entityType: 'InstitutionApplication', entityId: id, metadata: { reason: this.clean(reason) } } }); return updated; }
+  async reject(user: AuthenticatedUser, id: string, reason: string) { const { app } = await this.transition(user, id, InstitutionApplicationStatus.REJECTED, reason); const updated = await this.prisma.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.REJECTED, rejectionReason: this.clean(reason), decisionAt: new Date() } }); await this.prisma.institutionStatusHistory.create({ data: { applicationId: id, fromStatus: app.status, toStatus: updated.status, reason: this.clean(reason), actorUserId: user.id } }); await this.prisma.auditLog.create({ data: { actorUserId: user.id, action: 'INSTITUTION_APPLICATION_REJECTED', entityType: 'InstitutionApplication', entityId: id, metadata: { reason: this.clean(reason), fromStatus: app.status, toStatus: updated.status } } }); return updated; }
 
-  async approve(user: AuthenticatedUser, id: string) { const { app } = await this.transition(user, id, InstitutionApplicationStatus.APPROVED, 'Approval'); const code = this.institutionCode(); const now = new Date(); const result = await this.prisma.$transaction(async (tx) => { const institution = await tx.institution.create({ data: { institutionCode: code, name: app.institutionName, alternativeName: app.alternativeName, institutionTypeId: app.institutionTypeId, establishmentDate: app.establishmentDate, phone: app.phone, secondaryPhone: app.secondaryPhone, email: app.email, website: app.website, address: app.address, mission: app.mission, description: app.description, services: app.services, communityActivities: app.communityActivities, regionId: app.regionId, zoneId: app.zoneId, subcityId: app.subcityId, districtId: app.districtId, latitude: app.latitude, longitude: app.longitude, locationVerified: app.locationVerified, status: InstitutionStatus.ACTIVE, leaders: { create: app.leaders.map((l) => ({ fullName: l.fullName, role: l.role, phone: l.phone, email: l.email })) }, staffSummary: app.staffSummary ? { create: { imamCount: app.staffSummary.imamCount, teacherCount: app.staffSummary.teacherCount, administrativeStaffCount: app.staffSummary.administrativeStaffCount, otherStaffCount: app.staffSummary.otherStaffCount } } : undefined, education: app.education ? { create: { studentCount: app.education.studentCount, teacherCount: app.education.teacherCount, educationLevels: app.education.educationLevels } } : undefined } }); await tx.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.APPROVED, institutionId: institution.id, decisionAt: now } }); await tx.institutionStatusHistory.create({ data: { applicationId: id, institutionId: institution.id, toStatus: InstitutionApplicationStatus.APPROVED, reason: 'Application approved' } }); await tx.institutionStatusHistory.create({ data: { institutionId: institution.id, toStatus: InstitutionStatus.ACTIVE, reason: 'Institution created through approval' } }); await tx.auditLog.create({ data: { action: 'INSTITUTION_APPROVED', entityType: 'Institution', entityId: institution.id, metadata: { institutionCode: code, applicationId: id } } }); return institution; }); await this.credentials.provision({ email: app.applicantEmail, phone: app.applicantPhone, role: RoleCode.INSTITUTION_ADMIN, jurisdictionLevel: 'INSTITUTION' as any, institutionId: result.id, recipientName: app.applicantName || app.institutionName }).catch(() => undefined); return { institution: result, institutionCode: code, approvedAt: now }; }
+  async approve(user: AuthenticatedUser, id: string) {
+    const app = await this.prisma.institutionApplication.findUnique({
+      where: { id },
+      include: { institutionType: true, leaders: true, staffSummary: true, education: true },
+    });
+    if (!app) throw new NotFoundException('Institution application not found');
+    await this.authorization.assertCanAccess(user, app);
+    const approvableStatuses: InstitutionApplicationStatus[] = [InstitutionApplicationStatus.SUBMITTED, InstitutionApplicationStatus.UNDER_REVIEW, InstitutionApplicationStatus.RESUBMITTED];
+    if (!approvableStatuses.includes(app.status)) {
+      throw new ConflictException(`Cannot approve a ${app.status.toLowerCase()} application`);
+    }
+    await this.payments.assertPaid('INSTITUTION', id);
+    if (!app.locationVerified) throw new ConflictException('Institution location must be verified before approval');
 
-  async listInstitutions(user: AuthenticatedUser, query: InstitutionListQuery) { const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 25))); const where: any = {}; if (query.search) where.OR = [{ name: { contains: query.search.trim(), mode: 'insensitive' } }, { institutionCode: { contains: query.search.trim(), mode: 'insensitive' } }]; for (const [key, value] of Object.entries({ institutionTypeId: query.institutionTypeId, regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId, status: query.institutionStatus })) if (value) where[key] = value; if (!(await this.authorization.canAccess(user, { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId }))) { switch (user.jurisdictionLevel) { case 'REGION': where.regionId = user.jurisdictionId; break; case 'ZONE_CITY': where.zoneId = user.jurisdictionId; break; case 'SUBCITY_TOWN': where.subcityId = user.jurisdictionId; break; case 'DISTRICT': where.districtId = user.jurisdictionId; break; case 'INSTITUTION': where.id = user.institutionId ?? user.jurisdictionId; break; } } const [items, total] = await this.prisma.$transaction([this.prisma.institution.findMany({ where, orderBy: { name: 'asc' }, skip: (page - 1) * pageSize, take: pageSize, include: { type: true } }), this.prisma.institution.count({ where })]); return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) }; }
+    const template = await this.prisma.inspectionChecklistTemplate.findFirst({
+      where: { institutionTypeId: app.institutionTypeId, active: true },
+      orderBy: { version: 'desc' },
+    });
+    if (!template) throw new ConflictException(`No active inspection policy/checklist exists for organization type ${app.institutionType.name}`);
+    if (template.inspectionRequired) {
+      const inspection = await this.prisma.inspection.findFirst({
+        where: { institutionApplicationId: id },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (!inspection || inspection.checklistTemplateId !== template.id || inspection.status !== 'COMPLETED' || !['PASS', 'CONDITIONAL'].includes(inspection.decision)) {
+        throw new ConflictException(`A completed acceptable inspection is required for organization type ${app.institutionType.name}`);
+      }
+    }
+
+    const code = this.institutionCode();
+    const now = new Date();
+    const result = await this.prisma.$transaction(async (tx) => {
+      const institution = await tx.institution.create({
+        data: {
+          institutionCode: code, name: app.institutionName, alternativeName: app.alternativeName, institutionTypeId: app.institutionTypeId,
+          establishmentDate: app.establishmentDate, phone: app.phone, secondaryPhone: app.secondaryPhone, email: app.email, website: app.website,
+          address: app.address, mission: app.mission, description: app.description, services: app.services, communityActivities: app.communityActivities,
+          regionId: app.regionId, zoneId: app.zoneId, subcityId: app.subcityId, districtId: app.districtId, latitude: app.latitude, longitude: app.longitude,
+          locationVerified: app.locationVerified, status: InstitutionStatus.ACTIVE,
+          leaders: { create: app.leaders.map((l) => ({ fullName: l.fullName, role: l.role, phone: l.phone, email: l.email })) },
+          staffSummary: app.staffSummary ? { create: { imamCount: app.staffSummary.imamCount, teacherCount: app.staffSummary.teacherCount, administrativeStaffCount: app.staffSummary.administrativeStaffCount, otherStaffCount: app.staffSummary.otherStaffCount } } : undefined,
+          education: app.education ? { create: { studentCount: app.education.studentCount, teacherCount: app.education.teacherCount, educationLevels: app.education.educationLevels } } : undefined,
+        },
+      });
+      await tx.institutionApplication.update({ where: { id }, data: { status: InstitutionApplicationStatus.APPROVED, institutionId: institution.id, decisionAt: now } });
+      await tx.institutionStatusHistory.create({ data: { applicationId: id, institutionId: institution.id, toStatus: InstitutionApplicationStatus.APPROVED, reason: 'Application approved' } });
+      await tx.institutionStatusHistory.create({ data: { institutionId: institution.id, toStatus: InstitutionStatus.ACTIVE, reason: 'Institution created through approval' } });
+      await tx.auditLog.create({ data: { actorUserId: user.id, action: 'INSTITUTION_APPROVED', entityType: 'Institution', entityId: institution.id, metadata: { institutionCode: code, applicationId: id, organizationType: app.institutionType.code, inspectionRequired: template.inspectionRequired } } });
+      return institution;
+    });
+
+    await this.credentials.provision({
+      email: app.applicantEmail, phone: app.applicantPhone, role: RoleCode.INSTITUTION_ADMIN, jurisdictionLevel: 'INSTITUTION' as any,
+      institutionId: result.id, recipientName: app.applicantName || app.institutionName,
+    }).catch(() => undefined);
+    return { institution: result, institutionCode: code, approvedAt: now, organizationType: app.institutionType };
+  }
+
+  private institutionDirectoryWhere(query: InstitutionListQuery & { from?: string; to?: string }) {
+    const where: any = {};
+    if (query.institutionStatus) where.status = query.institutionStatus;
+    if (query.institutionTypeId) where.institutionTypeId = query.institutionTypeId;
+    if (query.regionId) where.regionId = query.regionId;
+    if (query.zoneId) where.zoneId = query.zoneId;
+    if (query.subcityId) where.subcityId = query.subcityId;
+    if (query.districtId) where.districtId = query.districtId;
+    if (query.search?.trim()) where.OR = [
+      { name: { contains: query.search.trim(), mode: 'insensitive' } },
+      { institutionCode: { contains: query.search.trim(), mode: 'insensitive' } },
+    ];
+    const createdAt: { gte?: Date; lt?: Date } = {};
+    if (query.from) { const d = new Date(query.from); if (!Number.isNaN(d.getTime())) createdAt.gte = d; }
+    if (query.to) { const d = new Date(query.to); if (!Number.isNaN(d.getTime())) { d.setUTCDate(d.getUTCDate() + 1); createdAt.lt = d; } }
+    if (createdAt.gte || createdAt.lt) where.createdAt = createdAt;
+    return where;
+  }
+
+  async listInstitutions(user: AuthenticatedUser, query: InstitutionListQuery & { from?: string; to?: string }) {
+    const page = Math.max(1, Number(query.page ?? 1)); const pageSize = Math.min(100, Math.max(1, Number(query.pageSize ?? 25)));
+    const where = this.institutionDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      if (user.jurisdictionLevel === 'REGION') where.regionId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'ZONE_CITY') where.zoneId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'SUBCITY_TOWN') where.subcityId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'DISTRICT') where.districtId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'INSTITUTION') where.id = user.institutionId ?? user.jurisdictionId;
+    }
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.institution.findMany({ where, orderBy: [{ regionId: 'asc' }, { zoneId: 'asc' }, { subcityId: 'asc' }, { districtId: 'asc' }, { createdAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize, include: { type: true } }),
+      this.prisma.institution.count({ where }),
+    ]);
+    return { items, page, pageSize, total, totalPages: Math.ceil(total / pageSize) };
+  }
+
+  async exportInstitutions(user: AuthenticatedUser, query: InstitutionListQuery & { from?: string; to?: string }) {
+    const where = this.institutionDirectoryWhere(query);
+    const requestedScope = { regionId: query.regionId, zoneId: query.zoneId, subcityId: query.subcityId, districtId: query.districtId };
+    if (Object.values(requestedScope).some(Boolean)) await this.authorization.assertCanAccess(user, requestedScope);
+    if (!(await this.authorization.canAccess(user, requestedScope))) {
+      if (user.jurisdictionLevel === 'REGION') where.regionId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'ZONE_CITY') where.zoneId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'SUBCITY_TOWN') where.subcityId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'DISTRICT') where.districtId = user.jurisdictionId;
+      else if (user.jurisdictionLevel === 'INSTITUTION') where.id = user.institutionId ?? user.jurisdictionId;
+    }
+    const items = await this.prisma.institution.findMany({ where, orderBy: [{ regionId: 'asc' }, { zoneId: 'asc' }, { subcityId: 'asc' }, { districtId: 'asc' }, { name: 'asc' }], include: { type: true } });
+    const cell = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    return [
+      ['Institution ID', 'Institution code', 'Institution', 'Organization type', 'Status', 'Region ID', 'Zone/City ID', 'Subcity/Town ID', 'District ID', 'Registered'].map(cell).join(','),
+      ...items.map((i) => [i.id, i.institutionCode, i.name, i.type?.name, i.status, i.regionId, i.zoneId, i.subcityId, i.districtId, i.createdAt.toISOString()].map(cell).join(',')),
+    ].join('\n');
+  }
 
   async getInstitution(user: AuthenticatedUser, id: string) { const institution = await this.prisma.institution.findUnique({ where: { id }, include: { type: true, region: true, zone: true, subcity: true, district: true, leaders: true, staffSummary: true, education: true, statusHistory: { orderBy: { createdAt: 'asc' } } } }); if (!institution) throw new NotFoundException('Institution not found'); await this.authorization.assertCanAccess(user, { institutionId: id, regionId: institution.regionId, zoneId: institution.zoneId, subcityId: institution.subcityId, districtId: institution.districtId }); return institution; }
 
@@ -152,6 +271,20 @@ export class InstitutionsService {
   async changeStatus(user: AuthenticatedUser, id: string, status: InstitutionStatus, reason: string) { const institution = await this.getInstitution(user, id); if (!Object.values(InstitutionStatus).includes(status)) throw new BadRequestException('Invalid institution status'); if (!reason.trim()) throw new BadRequestException('Reason is required'); const allowed: Record<InstitutionStatus, InstitutionStatus[]> = { PENDING: [InstitutionStatus.ACTIVE], ACTIVE: [InstitutionStatus.SUSPENDED, InstitutionStatus.REVOKED, InstitutionStatus.CLOSED], SUSPENDED: [InstitutionStatus.ACTIVE, InstitutionStatus.REVOKED, InstitutionStatus.CLOSED], REVOKED: [], CLOSED: [] }; if (!allowed[institution.status].includes(status)) throw new ConflictException(`Invalid institution status transition: ${institution.status} -> ${status}`); const updated = await this.prisma.institution.update({ where: { id }, data: { status } }); await this.prisma.institutionStatusHistory.create({ data: { institutionId: id, fromStatus: institution.status, toStatus: status, reason: this.clean(reason) } }); await this.prisma.auditLog.create({ data: { action: 'INSTITUTION_STATUS_CHANGED', entityType: 'Institution', entityId: id, metadata: { from: institution.status, to: status, reason: this.clean(reason) } } }); return updated; }
 
   async members(user: AuthenticatedUser, id: string) { await this.getInstitution(user, id); const [items, total, active, suspended, pending] = await Promise.all([this.prisma.memberInstitution.findMany({ where: { institutionId: id }, include: { member: true }, orderBy: { createdAt: 'desc' } }), this.prisma.memberInstitution.count({ where: { institutionId: id } }), this.prisma.memberInstitution.count({ where: { institutionId: id, status: MembershipStatus.ACTIVE, member: { status: 'ACTIVE' } } }), this.prisma.memberInstitution.count({ where: { institutionId: id, status: MembershipStatus.SUSPENDED } }), this.prisma.memberInstitution.count({ where: { institutionId: id, status: MembershipStatus.PENDING } })]); return { items, counts: { total, active, suspended, pendingRelationships: pending } }; }
-  async addMember(user: AuthenticatedUser, id: string, memberId: string, input: MemberRelationshipInput) { await this.getInstitution(user, id); const target = await this.prisma.member.findUnique({ where: { id: memberId } }); if (!target) throw new NotFoundException('Member not found'); if (target.status !== 'ACTIVE') throw new BadRequestException('Only active members may be associated'); const type = input.relationshipType ?? InstitutionRelationshipType.PRIMARY; if (type === InstitutionRelationshipType.PRIMARY) { const existing = await this.prisma.memberInstitution.findFirst({ where: { memberId, relationshipType: InstitutionRelationshipType.PRIMARY, status: MembershipStatus.ACTIVE } }); if (existing && existing.institutionId !== id) throw new ConflictException('Member already has an active PRIMARY institution'); } const existing = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId: id } } }); if (existing?.status === MembershipStatus.ACTIVE) throw new ConflictException('Member is already associated with this institution'); const relation = existing ? await this.prisma.memberInstitution.update({ where: { id: existing.id }, data: { status: MembershipStatus.ACTIVE, relationshipType: type, startedAt: new Date(), endedAt: null } }) : await this.prisma.memberInstitution.create({ data: { memberId, institutionId: id, relationshipType: type, status: MembershipStatus.ACTIVE } }); await this.prisma.auditLog.create({ data: { action: 'MEMBER_INSTITUTION_ASSOCIATED', entityType: 'MemberInstitution', entityId: relation.id, metadata: { memberId, institutionId: id, relationshipType: type } } }); return relation; }
-  async removeMember(user: AuthenticatedUser, id: string, memberId: string) { await this.getInstitution(user, id); const relation = await this.prisma.memberInstitution.findUnique({ where: { memberId_institutionId: { memberId, institutionId: id } } }); if (!relation || relation.status !== MembershipStatus.ACTIVE) throw new NotFoundException('Active membership relationship not found'); const updated = await this.prisma.memberInstitution.update({ where: { id: relation.id }, data: { status: MembershipStatus.ENDED, endedAt: new Date() } }); await this.prisma.auditLog.create({ data: { action: 'MEMBER_INSTITUTION_DEACTIVATED', entityType: 'MemberInstitution', entityId: relation.id, metadata: { memberId, institutionId: id, relationshipType: relation.relationshipType } } }); return updated; }
+  async addMember(user: AuthenticatedUser, id: string, memberId: string, input: MemberRelationshipInput) {
+    await this.getInstitution(user, id);
+    return this.memberships.directAdd(user, {
+      memberId,
+      institutionId: id,
+      relationshipType: input.relationshipType,
+    });
+  }
+
+  async removeMember(user: AuthenticatedUser, id: string, memberId: string) {
+    await this.getInstitution(user, id);
+    const relation = await this.prisma.memberInstitution.findFirst({ where: { memberId, institutionId: id, status: MembershipStatus.ACTIVE }, orderBy: { createdAt: 'desc' } });
+    if (!relation || relation.status !== MembershipStatus.ACTIVE) throw new NotFoundException('Active membership relationship not found');
+    return this.memberships.setStatus(user, relation.id, MembershipStatus.ENDED, 'Institution removed member');
+  }
+
 }

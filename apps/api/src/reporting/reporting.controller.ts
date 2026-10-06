@@ -21,6 +21,28 @@ export class ReportingController {
   @Get('regional')
   @Roles(...REPORT_ROLES)
   regional(@Req() req: AuthenticatedRequest, @Query() query: Query) { return this.reporting.regionalBreakdown(req.user!, query, query); }
+  @Get('queue-sla')
+  @Roles(...REPORT_ROLES)
+  queueSla(@Req() req: AuthenticatedRequest, @Query() query: Query & { slaHours?: string }) { return this.reporting.queueSla(req.user!, query, Number(query.slaHours || 48)); }
+
+  @Get('throughput')
+  @Roles(...REPORT_ROLES)
+  throughput(@Req() req: AuthenticatedRequest, @Query() query: Query) { return this.reporting.applicationThroughput(req.user!, query, query); }
+
+  @Get('reviewer-workload')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR)
+  reviewerWorkload(@Req() req: AuthenticatedRequest, @Query() query: Query) { return this.reporting.reviewerWorkload(req.user!, query, query); }
+
+  @Get('payment-reconciliation')
+  @Roles(RoleCode.SUPER_ADMIN, RoleCode.NATIONAL_ADMIN, RoleCode.REGIONAL_ADMIN, RoleCode.ZONE_ADMIN, RoleCode.DISTRICT_ADMIN, RoleCode.REGISTRAR, RoleCode.FINANCE_OFFICER)
+  paymentReconciliation(@Req() req: AuthenticatedRequest, @Query() query: Query) { return this.reporting.paymentReconciliation(req.user!, query, query); }
+
+  @Get('audit-export')
+  @Roles(RoleCode.SUPER_ADMIN)
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  @Header('Content-Disposition', 'attachment; filename="eiasc-audit-export.csv"')
+  auditExport(@Req() req: AuthenticatedRequest, @Query() query: { action?: string; entityType?: string; from?: string; to?: string }) { return this.reporting.auditExport(req.user!, query); }
+
   @Get('export')
   @Roles(...REPORT_ROLES)
   @Header('Content-Type', 'text/csv; charset=utf-8')

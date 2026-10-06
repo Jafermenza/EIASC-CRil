@@ -27,7 +27,7 @@ export default function InstitutionMembersPage() {
     event.preventDefault(); setError(''); setMessage('');
     try {
       const token = localStorage.getItem('accessToken') || '';
-      const response = await fetch('/api/v1/memberships', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ memberId, institutionId, relationshipType: 'PRIMARY' }) });
+      const response = await fetch('/api/v1/memberships/direct', { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify({ memberId, institutionId, relationshipType: 'PRIMARY' }) });
       const body = await response.json();
       if (!response.ok) throw new Error(body.message || 'Unable to request affiliation');
       setMemberId(''); setMessage('Membership request submitted.'); await load();

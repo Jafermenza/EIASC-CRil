@@ -436,3 +436,127 @@ M12 Production Hardening / UAT      ← LOCAL READINESS PASS / GO-LIVE PENDING
 ## Commit documentation rule
 
 Do not batch unrelated milestone progress into an undocumented series. If CI fails, record the failure and remediation commit. Never mark a milestone complete from code alone.
+
+
+## Phase 7 — Licensing closure (2026-10-03)
+
+Implementation recorded on the existing engine branch:
+- institution self-service licensing entry and API authorization;
+- license-to-inspection first-class relation;
+- organization-type checklist driven licensing inspection assignment;
+- inspector role/jurisdiction enforcement;
+- approval blocked when required inspection is missing, stale, incomplete, or not PASS/CONDITIONAL;
+- licensing lifecycle audit coverage retained for issue/suspend/restore/revoke/renew;
+- Phase 7 migration: `20261003170000_phase7_license_inspection`.
+
+Still open: dedicated licensing payment flow/gate, configurable licensing document checklist, richer license-specific reviewer workspace, and full post-change validation.
+
+
+### Phase 7 organization-type inspection extensibility hardening
+
+Before Phase 8, inspection policy was hardened so the workflow is extensible beyond the initially seeded organization types:
+
+- The Super Admin can create/activate a new InstitutionType from the existing Institution Types administration screen without a code deployment.
+- The inspection checklist administration API now returns **every active institution type**, including newly created types that do not yet have a checklist.
+- A newly added type appears in Inspection Checklists as **No checklist configured — create one now** rather than disappearing because it has no template yet.
+- Super Admin/National Admin can create the first checklist version for that new type, choose whether inspection is required, and define the BOOLEAN/TEXT/NUMBER checklist items.
+- The inspection assignment workflow already resolves the active checklist by InstitutionType ID, so the newly configured type automatically participates in inspection assignment, checklist snapshotting, required-response validation, findings and PASS/FAIL/CONDITIONAL decisions.
+- License inspection reuses the same organization-type policy, so licensing for a newly configured type follows its checklist requirement as well.
+- Existing inspections retain their immutable checklist snapshot/version when a new checklist version is published.
+
+This closes the previously identified extensibility gap: adding a new institution type no longer requires adding a hard-coded inspection checklist to the application.
+
+
+## Phase 8 — Durable events and notifications (2026-10-03)
+
+Implementation started on the existing reconciliation branch.
+
+Implemented:
+- Durable `OutboxEvent` persistence with a stable `eventId` equal to the source audit-log ID and a unique source-audit relationship.
+- Explicit outbox processing state: `PENDING → PROCESSING → PROCESSED/FAILED`, attempt count, availability time, lock time, completion time and last error.
+- `NotificationDelivery` as a first-class per-recipient/per-channel delivery record with a database uniqueness key across event, recipient and channel.
+- Persisted delivery state and retry metadata for IN_APP, EMAIL and SMS, including attempt count, next retry time, processing time, sent time and provider error.
+- Exponential retry backoff with a bounded maximum of eight delivery attempts.
+- Idempotent outbox materialization and delivery creation using database unique constraints and `skipDuplicates`.
+- Existing in-app notification history remains available to the recipient; Super Admin now has delivery summary, outbox history and failed-delivery monitoring endpoints/UI.
+- Existing Resend and AfroMessage adapters are reused by the durable delivery worker rather than introducing a second provider stack.
+- Dispatcher now runs as a durable polling worker instead of relying on an in-memory-only notification send path.
+- Added unit coverage for stable event IDs, idempotent outbox materialization and persisted delivery processing.
+
+Important implementation boundary:
+- Existing business workflows already write durable AuditLog records. Phase 8 materializes the notification-worthy audit records into the durable outbox using the audit-log UUID as the stable event ID. This gives the notification pipeline a persistent replay/retry boundary without changing every existing business transaction in one large migration.
+- Provider delivery remains asynchronous. A provider outage therefore leaves a persisted delivery record and retry state instead of losing the notification request.
+
+Validation status:
+- Prisma migration/type generation, typecheck, lint, unit tests and acceptance tests have **not yet been run after these Phase 8 changes** in the current environment.
+- Phase 8 must not be marked release-complete until those gates are executed and any generated-client/schema issues are corrected.
+
+
+## 2026-10-03 — Phase 8 Durable Events & Notifications — IMPLEMENTED / VALIDATION PENDING
+
+Phase 8 builds on the existing M9 notification architecture and replaces best-effort recent audit polling with a durable, retryable delivery pipeline.
+
+Implemented on the current reconciliation branch:
+
+- Durable outbox: notification-worthy audit events are materialized into OutboxEvent records. The audit-log UUID is reused as the stable eventId, with a unique source-audit-log constraint preventing duplicate event creation.
+- Processing state: outbox events track PENDING → PROCESSING → PROCESSED/FAILED, attempt counts, availability time, lock time and the last processing error.
+- Idempotent delivery records: each event/recipient/channel combination has one NotificationDelivery row protected by a database unique constraint.
+- Channel retry state: delivery records track PENDING → PROCESSING → SENT/FAILED, attempts, next retry time, processing start time, provider message ID and last error.
+- Retry/backoff: failed deliveries use bounded exponential retry scheduling and stale PROCESSING work is recovered after ten minutes. Eight attempts are retained as the terminal retry boundary.
+- Notification history: each durable delivery is linked to the persisted Notification record; recipient history remains available through the existing notification API and Super Admin delivery-history monitoring.
+- Provider idempotency: email deliveries pass the stable delivery UUID as the Resend idempotency key. Internal database uniqueness prevents duplicate delivery jobs; SMS remains retryable while provider-level duplicate suppression depends on the SMS provider contract.
+- Monitoring: Super Admin endpoints and the notification settings workspace now expose outbox status, delivery status, recent sent history and failed-delivery retry details.
+- Existing business notifications: registration, institution application, licensing, membership and credential events continue to use the same recipient-resolution and template system, now backed by durable delivery state.
+- Schema repair: the Phase 8 relation between AuditLog and OutboxEvent is explicit, and the duplicate User.membershipHistory relation introduced during earlier increments was removed.
+
+Migration:
+- prisma/migrations/20261003190000_phase8_durable_events_notifications/migration.sql
+
+Validation:
+- Prisma validation/generation, migration deployment, typecheck, lint, production build and the Phase 8 Playwright acceptance gate have not been executed after these latest Phase 8 changes in this environment.
+- Therefore Phase 8 is recorded as implemented but not validated/released.
+
+Next action:
+- Run Prisma validation/generation and migration deployment first; then typecheck/lint/unit tests, production build and the dedicated Phase 8 E2E. Fix only actual gate failures and record each remediation before moving to Phase 9.
+
+
+## 2026-10-03 — Phase 9 Queue/Reporting Hardening — IN PROGRESS / VALIDATION PENDING
+
+Implemented in this increment:
+- Review queue jurisdiction filtering is now applied directly to the database `where` clause for region, zone/city, subcity/town, district and institution scopes instead of fetching a broad queue and filtering each row afterward.
+- Review queue pagination now has explicit `page`, `pageSize`, `total` and `totalPages` semantics.
+- Combined individual/institution queues use per-source database pagination and a deterministic age ordering before the final page slice; source totals are combined for the reported count.
+- Queue records expose `ageHours`, and the reviewer workspace displays a queue-age/SLA indicator.
+- Review workspace consumes the new pagination contract and exposes Previous/Next controls.
+
+Still required before Phase 9 can be marked complete:
+- harden the payment queue with the same database-side jurisdiction predicate and correct count semantics;
+- add payment reconciliation reporting;
+- add application throughput and correction/rejection reports;
+- add reviewer workload reporting;
+- add authorized, auditable audit-log exports;
+- add report/queue acceptance coverage;
+- run Prisma/typecheck/lint/build/E2E validation.
+
+Phase 9 remains **implemented in part, not release-ready**.
+
+
+## 2026-10-03 — Phase 9 Queue/Reporting Hardening — IMPLEMENTED / VALIDATION PENDING
+
+Implemented:
+
+- Reviewer queue jurisdiction constraints remain enforced directly in database queries using the user's jurisdiction scope.
+- Unified reviewer queue pagination/count semantics were corrected: individual and institution queues are fetched in a deterministic common ordering, merged, then the requested global page is sliced; totals are independently counted.
+- Queue records now expose age/SLA indicators and the queue accepts a bounded configurable SLA threshold.
+- Added operational queue SLA reporting with open totals, overdue totals and status breakdown.
+- Added payment reconciliation reporting by payment status/method and date/jurisdiction scope.
+- Added application throughput reporting by application status plus correction/rejection metrics.
+- Added reviewer workload reporting for authorized reviewer/inspector actors.
+- Added Super Admin-only audit CSV export with action/entity/date filters.
+- Audit export generation itself is recorded as an audit event.
+- Added reporting UI sections for SLA, payment reconciliation and reviewer workload.
+- CSV export values are escaped to reduce spreadsheet formula/CSV injection risk.
+
+New report endpoints: /reports/queue-sla, /reports/throughput, /reports/payment-reconciliation, /reports/reviewer-workload, /reports/audit-export.
+
+Validation remains pending. Prisma validation/generation, migration deployment, typecheck, lint, unit tests, production build and E2E have not been run after the Phase 9 changes. Phase 9 is therefore implemented but not release-validated.

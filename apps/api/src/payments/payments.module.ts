@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthGuard } from '../auth/auth.guard';
 import { AuthService } from '../auth/auth.service';
 import { AuthorizationService } from '../auth/authorization.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { RolesGuard } from '../auth/roles.guard';
 import { PrismaService } from '../prisma.service';
 import { PaymentsController } from './payments.controller';
@@ -17,6 +18,7 @@ import { PaymentSettingsService } from './payment-settings.service';
     PrismaService,
     AuthService,
     AuthorizationService,
+    NotificationsService,
     AuthGuard,
     RolesGuard,
   ],

@@ -4,7 +4,7 @@ import { CredentialsService } from '../src/credentials/credentials.service';
 describe('Credential notification event', () => {
   it('emits in-app, email, and SMS notifications when an institution credential is issued', async () => {
     const prisma = {
-      institution: { findUnique: jest.fn().mockResolvedValue({ id: 'i1', status: 'ACTIVE' }) },
+      institution: { findUnique: jest.fn().mockResolvedValue({ id: 'i1', status: 'ACTIVE', type: { id: 'type-1', code: 'MOSQUE', name: 'Mosque' } }) },
       credential: {
         findFirst: jest.fn().mockResolvedValue(null),
         findUnique: jest.fn().mockResolvedValue(null),
