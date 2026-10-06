@@ -1,0 +1,136 @@
+name: Deploy to Emerald Passenger
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches:
+      - main
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Download production artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: eiasc-cril-release-${{ github.event.workflow_run.head_sha }}
+          path: ./release-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Verify artifact
+        run: |
+          set -euo pipefail
+          test -f "release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz"
+          tar -tzf "release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz" >/dev/null
+
+      - name: Prepare remote deployment directory
+        uses: appleboy/ssh-action@v1
+        env:
+          DEPLOY_ROOT: /home/aslaldzn/deployments/eiasc-cril
+        with:
+          host: ${{ secrets.EMERALD_SSH_HOST }}
+          username: ${{ secrets.EMERALD_SSH_USER }}
+          key: ${{ secrets.EMERALD_SSH_KEY }}
+          port: ${{ secrets.EMERALD_SSH_PORT }}
+          fingerprint: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
+          command_timeout: 2m
+          envs: DEPLOY_ROOT
+          script: |
+            set -euo pipefail
+            mkdir -p "$DEPLOY_ROOT"
+
+      - name: Upload production artifact to Emerald
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.EMERALD_SSH_HOST }}
+          username: ${{ secrets.EMERALD_SSH_USER }}
+          key: ${{ secrets.EMERALD_SSH_KEY }}
+          port: ${{ secrets.EMERALD_SSH_PORT }}
+          fingerprint: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
+          source: release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz
+          target: /home/aslaldzn/deployments/eiasc-cril/
+          overwrite: true
+
+      - name: Install release, migrate database, switch files, restart Passenger
+        uses: appleboy/ssh-action@v1
+        env:
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        with:
+          host: ${{ secrets.EMERALD_SSH_HOST }}
+          username: ${{ secrets.EMERALD_SSH_USER }}
+          key: ${{ secrets.EMERALD_SSH_KEY }}
+          port: ${{ secrets.EMERALD_SSH_PORT }}
+          fingerprint: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
+          command_timeout: 15m
+          envs: RELEASE_SHA
+          script: |
+            set -euo pipefail
+
+            APP_DIR="/home/aslaldzn/domains/projects.aslaldigital.com/EIASC-CRil"
+            DEPLOY_ROOT="/home/aslaldzn/deployments/eiasc-cril"
+            ARCHIVE="$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
+            RELEASE_DIR="$APP_DIR/.releases/$RELEASE_SHA"
+
+            test -s "$ARCHIVE"
+            test -f "$APP_DIR/.env"
+            mkdir -p "$RELEASE_DIR"
+            tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
+            cp "$APP_DIR/.env" "$RELEASE_DIR/.env"
+            chmod 600 "$RELEASE_DIR/.env"
+
+            if [ -x /opt/cpanel/ea-nodejs22/bin/node ]; then
+              export PATH="/opt/cpanel/ea-nodejs22/bin:$PATH"
+            fi
+            command -v node
+            command -v npm
+            node -v
+            npm -v
+
+            cd "$RELEASE_DIR"
+            npm ci --include=dev
+            npm run db:generate
+            npm run db:deploy
+            npm prune --omit=dev
+
+            test -f server.js
+            test -f apps/api/dist/main.js
+            test -f apps/web/.next/standalone/apps/web/server.js
+
+            mkdir -p "$APP_DIR/tmp" "$APP_DIR/.releases"
+            rsync -a --delete \
+              --exclude='.env' \
+              --exclude='tmp/' \
+              --exclude='.releases/' \
+              "$RELEASE_DIR/" "$APP_DIR/"
+
+            rm -f "$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
+            find "$APP_DIR/.releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | xargs -r rm -rf
+            touch "$APP_DIR/tmp/restart.txt"
+
+            echo "Passenger restart requested for release $RELEASE_SHA"
+            echo "Application root: $APP_DIR"
+
+      - name: Public production smoke test
+        env:
+          WEB_URL: ${{ secrets.PRODUCTION_WEB_URL }}
+        run: |
+          set -euo pipefail
+          WEB_URL="${WEB_URL%/}"
+          test -n "$WEB_URL"
+          curl --fail --silent --show-error --location --max-time 30 "$WEB_URL/" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "$WEB_URL/login" >/dev/null
+          curl --fail --silent --show-error --location --max-time 30 "$WEB_URL/api/v1/health" >/dev/null
+          echo "Production smoke test passed for $WEB_URL"
