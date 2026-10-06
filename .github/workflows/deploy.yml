@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Download production artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: eiasc-cril-release-${{ github.event.workflow_run.head_sha }}
           path: ./release-artifact
@@ -96,8 +96,14 @@ jobs:
             fi
             command -v node
             command -v npm
-            node -v
-            npm -v
+            NODE_VERSION="$(node -p 'process.versions.node')"
+            NODE_MAJOR="${NODE_VERSION%%.*}"
+            if [ "$NODE_MAJOR" -lt 20 ]; then
+              echo "ERROR: Node.js 20+ is required; found $NODE_VERSION"
+              exit 1
+            fi
+            echo "Using Node.js $NODE_VERSION"
+            echo "Using npm $(npm -v)"
 
             cd "$RELEASE_DIR"
             npm ci --include=dev
@@ -126,6 +132,7 @@ jobs:
             rm -f "$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
             find "$APP_DIR/.releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | xargs -r rm -rf
             touch "$APP_DIR/tmp/restart.txt"
+            sleep 5
 
             echo "Passenger restart requested for release $RELEASE_SHA"
             echo "Application root: $APP_DIR"
