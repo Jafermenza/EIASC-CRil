@@ -110,11 +110,18 @@ jobs:
             test -f apps/web/.next/standalone/apps/web/server.js
 
             mkdir -p "$APP_DIR/tmp" "$APP_DIR/.releases"
-            rsync -a --delete \
-              --exclude='.env' \
-              --exclude='tmp/' \
-              --exclude='.releases/' \
-              "$RELEASE_DIR/" "$APP_DIR/"
+            if command -v rsync >/dev/null 2>&1; then
+              rsync -a --delete \
+                --exclude='.env' \
+                --exclude='tmp/' \
+                --exclude='.releases/' \
+                "$RELEASE_DIR/" "$APP_DIR/"
+            else
+              find "$APP_DIR" -mindepth 1 -maxdepth 1 \
+                ! -name '.env' ! -name 'tmp' ! -name '.releases' \
+                -exec rm -rf {} +
+              cp -a "$RELEASE_DIR"/. "$APP_DIR"/
+            fi
 
             rm -f "$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
             find "$APP_DIR/.releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | xargs -r rm -rf
