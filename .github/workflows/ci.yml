@@ -76,3 +76,39 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Prepare production artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          test -f server.js
+          test -f apps/api/dist/main.js
+          test -f apps/web/.next/BUILD_ID
+          test -f apps/web/.next/standalone/apps/web/server.js
+          mkdir -p apps/web/.next/standalone/apps/web/.next
+          rm -rf apps/web/.next/standalone/apps/web/.next/static
+          cp -a apps/web/.next/static apps/web/.next/standalone/apps/web/.next/static
+          if [ -d apps/web/public ]; then
+            rm -rf apps/web/.next/standalone/apps/web/public
+            cp -a apps/web/public apps/web/.next/standalone/apps/web/public
+          fi
+          tar -czf "eiasc-cril-${GITHUB_SHA}.tar.gz" \
+            --exclude='./.git' \
+            --exclude='./node_modules' \
+            --exclude='./apps/web/.next/cache' \
+            package.json package-lock.json server.js \
+            apps/api/dist apps/api/package.json \
+            apps/web/.next apps/web/package.json \
+            prisma scripts packages
+
+      - name: Upload production artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eiasc-cril-release-${{ github.sha }}
+          path: eiasc-cril-${{ github.sha }}.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
