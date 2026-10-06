@@ -36,106 +36,133 @@ jobs:
           test -f "release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz"
           tar -tzf "release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz" >/dev/null
 
-      - name: Prepare remote deployment directory
-        uses: appleboy/ssh-action@v1
+      - name: Configure and verify Emerald SSH
         env:
-          DEPLOY_ROOT: /home/aslaldzn/deployments/eiasc-cril
-        with:
-          host: ${{ secrets.EMERALD_SSH_HOST }}
-          username: ${{ secrets.EMERALD_SSH_USER }}
-          key: ${{ secrets.EMERALD_SSH_KEY }}
-          port: ${{ secrets.EMERALD_SSH_PORT }}
-          fingerprint: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
-          command_timeout: 2m
-          envs: DEPLOY_ROOT
-          script: |
-            set -euo pipefail
-            mkdir -p "$DEPLOY_ROOT"
+          EMERALD_SSH_HOST: ${{ secrets.EMERALD_SSH_HOST }}
+          EMERALD_SSH_PORT: ${{ secrets.EMERALD_SSH_PORT }}
+          EMERALD_SSH_KEY: ${{ secrets.EMERALD_SSH_KEY }}
+          EMERALD_SSH_FINGERPRINT: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p "$HOME/.ssh"
+
+          test -n "$EMERALD_SSH_HOST"
+          test -n "$EMERALD_SSH_PORT"
+          test -n "$EMERALD_SSH_KEY"
+          test -n "$EMERALD_SSH_FINGERPRINT"
+
+          printf '%s\n' "$EMERALD_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+
+          SCANNED_KEY="$(ssh-keyscan -T 10 -p "$EMERALD_SSH_PORT" -t ed25519 "$EMERALD_SSH_HOST" 2>/dev/null)"
+          test -n "$SCANNED_KEY"
+
+          ACTUAL_FINGERPRINT="$(printf '%s\n' "$SCANNED_KEY" | ssh-keygen -lf - -E sha256 | awk '{print $2}')"
+          printf 'Emerald SSH fingerprint: [%s]\n' "$ACTUAL_FINGERPRINT"
+
+          if [ "$ACTUAL_FINGERPRINT" != "$EMERALD_SSH_FINGERPRINT" ]; then
+            echo "ERROR: Emerald SSH host fingerprint mismatch."
+            echo "Expected: [$EMERALD_SSH_FINGERPRINT]"
+            echo "Actual:   [$ACTUAL_FINGERPRINT]"
+            exit 1
+          fi
+
+          printf '%s\n' "$SCANNED_KEY" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          ssh-keygen -F "$EMERALD_SSH_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null
+
+      - name: Prepare remote deployment directory
+        env:
+          EMERALD_SSH_HOST: ${{ secrets.EMERALD_SSH_HOST }}
+          EMERALD_SSH_PORT: ${{ secrets.EMERALD_SSH_PORT }}
+          EMERALD_SSH_USER: ${{ secrets.EMERALD_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh             -i "$HOME/.ssh/id_ed25519"             -p "$EMERALD_SSH_PORT"             -o BatchMode=yes             -o IdentitiesOnly=yes             -o StrictHostKeyChecking=yes             -o ConnectTimeout=30             "$EMERALD_SSH_USER@$EMERALD_SSH_HOST"             'mkdir -p /home/aslaldzn/deployments/eiasc-cril'
 
       - name: Upload production artifact to Emerald
-        uses: appleboy/scp-action@v1
-        with:
-          host: ${{ secrets.EMERALD_SSH_HOST }}
-          username: ${{ secrets.EMERALD_SSH_USER }}
-          key: ${{ secrets.EMERALD_SSH_KEY }}
-          port: ${{ secrets.EMERALD_SSH_PORT }}
-          fingerprint: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
-          source: release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz
-          target: /home/aslaldzn/deployments/eiasc-cril/
-          overwrite: true
+        env:
+          EMERALD_SSH_HOST: ${{ secrets.EMERALD_SSH_HOST }}
+          EMERALD_SSH_PORT: ${{ secrets.EMERALD_SSH_PORT }}
+          EMERALD_SSH_USER: ${{ secrets.EMERALD_SSH_USER }}
+        run: |
+          set -euo pipefail
+          scp             -i "$HOME/.ssh/id_ed25519"             -P "$EMERALD_SSH_PORT"             -o BatchMode=yes             -o IdentitiesOnly=yes             -o StrictHostKeyChecking=yes             -o ConnectTimeout=30             "release-artifact/eiasc-cril-${{ github.event.workflow_run.head_sha }}.tar.gz"             "$EMERALD_SSH_USER@$EMERALD_SSH_HOST:/home/aslaldzn/deployments/eiasc-cril/"
 
       - name: Install release, migrate database, switch files, restart Passenger
-        uses: appleboy/ssh-action@v1
         env:
+          EMERALD_SSH_HOST: ${{ secrets.EMERALD_SSH_HOST }}
+          EMERALD_SSH_PORT: ${{ secrets.EMERALD_SSH_PORT }}
+          EMERALD_SSH_USER: ${{ secrets.EMERALD_SSH_USER }}
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
-        with:
-          host: ${{ secrets.EMERALD_SSH_HOST }}
-          username: ${{ secrets.EMERALD_SSH_USER }}
-          key: ${{ secrets.EMERALD_SSH_KEY }}
-          port: ${{ secrets.EMERALD_SSH_PORT }}
-          fingerprint: ${{ secrets.EMERALD_SSH_FINGERPRINT }}
-          command_timeout: 15m
-          envs: RELEASE_SHA
-          script: |
-            set -euo pipefail
+        run: |
+          set -euo pipefail
 
-            APP_DIR="/home/aslaldzn/domains/projects.aslaldigital.com/EIASC-CRil"
-            DEPLOY_ROOT="/home/aslaldzn/deployments/eiasc-cril"
-            ARCHIVE="$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
-            RELEASE_DIR="$APP_DIR/.releases/$RELEASE_SHA"
+          ssh             -i "$HOME/.ssh/id_ed25519"             -p "$EMERALD_SSH_PORT"             -o BatchMode=yes             -o IdentitiesOnly=yes             -o StrictHostKeyChecking=yes             -o ConnectTimeout=30             "$EMERALD_SSH_USER@$EMERALD_SSH_HOST"             "RELEASE_SHA=$RELEASE_SHA bash -s" <<'REMOTE_SCRIPT'
+          set -euo pipefail
 
-            test -s "$ARCHIVE"
-            test -f "$APP_DIR/.env"
-            mkdir -p "$RELEASE_DIR"
-            tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
-            cp "$APP_DIR/.env" "$RELEASE_DIR/.env"
-            chmod 600 "$RELEASE_DIR/.env"
+          APP_DIR="/home/aslaldzn/domains/projects.aslaldigital.com/EIASC-CRil"
+          DEPLOY_ROOT="/home/aslaldzn/deployments/eiasc-cril"
+          ARCHIVE="$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
+          RELEASE_DIR="$APP_DIR/.releases/$RELEASE_SHA"
 
-            if [ -x /opt/cpanel/ea-nodejs22/bin/node ]; then
-              export PATH="/opt/cpanel/ea-nodejs22/bin:$PATH"
-            fi
-            command -v node
-            command -v npm
-            NODE_VERSION="$(node -p 'process.versions.node')"
-            NODE_MAJOR="${NODE_VERSION%%.*}"
-            if [ "$NODE_MAJOR" -lt 20 ]; then
-              echo "ERROR: Node.js 20+ is required; found $NODE_VERSION"
-              exit 1
-            fi
-            echo "Using Node.js $NODE_VERSION"
-            echo "Using npm $(npm -v)"
+          test -s "$ARCHIVE"
+          test -f "$APP_DIR/.env"
+          mkdir -p "$RELEASE_DIR"
+          tar -xzf "$ARCHIVE" -C "$RELEASE_DIR"
+          cp "$APP_DIR/.env" "$RELEASE_DIR/.env"
+          chmod 600 "$RELEASE_DIR/.env"
 
-            cd "$RELEASE_DIR"
-            npm ci --include=dev
-            npm run db:generate
-            npm run db:deploy
-            npm prune --omit=dev
+          if [ -x /opt/cpanel/ea-nodejs22/bin/node ]; then
+            export PATH="/opt/cpanel/ea-nodejs22/bin:$PATH"
+          fi
+          command -v node
+          command -v npm
+          NODE_VERSION="$(node -p 'process.versions.node')"
+          NODE_MAJOR="${NODE_VERSION%%.*}"
+          if [ "$NODE_MAJOR" -lt 20 ]; then
+            echo "ERROR: Node.js 20+ is required; found $NODE_VERSION"
+            exit 1
+          fi
+          echo "Using Node.js $NODE_VERSION"
+          echo "Using npm $(npm -v)"
 
-            test -f server.js
-            test -f apps/api/dist/main.js
-            test -f apps/web/.next/standalone/apps/web/server.js
+          cd "$RELEASE_DIR"
+          npm ci --include=dev
+          npm run db:generate
+          npm run db:deploy
+          npm prune --omit=dev
 
-            mkdir -p "$APP_DIR/tmp" "$APP_DIR/.releases"
-            if command -v rsync >/dev/null 2>&1; then
-              rsync -a --delete \
-                --exclude='.env' \
-                --exclude='tmp/' \
-                --exclude='.releases/' \
-                "$RELEASE_DIR/" "$APP_DIR/"
-            else
-              find "$APP_DIR" -mindepth 1 -maxdepth 1 \
-                ! -name '.env' ! -name 'tmp' ! -name '.releases' \
-                -exec rm -rf {} +
-              cp -a "$RELEASE_DIR"/. "$APP_DIR"/
-            fi
+          test -f server.js
+          test -f apps/api/dist/main.js
+          test -f apps/web/.next/standalone/apps/web/server.js
 
-            rm -f "$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
-            find "$APP_DIR/.releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | xargs -r rm -rf
-            touch "$APP_DIR/tmp/restart.txt"
-            sleep 5
+          mkdir -p "$APP_DIR/tmp" "$APP_DIR/.releases"
+          if command -v rsync >/dev/null 2>&1; then
+            rsync -a --delete \
+              --exclude='.env' \
+              --exclude='tmp/' \
+              --exclude='.releases/' \
+              "$RELEASE_DIR/" "$APP_DIR/"
+          else
+            find "$APP_DIR" -mindepth 1 -maxdepth 1 \
+              ! -name '.env' ! -name 'tmp' ! -name '.releases' \
+              -exec rm -rf {} +
+            cp -a "$RELEASE_DIR"/. "$APP_DIR"/
+          fi
 
-            echo "Passenger restart requested for release $RELEASE_SHA"
-            echo "Application root: $APP_DIR"
+          rm -f "$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
+          find "$APP_DIR/.releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | xargs -r rm -rf
+          touch "$APP_DIR/tmp/restart.txt"
+          sleep 5
+
+          echo "Passenger restart requested for release $RELEASE_SHA"
+          echo "Application root: $APP_DIR"
+          REMOTE_SCRIPT
 
       - name: Public production smoke test
         env:
