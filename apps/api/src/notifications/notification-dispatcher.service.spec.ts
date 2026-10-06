@@ -17,6 +17,7 @@ describe('NotificationDispatcherService', () => {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+        upsert: jest.fn().mockResolvedValue({}),
         ...notificationDeliveryOverrides,
       },
       license: { findUnique: jest.fn() },
@@ -43,7 +44,7 @@ describe('NotificationDispatcherService', () => {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         update: jest.fn().mockResolvedValue({}),
       },
-      notificationDelivery: { createMany: jest.fn().mockResolvedValue({ count: 3 }), findMany: jest.fn().mockResolvedValue([]) },
+      notificationDelivery: { findMany: jest.fn().mockResolvedValue([]) },
     });
     prisma.license.findUnique.mockResolvedValue({ institutionId: 'institution-1' });
     prisma.user.findMany.mockResolvedValue([{ id: 'user-1' }]);
@@ -54,9 +55,9 @@ describe('NotificationDispatcherService', () => {
       skipDuplicates: true,
       data: [expect.objectContaining({ eventId: 'audit-1', sourceAuditLogId: 'audit-1' })],
     }));
-    expect(prisma.notificationDelivery.createMany).toHaveBeenCalledWith(expect.objectContaining({
-      skipDuplicates: true,
-      data: expect.arrayContaining([
+    expect(prisma.notificationDelivery.upsert).toHaveBeenCalledTimes(3);
+    expect(prisma.notificationDelivery.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { outboxEventId_recipientId_channel: { outboxEventId: 'outbox-1', recipientId: 'user-1', channel: 'IN_APP' } },
         expect.objectContaining({ outboxEventId: 'outbox-1', recipientId: 'user-1', channel: 'IN_APP' }),
         expect.objectContaining({ outboxEventId: 'outbox-1', recipientId: 'user-1', channel: 'EMAIL' }),
         expect.objectContaining({ outboxEventId: 'outbox-1', recipientId: 'user-1', channel: 'SMS' }),
@@ -78,7 +79,8 @@ describe('NotificationDispatcherService', () => {
     const { service, notifications, prisma } = makeService({
       notificationDelivery: {
         createMany: jest.fn(),
-        findMany: jest.fn().mockResolvedValue([{ id: 'delivery-1' }]),
+        findMany: jest.fn().mockResolvedValue([{ id: 'delivery-1', status: 'PENDING', attempts: 0, notificationId: 'notification-1' }]),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
     });
 
