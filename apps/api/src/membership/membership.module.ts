@@ -12,5 +12,6 @@ import { MembershipService } from './membership.service';
   imports: [NotificationsModule],
   controllers: [MembershipController],
   providers: [MembershipService, PrismaService, AuthorizationService, AuthService, AuthGuard, RolesGuard],
+  exports: [MembershipService],
 })
 export class MembershipModule {}
