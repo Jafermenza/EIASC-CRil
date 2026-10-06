@@ -134,8 +134,16 @@ jobs:
           cd "$RELEASE_DIR"
           npm ci --include=dev
           npm run db:generate
+
+          test -f node_modules/.prisma/client/libquery_engine-debian-openssl-1.0.x.so.node
+          test -f node_modules/.prisma/client/libquery_engine-debian-openssl-1.1.x.so.node
+          echo "Prisma production engines: OK"
+
           npm run db:deploy
           npm prune --omit=dev
+
+          test -f node_modules/.prisma/client/libquery_engine-debian-openssl-1.0.x.so.node
+          test -f node_modules/.prisma/client/libquery_engine-debian-openssl-1.1.x.so.node
 
           test -f server.js
           test -f apps/api/dist/main.js
@@ -158,7 +166,32 @@ jobs:
           rm -f "$DEPLOY_ROOT/eiasc-cril-$RELEASE_SHA.tar.gz"
           find "$APP_DIR/.releases" -mindepth 1 -maxdepth 1 -type d | sort | head -n -3 | xargs -r rm -rf
           touch "$APP_DIR/tmp/restart.txt"
-          sleep 5
+
+          echo "Waiting for Passenger to start API and web services..."
+          for attempt in $(seq 1 12); do
+            API_OK=0
+            WEB_OK=0
+            if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:4000/api/v1/health >/dev/null 2>&1; then
+              API_OK=1
+            fi
+            if curl --fail --silent --show-error --max-time 3 http://127.0.0.1:3000/ >/dev/null 2>&1; then
+              WEB_OK=1
+            fi
+            if [ "$API_OK" -eq 1 ] && [ "$WEB_OK" -eq 1 ]; then
+              echo "Passenger local smoke: PASS"
+              break
+            fi
+            echo "Passenger local smoke: waiting (attempt $attempt/12, API=$API_OK, WEB=$WEB_OK)"
+            sleep 5
+            if [ "$attempt" -eq 12 ]; then
+              echo "ERROR: Passenger services did not become healthy."
+              echo "=== PROCESS CHECK ==="
+              pgrep -af 'node|server.js' || true
+              echo "=== STDERR LOG ==="
+              tail -n 120 "$APP_DIR/stderr.log" 2>/dev/null || true
+              exit 1
+            fi
+          done
 
           echo "Passenger restart requested for release $RELEASE_SHA"
           echo "Application root: $APP_DIR"
@@ -171,6 +204,13 @@ jobs:
           set -euo pipefail
           WEB_URL="${WEB_URL%/}"
           test -n "$WEB_URL"
+
+          case "$WEB_URL" in
+            */CRil) ;;
+            *) WEB_URL="$WEB_URL/CRil" ;;
+          esac
+
+          echo "Testing production application: $WEB_URL"
           curl --fail --silent --show-error --location --max-time 30 "$WEB_URL/" >/dev/null
           curl --fail --silent --show-error --location --max-time 30 "$WEB_URL/login" >/dev/null
           curl --fail --silent --show-error --location --max-time 30 "$WEB_URL/api/v1/health" >/dev/null
