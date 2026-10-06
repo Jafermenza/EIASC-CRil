@@ -37,6 +37,11 @@ export class NotificationDispatcherService implements OnModuleInit, OnModuleDest
       await this.createPendingDeliveries();
       await this.processDeliveries();
       await this.reconcileOutbox();
+    } catch (error) {
+      // A notification cycle is background work. A transient database/provider
+      // failure must never terminate the API process or Passenger application.
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[NotificationDispatcher] cycle failed; will retry on next cycle:', message);
     } finally {
       this.running = false;
     }
