@@ -3,8 +3,9 @@ import { NotificationDispatcherService } from './notification-dispatcher.service
 
 describe('NotificationDispatcherService', () => {
   function makeService(overrides: Record<string, unknown> = {}) {
+    const notificationDeliveryOverrides = (overrides.notificationDelivery ?? {}) as object;
     const prisma = {
-      auditLog: { findMany: jest.fn().mockResolvedValue([]) },
+      auditLog: { findMany: jest.fn().mockResolvedValue([]), ...overrides.auditLog as object },
       outboxEvent: {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
@@ -16,7 +17,7 @@ describe('NotificationDispatcherService', () => {
         createMany: jest.fn().mockResolvedValue({ count: 0 }),
         findMany: jest.fn().mockResolvedValue([]),
         updateMany: jest.fn().mockResolvedValue({ count: 0 }),
-        ...overrides.notificationDelivery as object,
+        ...notificationDeliveryOverrides,
       },
       license: { findUnique: jest.fn() },
       user: { findMany: jest.fn().mockResolvedValue([]), findFirst: jest.fn(), findUnique: jest.fn().mockResolvedValue({ email: 'user@example.test', phone: '+251900000000' }) },
