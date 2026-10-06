@@ -101,7 +101,7 @@ jobs:
             package.json package-lock.json server.js \
             apps/api/dist apps/api/package.json \
             apps/web/.next apps/web/package.json \
-            prisma scripts packages
+            prisma scripts
 
       - name: Upload production artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
